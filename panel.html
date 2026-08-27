@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ZoarKids 360 - Panel de Control</title>
-    <link rel="stylesheet" href="panel.css?v=13.0">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="stylesheet" href="panel.css?v=16.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body, html {
@@ -34,7 +36,7 @@
     <aside id="menu-lateral">
         <div class="cuerpo-superior-sidebar">
             <div class="marca-app">
-                <img src="logo.png" alt="ZoarKids" class="logo-mini" onerror="this.style.display='none'">
+                <div style="width:35px; height:35px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#2575fc;">ZK</div>
                 <h3>ZoarKids 360</h3>
             </div>
             <div class="menu-items" id="menu-principal">
@@ -291,33 +293,54 @@
                         </button>
                     </div>
 
-                    <!-- MANUAL DE USO -->
+                    <!-- MANUAL DE USO CON SCROLL -->
                     <div id="manual-uso-container" style="display:none; margin-top:30px; border-top:2px dashed #eee; padding-top:25px;">
                         <h3><i class="fa-solid fa-book" style="color:#2575fc;"></i> Manual de Uso - ZoarKids 360</h3>
                         <div class="manual-contenido">
                             <div class="manual-seccion">
                                 <h4><i class="fa-solid fa-arrow-right-to-bracket"></i> 1. Inicio de Sesión</h4>
-                                <p>Ingresa con tu correo <strong>@iglesiazoarsv.org</strong> y tu contraseña asignada.</p>
+                                <p>Ingresa con tu correo <strong>@iglesiazoarsv.org</strong> y tu contraseña asignada. Después de 2 intentos fallidos, el sistema se bloquea por 1 minuto.</p>
                             </div>
                             <div class="manual-seccion">
                                 <h4><i class="fa-solid fa-calendar-check"></i> 2. Cronograma de Turnos</h4>
-                                <p>Verás los maestros asignados a cada sección para el próximo domingo.</p>
+                                <p>En la pantalla de inicio verás los maestros asignados a cada sección para el próximo domingo. Como maestro, se te asignará automáticamente tu sección.</p>
                             </div>
                             <div class="manual-seccion">
                                 <h4><i class="fa-solid fa-list-check"></i> 3. Registro de Asistencia</h4>
-                                <p>Los maestros marcan asistencia <strong>SOLO los domingos 3:00 PM - 4:00 PM</strong>. Solo se envía una vez.</p>
+                                <p>Los maestros pueden marcar asistencia <strong>SOLO los domingos entre 3:00 PM y 4:00 PM</strong>. Debes marcar tu presencia como maestro y seleccionar los alumnos presentes. <strong>Solo se puede enviar una vez</strong>.</p>
+                                <p>Si cometiste un error, el botón <strong>"Reportar Asistencia"</strong> cambia a <strong>"Solicitar Edición"</strong>, escribe la justificación y el administrador aprobará o rechazará tu solicitud.</p>
                             </div>
                             <div class="manual-seccion">
                                 <h4><i class="fa-solid fa-user-plus"></i> 4. Gestión de Alumnos (Admin/Pastor)</h4>
-                                <p>Inscribir, editar y eliminar alumnos. Ver todas las secciones.</p>
+                                <p>Los administradores y pastores pueden:</p>
+                                <ul>
+                                    <li><strong>Inscribir</strong> nuevos alumnos (niños de 0 a 12 años, año 2014-2026)</li>
+                                    <li><strong>Editar</strong> nombre, sección o fecha de nacimiento de un alumno</li>
+                                    <li><strong>Eliminar</strong> alumnos del sistema</li>
+                                    <li><strong>Ver todos</strong> los alumnos de todas las secciones</li>
+                                </ul>
                             </div>
                             <div class="manual-seccion">
                                 <h4><i class="fa-solid fa-cloud-arrow-up"></i> 5. Carga de Material</h4>
-                                <p>Sube fotos, PDFs o documentos desde archivo o cámara.</p>
+                                <p>Los maestros pueden subir fotos, PDFs, documentos de Word, Excel o PowerPoint. Puedes tomar la foto directamente desde la cámara o seleccionarla de tus archivos. Solo se permite en días hábiles (no domingos).</p>
+                            </div>
+                            <div class="manual-seccion">
+                                <h4><i class="fa-solid fa-cake-candles"></i> 6. Cumpleañeros del Mes</h4>
+                                <p>En la sección de asistencia, todos los usuarios pueden ver la lista de niños que cumplen años en el mes actual.</p>
+                            </div>
+                            <div class="manual-seccion">
+                                <h4><i class="fa-solid fa-magnifying-glass"></i> 7. Reportes y Auditoría</h4>
+                                <p>Los administradores y pastores pueden ver el historial completo de acciones realizadas en el sistema. También pueden buscar por usuario, acción o fecha.</p>
+                            </div>
+                            <div class="manual-seccion">
+                                <h4><i class="fa-solid fa-circle-question"></i> 8. Ayuda y Sugerencias</h4>
+                                <p>Usa el módulo de ayuda para enviar sugerencias o reportar errores. Tu mensaje llega directamente al administrador.</p>
                             </div>
                             <div class="manual-seccion" style="background:#f0f8ff; border-left-color:#2575fc;">
                                 <h4><i class="fa-solid fa-people-group"></i> Asignación por Parejas</h4>
                                 <p><strong>Primera Infancia:</strong> Marisol y Maribel, Dina y Flor, Yeny y Fernando, Brenda y Claudia, Marí y Jonathan</p>
+                                <p><strong>Medianos:</strong> Flor, Erik, Brenda, Marisol, Jonathan, Dina, Claudia, Marí, Maribel, Yeny</p>
+                                <p><strong>Grandes:</strong> Erik, Dina, Yeny, Flor, Jonathan, Marisol, Claudia, Marí</p>
                             </div>
                         </div>
                     </div>
@@ -351,8 +374,8 @@
                     </select>
                 </div>
                 <div class="campo">
-                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año ≥ 2014)</label>
-                    <input type="date" id="reg-nacimiento" class="input-txt input-moderno" required max="2016-12-31">
+                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año 2014 - 2026)</label>
+                    <input type="date" id="reg-nacimiento" class="input-txt input-moderno" required>
                 </div>
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
                     <button type="button" class="btn-cerrar-modal btn-cancelar" id="btn-cancelar-nino-modal">Cancelar</button>
@@ -391,8 +414,8 @@
                     </select>
                 </div>
                 <div class="campo">
-                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año ≥ 2014)</label>
-                    <input type="date" id="edit-fecha-nacimiento" class="input-txt input-moderno" required max="2016-12-31">
+                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año 2014 - 2026)</label>
+                    <input type="date" id="edit-fecha-nacimiento" class="input-txt input-moderno" required>
                 </div>
                 <button type="submit" class="btn-enviar-clase" style="width:100%;">Actualizar Ficha</button>
             </form>
@@ -487,7 +510,7 @@
                 <i class="fa-solid fa-circle-check" style="font-size:45px; color:#2575fc;"></i>
                 <h3 style="margin-top:8px;">ZoarKids 360</h3>
             </div>
-            <p><strong>Versión:</strong> 13.0.0</p>
+            <p><strong>Versión:</strong> 16.0.0</p>
             <p style="text-align:justify;">Sistema de gestión para la Escuela Dominical de la Iglesia Evangélica Zoar.</p>
             <p style="margin-top:10px; font-weight:bold; color:#1e3799;">Iglesia Zoar - El Salvador, 2026</p>
             <button class="btn-cerrar-modal" id="btn-cerrar-modal-click" style="margin-top:15px; width:100%;">Entendido</button>
@@ -497,6 +520,6 @@
     <!-- NOTIFICACIONES -->
     <div id="notificacion-sistema"></div>
 
-    <script src="panel.js?v=13.0"></script>
+    <script src="panel.js?v=16.0"></script>
 </body>
 </html>
