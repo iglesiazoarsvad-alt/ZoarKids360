@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ZOARKIDS 360 - LÓGICA COMPLETA DEL PANEL (v15.0 - CON SUPABASE)
+   ZOARKIDS 360 - LÓGICA COMPLETA DEL PANEL (v16.0)
    ========================================================================== */
 
 // ============ CONFIGURACIÓN DE SUPABASE ============
@@ -39,7 +39,7 @@ let solicitudEdicionPendiente = false;
 let modoAdminVerTodos = false;
 let archivosSubidos = [];
 
-// ============ NOTIFICACIÓN ============
+// ============ NOTIFICACIÓN CON 30 SEGUNDOS ============
 function mostrarNotificacion(mensaje, tipo = "info") {
     const contenedor = document.getElementById('notificacion-sistema');
     if (!contenedor) {
@@ -78,7 +78,7 @@ function mostrarNotificacion(mensaje, tipo = "info") {
             const cont = document.getElementById('notificacion-sistema');
             if (cont) cont.innerHTML = '';
         }, 500);
-    }, 4000);
+    }, 30000);
 }
 
 // ============ FUNCIÓN PARA LLAMAR A SUPABASE ============
@@ -223,7 +223,7 @@ function registrarDispositivoParaPush() {
 
 function enviarNotificacionPush(titulo, mensaje) {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
-        mostrarNotificacion(`🔔 ${titulo}: ${mensaje}`, "info");
+        mostrarNotificacion(` ${titulo}: ${mensaje}`, "info");
         return;
     }
     try {
@@ -234,9 +234,9 @@ function enviarNotificacionPush(titulo, mensaje) {
             requireInteraction: true
         });
         notif.onclick = function() { window.focus(); this.close(); };
-        setTimeout(() => notif.close(), 10000);
+        setTimeout(() => notif.close(), 30000);
     } catch (e) {
-        mostrarNotificacion(`🔔 ${titulo}: ${mensaje}`, "info");
+        mostrarNotificacion(` ${titulo}: ${mensaje}`, "info");
     }
 }
 
@@ -245,7 +245,6 @@ function verificarTurnoYNotificar() {
     const hoy = new Date();
     const dia = hoy.getDay();
 
-    // Notificar el jueves sobre el turno del domingo
     if (dia === 4) {
         const claveFecha = calcularProximoDomingo();
         const turno = cronogramaOficial2026[claveFecha];
@@ -274,17 +273,30 @@ function verificarTurnoYNotificar() {
                     "grandes": "Grandes (9-12 años)"
                 };
                 enviarNotificacionPush(
-                    'Recordatorio de Turno - ZoarKids 360',
+                    'ZoarKids 360 - Recordatorio de Turno',
                     `${usuarioSesion.nombre}, estás encargado de ${nombresSeccion[seccionEncontrada] || seccionEncontrada} este domingo.`
                 );
             }
+        }
+    }
+
+    if (dia === 0 && hoy.getHours() >= 14 && hoy.getHours() < 15) {
+        if (seccionAsignadaMaestro && seccionAsignadaMaestro !== "admin_total") {
+            const nombresSeccion = {
+                "infancia": "Primera Infancia (1-3 años)",
+                "medianos": "Medianos (4-8 años)",
+                "grandes": "Grandes (9-12 años)"
+            };
+            enviarNotificacionPush(
+                'ZoarKids 360 - Tu turno está próximo',
+                `${usuarioSesion.nombre}, tu clase de ${nombresSeccion[seccionAsignadaMaestro] || seccionAsignadaMaestro} comienza en 1 hora.`
+            );
         }
     }
 }
 
 // ============ INICIALIZACIÓN ============
 window.addEventListener('DOMContentLoaded', async () => {
-    // Prevenir gestos
     document.addEventListener('gesturestart', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
     document.addEventListener('gesturechange', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
     document.addEventListener('gestureend', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
@@ -303,7 +315,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
     }, { passive: false });
 
-    // Recuperar sesión
     const sesionTemporal = sessionStorage.getItem('zk360_usuario_activo');
     const sesionPersistente = localStorage.getItem('zk360_usuario_persistente');
 
@@ -318,32 +329,24 @@ window.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Actualizar UI
     document.getElementById('txt-nombre-usuario').textContent = `${usuarioSesion.nombre} (${usuarioSesion.rol.toUpperCase()})`;
     document.getElementById('avatar-inicial').textContent = usuarioSesion.nombre.charAt(0);
     document.getElementById('perf-nombre').textContent = usuarioSesion.nombre;
     document.getElementById('perf-correo').textContent = `${usuarioSesion.nombre.toLowerCase()}@iglesiazoarsv.org`;
     document.getElementById('perf-rol').textContent = usuarioSesion.rol;
 
-    // Procesar calendario
     procesarAlgoritmoCalendarioKids();
     document.getElementById('perf-seccion').textContent = seccionAsignadaMaestro || "Sin asignación";
 
-    // Configurar menú
     configurarMenuSegunRol();
 
     if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
         document.getElementById('zona-acciones-admin-asistencia').style.display = 'flex';
     }
 
-    // Cargar alumnos desde Supabase
     await cargarAlumnosSegunRol();
-    
-    // Cargar historial
     cargarHistorialAuditoria();
     configurarEventos();
-    
-    // Registrar para notificaciones
     setTimeout(registrarDispositivoParaPush, 3000);
     setTimeout(verificarTurnoYNotificar, 5000);
 });
@@ -402,7 +405,6 @@ function configurarEventos() {
         document.getElementById('pantalla-modal-creditos').classList.remove('activo');
     });
 
-    // Botón subir archivo
     document.getElementById('btn-subir-archivo').addEventListener('click', function() {
         const opciones = document.createElement('div');
         opciones.style.cssText = `
@@ -482,7 +484,6 @@ function configurarEventos() {
         cargarAlumnosSegunRol();
     });
 
-    // MODALES
     document.getElementById('btn-abrir-modal-nuevo-nino').addEventListener('click', () => {
         document.getElementById('modal-registro-niño').classList.add('activo');
     });
@@ -537,7 +538,6 @@ function configurarEventos() {
         document.getElementById('txt-justificacion-edicion').value = '';
     });
 
-    // Búsqueda en reportes
     document.getElementById('input-filtro-reportes').addEventListener('input', function() {
         const termino = this.value.toLowerCase().trim();
         const resultados = document.getElementById('resultados-busqueda-reportes');
@@ -759,7 +759,6 @@ async function cargarAlumnosSegunRol() {
     document.getElementById('asistencia-seccion-actual').textContent = salaAFiltrar === "todos" ? "TODAS LAS SECCIONES" : salaAFiltrar;
 
     try {
-        // Cargar desde Supabase
         let alumnos = await cargarAlumnosDesdeSupabase(salaAFiltrar === "todos" ? null : salaAFiltrar);
         if (!alumnos || alumnos.length === 0) {
             alumnos = [];
@@ -788,7 +787,6 @@ async function cargarAlumnosSegunRol() {
             tabla.appendChild(fila);
         });
 
-        // Configurar botón de asistencia
         const hoy = new Date();
         const hora = hoy.getHours();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
@@ -849,7 +847,7 @@ function mostrarCumpleaneros() {
     modal.classList.add('activo');
 }
 
-// ============ REGISTRAR NUEVO ALUMNO ============
+// ============ REGISTRAR NUEVO ALUMNO (CORREGIDO - PERMITE 2014-2026) ============
 async function registrarNuevoAlumno(form) {
     const nombre = document.getElementById('reg-nombre').value.trim();
     const seccion = document.getElementById('reg-seccion').value;
@@ -861,8 +859,12 @@ async function registrarNuevoAlumno(form) {
     }
 
     const fechaNac = new Date(nacimiento);
-    if (fechaNac.getFullYear() < 2014) {
-        mostrarNotificacion("El alumno debe tener máximo 12 años (año ≥ 2014)", "error");
+    const añoNacimiento = fechaNac.getFullYear();
+    const añoActual = new Date().getFullYear();
+
+    // CORREGIDO: Permite años desde 2014 hasta el año actual (2026)
+    if (añoNacimiento < 2014 || añoNacimiento > añoActual) {
+        mostrarNotificacion(`La fecha debe ser entre 2014 y ${añoActual} (niños de 0 a 12 años)`, "error");
         return;
     }
 
@@ -915,7 +917,7 @@ window.verificarCodigoParaEditar = function() {
     mostrarNotificacion("Alumno encontrado, edita los datos", "success");
 };
 
-// ============ ACTUALIZAR ALUMNO ============
+// ============ ACTUALIZAR ALUMNO (CORREGIDO - PERMITE 2014-2026) ============
 async function actualizarAlumno(form) {
     const nuevoNombre = document.getElementById('edit-nombre-input').value.trim();
     const nuevaSec = document.getElementById('edit-seccion-select').value;
@@ -928,8 +930,12 @@ async function actualizarAlumno(form) {
 
     if (nuevaFecha) {
         const fechaNac = new Date(nuevaFecha);
-        if (fechaNac.getFullYear() < 2014) {
-            mostrarNotificacion("El alumno debe tener máximo 12 años (año ≥ 2014)", "error");
+        const añoNacimiento = fechaNac.getFullYear();
+        const añoActual = new Date().getFullYear();
+
+        // CORREGIDO: Permite años desde 2014 hasta el año actual (2026)
+        if (añoNacimiento < 2014 || añoNacimiento > añoActual) {
+            mostrarNotificacion(`La fecha debe ser entre 2014 y ${añoActual} (niños de 0 a 12 años)`, "error");
             return;
         }
     }
@@ -940,7 +946,6 @@ async function actualizarAlumno(form) {
         return;
     }
 
-    // Verificar si hubo cambios
     let cambios = false;
     const datosActualizar = {};
 
@@ -1032,7 +1037,6 @@ window.enviarAsistenciaSupabase = async function() {
 
     const fechaHoy = new Date().toISOString().split('T')[0];
     const alumnosPresentes = [];
-    const idsActualizar = [];
 
     document.querySelectorAll('.asistencia-checkbox:checked').forEach(cb => {
         const id = parseInt(cb.dataset.id);
@@ -1042,14 +1046,11 @@ window.enviarAsistenciaSupabase = async function() {
                 alumno_id: id,
                 nombre: alumno.nombre_completo
             });
-            idsActualizar.push(id);
         }
     });
 
     try {
-        // Guardar asistencia y actualizar clases_totales
         for (const alumno of alumnosPresentes) {
-            // Guardar registro de asistencia
             await guardarAsistenciaEnSupabase({
                 alumno_id: alumno.alumno_id,
                 fecha: fechaHoy,
@@ -1058,7 +1059,6 @@ window.enviarAsistenciaSupabase = async function() {
                 maestro: usuarioSesion.nombre
             });
 
-            // Incrementar clases_totales
             const nino = bancoAlumnosCompleto.find(a => a.id === alumno.alumno_id);
             if (nino) {
                 const nuevasClases = (nino.clases_totales || 0) + 1;
@@ -1066,7 +1066,6 @@ window.enviarAsistenciaSupabase = async function() {
             }
         }
 
-        // Recargar datos actualizados
         await cargarAlumnosSegunRol();
 
         mostrarNotificacion(`Asistencia reportada: ${alumnosPresentes.length} alumnos presentes en ${seccion}`, "success");
@@ -1077,7 +1076,6 @@ window.enviarAsistenciaSupabase = async function() {
             fecha: new Date().toISOString()
         });
 
-        // Cambiar botón a "Solicitar Edición"
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
         btnGuardar.disabled = false;
         btnGuardar.style.background = '#e67e22';
@@ -1307,7 +1305,6 @@ async function cargarHistorialAuditoria() {
             tabla.appendChild(fila);
         });
     } catch (err) {
-        // Fallback a localStorage
         const logs = JSON.parse(localStorage.getItem('zk360_historial')) || [];
         tabla.innerHTML = "";
 
