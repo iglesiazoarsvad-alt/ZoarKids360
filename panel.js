@@ -8,8 +8,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // ============ CRONOGRAMA 2026 ============
 const cronogramaOficial2026 = {
-    "30/8/2026": { pi: "Marí y Jonathan", me: "Flor", gr: "Erik", seccion: { "marí": "infancia", "jonathan": "infancia", "flor": "medianos", "erik": "grandes" } },
-    "6/9/2026": { pi: "Marisol y Maribel", me: "Erik", gr: "Dina", seccion: { "marisol": "infancia", "maribel": "infancia", "erik": "medianos", "dina": "grandes" } },
+    "30/8/2026": { pi: "Marisol y Maribel", me: "Flor", gr: "Erik", seccion: { "marí": "infancia", "jonathan": "infancia", "flor": "medianos", "erik": "grandes" } },
+    "6/9/2026": { pi: "Marí y Jonathan", me: "Flor", gr: "Erik", seccion: { "marí": "infancia", "jonathan": "infancia", "flor": "medianos", "erik": "grandes" } },
     "13/9/2026": { pi: "Dina y Flor", me: "Brenda", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "yeny": "grandes" } },
     "20/9/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "flor": "grandes" } },
     "27/9/2026": { pi: "Brenda y Claudia", me: "Jonathan", gr: "Dina", seccion: { "brenda": "infancia", "claudia": "infancia", "jonathan": "medianos", "dina": "grandes" } },
