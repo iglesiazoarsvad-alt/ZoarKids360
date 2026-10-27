@@ -334,7 +334,7 @@ function solicitarPinPrueba(mensaje) {
             if (event.target === overlay) cerrar(null);
         });
         acciones.append(cancelar, aceptar);
-        modal.append(titulo, texto, entrada, actions);
+        modal.append(titulo, texto, entrada, acciones);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
         document.addEventListener('keydown', onKeyDown);
