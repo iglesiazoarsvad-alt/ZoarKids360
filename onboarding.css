@@ -1,0 +1,153 @@
+/* ==========================================================================
+   ZOARKIDS 360 - ESTILOS DE ONBOARDING
+   ========================================================================== */
+
+.onboarding-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9998;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    justify-content: center;
+    align-items: center;
+}
+
+.onboarding-backdrop.active {
+    display: flex;
+}
+
+.onboarding-highlight {
+    position: absolute;
+    border-radius: 12px;
+    box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.4), 
+                0 0 30px rgba(6, 182, 212, 0.3);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.onboarding-tooltip {
+    position: absolute;
+    background: var(--bg-card-main, #ffffff);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color, #eef2f7);
+    z-index: 10000;
+    animation: tooltipIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes tooltipIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.tooltip-step {
+    font-size: 0.8rem;
+    color: var(--text-muted, #747d8c);
+    font-weight: 600;
+}
+
+.tooltip-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: var(--text-muted, #95a5a6);
+    transition: all 0.3s ease;
+}
+
+.tooltip-close:hover {
+    color: var(--text-main, #2c3e50);
+    transform: rotate(90deg);
+}
+
+.tooltip-body h3 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+    color: var(--text-main, #1e3799);
+}
+
+.tooltip-body p {
+    color: var(--text-muted, #747d8c);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.tooltip-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    gap: 10px;
+}
+
+.tooltip-footer .btn-secondary {
+    background: var(--bg-card-inner, #cbd5e1);
+    color: var(--text-main, #2c3e50);
+    border: none;
+    padding: 8px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.tooltip-footer .btn-secondary:hover {
+    background: var(--border-color, #b0bcc9);
+}
+
+.tooltip-footer .btn-primary {
+    background: var(--degradado-btn-verde, linear-gradient(135deg, #11998e, #38ef7d));
+    color: #ffffff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.tooltip-footer .btn-primary:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(56, 239, 125, 0.3);
+}
+
+@media (max-width: 480px) {
+    .onboarding-tooltip {
+        max-width: 300px;
+        padding: 20px;
+        margin: 0 16px;
+    }
+    
+    .tooltip-footer {
+        flex-wrap: wrap;
+    }
+    
+    .tooltip-footer .btn-secondary,
+    .tooltip-footer .btn-primary {
+        flex: 1;
+        justify-content: center;
+    }
+}

@@ -1,45 +1,742 @@
 /* ==========================================================================
-   ZOARKIDS 360 - LÓGICA COMPLETA DEL PANEL (v15.0 - CON SUPABASE)
+   ZOARKIDS 360 - LÓGICA COMPLETA DEL PANEL (VERSIÓN CORREGIDA)
    ========================================================================== */
 
 // ============ CONFIGURACIÓN DE SUPABASE ============
-const SUPABASE_URL = "https://yxumadojoswvipmkxgbo.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4dW1hZG9qb3N3dmlwbWt4Z2JvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NDg4MjQsImV4cCI6MjEwMzQyNDgyNH0.6mat0P0BEP3Y0hni6BFhdO7yD8dfrDpGvkkfVx4kDTI";
+const SUPABASE_URL = window.ZK360_CONFIG?.supabaseUrl || "";
+const SUPABASE_ANON_KEY = window.ZK360_CONFIG?.supabaseAnonKey || "";
+const CLAVE_ALUMNOS_MODO_PRUEBA = 'zk360_alumnos_modo_prueba';
+const CONFIGURACION_HORARIO_DEFAULT = {
+    dia_asistencia: 0,
+    hora_inicio_asistencia: '14:45',
+    hora_fin_asistencia: '17:00',
+    dias_solicitud_sustituto: [1, 2],
+    motivo: 'Horario habitual',
+    actualizado_por: '',
+    actualizado_en: ''
+};
+let configuracionHorario = { ...CONFIGURACION_HORARIO_DEFAULT };
 
 // ============ CRONOGRAMA 2026 ============
 const cronogramaOficial2026 = {
-    "30/8/2026": { pi: "Marí y Jonathan", me: "Flor", gr: "Erik", seccion: { "marí": "infancia", "jonathan": "infancia", "flor": "medianos", "erik": "grandes" } },
-    "6/9/2026": { pi: "Marisol y Maribel", me: "Erik", gr: "Dina", seccion: { "marisol": "infancia", "maribel": "infancia", "erik": "medianos", "dina": "grandes" } },
-    "13/9/2026": { pi: "Dina y Flor", me: "Brenda", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "yeny": "grandes" } },
-    "20/9/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "flor": "grandes" } },
-    "27/9/2026": { pi: "Brenda y Claudia", me: "Jonathan", gr: "Dina", seccion: { "brenda": "infancia", "claudia": "infancia", "jonathan": "medianos", "dina": "grandes" } },
-    "4/10/2026": { pi: "Marí y Jonathan", me: "Flor", gr: "Yeny", seccion: { "marí": "infancia", "jonathan": "infancia", "flor": "medianos", "yeny": "grandes" } },
-    "11/10/2026": { pi: "Marisol y Maribel", me: "Dina", gr: "Erik", seccion: { "marisol": "infancia", "maribel": "infancia", "dina": "medianos", "erik": "grandes" } },
-    "18/10/2026": { pi: "Dina y Flor", me: "Claudia", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "claudia": "medianos", "yeny": "grandes" } },
-    "25/10/2026": { pi: "Yeny y Fernando", me: "Marí", gr: "Erik", seccion: { "yeny": "infancia", "fernando": "infancia", "marí": "medianos", "erik": "grandes" } },
-    "1/11/2026": { pi: "Brenda y Claudia", me: "Maribel", gr: "Flor", seccion: { "brenda": "infancia", "claudia": "infancia", "maribel": "medianos", "flor": "grandes" } },
-    "8/11/2026": { pi: "Marí y Jonathan", me: "Yeny", gr: "Dina", seccion: { "marí": "infancia", "jonathan": "infancia", "yeny": "medianos", "dina": "grandes" } },
-    "15/11/2026": { pi: "Marisol y Maribel", me: "Flor", gr: "Erik", seccion: { "marisol": "infancia", "maribel": "infancia", "flor": "medianos", "erik": "grandes" } },
-    "22/11/2026": { pi: "Dina y Flor", me: "Brenda", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "yeny": "grandes" } },
-    "29/11/2026": { pi: "Yeny y Fernando", me: "Claudia", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "claudia": "medianos", "flor": "grandes" } },
-    "6/12/2026": { pi: "Brenda y Claudia", me: "Marí", gr: "Dina", seccion: { "brenda": "infancia", "claudia": "infancia", "marí": "medianos", "dina": "grandes" } },
-    "13/12/2026": { pi: "Marí y Jonathan", me: "Marisol", gr: "Yeny", seccion: { "marí": "infancia", "jonathan": "infancia", "marisol": "medianos", "yeny": "grandes" } },
-    "20/12/2026": { pi: "Marisol y Maribel", me: "Dina", gr: "Erik", seccion: { "marisol": "infancia", "maribel": "infancia", "dina": "medianos", "erik": "grandes" } },
-    "27/12/2026": { pi: "Dina y Flor", me: "Jonathan", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "jonathan": "medianos", "yeny": "grandes" } }
+    "20/9/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Dina", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "dina": "grandes" } },
+    "27/9/2026": { pi: "Brenda y Claudia", me: "Maribel", gr: "Flor", seccion: { "brenda": "infancia", "claudia": "infancia", "maribel": "medianos", "flor": "grandes" } },
+    "4/10/2026": { pi: "Marí y Jonathan", me: "Claudia", gr: "Erick", seccion: { "marí": "infancia", "jonathan": "infancia", "claudia": "medianos", "erick": "grandes" } },
+    "11/10/2026": { pi: "Marisol y Maribel", me: "Jonathan", gr: "Yeny", seccion: { "marisol": "infancia", "maribel": "infancia", "jonathan": "medianos", "yeny": "grandes" } },
+    "18/10/2026": { pi: "Dina Y Flor", me: "Brenda", gr: "Erick", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "erick": "grandes" } },
+    "25/10/2026": { pi: "Yeny y Fernando", me: "Mari", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "mari": "medianos", "flor": "grandes" } },
+    "1/11/2026": { pi: "Brenda y Claudia", me: "Dina", gr: "Yeny", seccion: { "brenda": "infancia", "claudia": "infancia", "dina": "medianos", "yeny": "grandes" } },
+    "8/11/2026": { pi: "Marí y Jonathan", me: "Erick", gr: "Dina", seccion: { "marí": "infancia", "jonathan": "infancia", "erick": "medianos", "dina": "grandes" } },
+    "15/11/2026": { pi: "Marisol y Maribel", me: "Claudia", gr: "Erick", seccion: { "marisol": "infancia", "maribel": "infancia", "claudia": "medianos", "erick": "grandes" } },
+    "22/11/2026": { pi: "Dina Y Flor", me: "Jonathan", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "jonathan": "medianos", "yeny": "grandes" } },
+    "29/11/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "flor": "grandes" } },
+    "6/12/2026": { pi: "Brenda y Claudia", me: "Erick", gr: "Dina", seccion: { "brenda": "infancia", "claudia": "infancia", "erick": "medianos", "dina": "grandes" } },
+    "13/12/2026": { pi: "Marí y Jonathan", me: "Claudia", gr: "Erick", seccion: { "marí": "infancia", "jonathan": "infancia", "claudia": "medianos", "erick": "grandes" } },
+    "20/12/2026": { pi: "Marisol y Maribel", me: "Yeny", gr: "Flor", seccion: { "marisol": "infancia", "maribel": "infancia", "yeny": "medianos", "flor": "grandes" } },
+    "27/12/2026": { pi: "Dina Y Flor", me: "Brenda", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "yeny": "grandes" } }
 };
 
 // ============ VARIABLES GLOBALES ============
 let usuarioSesion = null;
 let seccionAsignadaMaestro = null;
 let bancoAlumnosCompleto = [];
-let bancoAlumnosFiltrados = [];
 let idNinoAEditar = null;
 let asistenciaEnviadaHoy = false;
-let solicitudEdicionPendiente = false;
 let modoAdminVerTodos = false;
-let archivosSubidos = [];
+let leccionEditando = null;
+let timerInactividad = null;
+let modoPrueba = false;
+let modoOffline = false;
+let sincronizacionOfflineEnCurso = false;
+let ultimoStatusHttpSupabase = null;
+let leccionSeleccionada = null;
+let preguntasEstudio = [];
+let preguntaActual = 0;
+let respuestasCorrectas = 0;
+let contadorNotificaciones = 0;
+let notificacionesPendientes = [];
+let esClaveTemporal = false;
+let inactividadPausada = false;
+let cacheDashboard = null;
+let cacheTimestamp = null;
+const CACHE_TTL = 300000;
+let chatGrupalAbierto = true;
+let chatPersonalCon = null;
+let solicitudesPendientes = [];
+let parejasRechazadas = [];
 
-// ============ NOTIFICACIÓN ============
+// ============ TEMAS VISUALES ============
+const TEMAS = {
+    'predeterminado': { 
+        nombre: 'Azul Zoar Vibrante', 
+        icono: 'fa-sun',
+        descripcion: 'Modo Claro / Predeterminado'
+    },
+    'azul-esmeralda': { 
+        nombre: 'Azul Esmeralda', 
+        icono: 'fa-tree',
+        descripcion: 'Natural / Verde Neón'
+    },
+    'dark-purpura': { 
+        nombre: 'Púrpura Deep', 
+        icono: 'fa-gem',
+        descripcion: 'Morado Obispo Institucional'
+    },
+    'galaxia': { 
+        nombre: 'Galaxia Premium', 
+        icono: 'fa-galaxy',
+        descripcion: 'Glassmorphism & Cian Neón'
+    }
+};
+
+const TEMAS_ORDER = ['predeterminado', 'azul-esmeralda', 'dark-purpura', 'galaxia'];
+
+// ============ SISTEMA DE TEMAS ============
+// ============ APLICAR TEMA - CORREGIDO ============
+function aplicarTema(temaId) {
+    // Mantener únicamente temas válidos para evitar que una selección
+    // inválida termine aplicando accidentalmente el tema predeterminado.
+    if (!Object.prototype.hasOwnProperty.call(TEMAS, temaId)) {
+        temaId = 'predeterminado';
+    }
+
+    function estaEnHorarioAsistencia(fecha = new Date()) {
+        const horaActual = fecha.getHours() * 60 + fecha.getMinutes();
+        const horaInicio = horaAMinutos(configuracionHorario.hora_inicio_asistencia);
+        const horaFin = horaAMinutos(configuracionHorario.hora_fin_asistencia);
+        return fecha.getDay() === Number(configuracionHorario.dia_asistencia) &&
+            horaInicio !== null && horaFin !== null &&
+            horaActual >= horaInicio && horaActual < horaFin;
+    }
+
+    const html = document.documentElement;
+    // La hoja de estilos puede utilizar cualquiera de las dos variantes.
+    // Actualizar ambas evita que el botón cambie el estado guardado pero no
+    // el fondo visual.
+    html.setAttribute('data-tema', temaId);
+    html.setAttribute('data-theme', temaId);
+    localStorage.setItem('zoarkids_tema_activo', temaId);
+    
+    console.log(' Tema cambiado a:', temaId);
+    
+    // Actualizar botón en header
+    const btnTema = document.getElementById('btn-cambiar-tema');
+    if (btnTema) {
+        const tema = TEMAS[temaId] || TEMAS['predeterminado'];
+        btnTema.innerHTML = `<i class="fas ${tema.icono}" aria-hidden="true"></i><span class="btn-cambiar-tema-texto">Tema</span>`;
+        btnTema.title = `Tema: ${tema.nombre}`;
+        btnTema.setAttribute('aria-label', `Cambiar tema. Tema actual: ${tema.nombre}`);
+    }
+    
+    // Actualizar botón en sidebar
+    const btnTemaSidebar = document.getElementById('btn-cambiar-tema-sidebar');
+    if (btnTemaSidebar) {
+        const tema = TEMAS[temaId] || TEMAS['predeterminado'];
+        btnTemaSidebar.innerHTML = `<i class="fas ${tema.icono}"></i> <span>${tema.nombre}</span>`;
+    }
+    
+    // Guardar en Supabase
+    if (usuarioSesion && usuarioSesion.email) {
+        guardarTemaPreferido(usuarioSesion.email, temaId);
+    }
+    
+    // Mostrar notificación
+    const mensajes = {
+        'predeterminado': 'Has cambiado al tema Modo Claro (Azul Zoar)',
+        'azul-esmeralda': 'Has cambiado al tema Azul Esmeralda',
+        'dark-purpura': 'Has cambiado al tema Púrpura Deep',
+        'galaxia': 'Has cambiado al tema Galaxia Premium'
+    };
+    mostrarNotificacion(mensajes[temaId] || 'Tema cambiado', 'info');
+}
+
+function obtenerTemaActual() {
+    return localStorage.getItem('zoarkids_tema_activo') || 'predeterminado';
+}
+
+async function guardarTemaPreferido(email, temaId) {
+    try {
+        await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email), {
+            method: "PATCH",
+            body: JSON.stringify({ tema_preferido: temaId })
+        });
+    } catch (error) {
+        console.error('Error guardando tema:', error);
+    }
+}
+
+async function cargarTemaPreferido(email) {
+    try {
+        const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email));
+        if (usuarios && usuarios.length > 0 && usuarios[0].tema_preferido) {
+            const tema = usuarios[0].tema_preferido;
+            localStorage.setItem('zoarkids_tema_activo', tema);
+            aplicarTema(tema);
+            return tema;
+        }
+    } catch (error) {
+        console.error('Error cargando tema:', error);
+    }
+    return null;
+}
+
+function cambiarTemaSiguiente() {
+    const actual = obtenerTemaActual();
+    let idx = TEMAS_ORDER.indexOf(actual);
+    let siguiente = TEMAS_ORDER[(idx + 1) % TEMAS_ORDER.length];
+    aplicarTema(siguiente);
+    mostrarNotificacionTema(siguiente);
+}
+
+function mostrarNotificacionTema(temaId) {
+    const mensajes = {
+        'predeterminado': 'Has cambiado al tema Modo Claro (Azul Zoar)',
+        'azul-esmeralda': 'Has cambiado al tema Azul Esmeralda',
+        'dark-purpura': 'Has cambiado al tema Púrpura Deep',
+        'galaxia': 'Has cambiado al tema Galaxia Premium'
+    };
+    mostrarNotificacion(mensajes[temaId] || 'Tema cambiado', 'info');
+}
+
+// ============ MODAL DE BIENVENIDA TEMAS ============
+function mostrarModalBienvenidaTemas() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay activo';
+    modal.id = 'modal-bienvenida-temas';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+        <div class="modal-burbuja" style="max-width:550px; text-align:center;">
+            <div style="margin-bottom:20px;">
+                <i class="fas fa-palette" style="font-size:48px; color:#2575fc;"></i>
+                <h3 style="margin-top:10px;">Elige tu Estilo</h3>
+                <p style="color:#747d8c; font-size:14px;">Selecciona el tema visual que prefieras para la aplicación</p>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                ${Object.entries(TEMAS).map(([id, tema]) => `
+                    <div onclick="window.seleccionarTemaBienvenida('${id}')" 
+                         style="padding:15px; border-radius:16px; cursor:pointer; border:2px solid #dfe4ea; 
+                                transition:all 0.3s ease; background:white;"
+                         onmouseover="this.style.borderColor='#2575fc'; this.style.transform='scale(1.02)'"
+                         onmouseout="this.style.borderColor='#dfe4ea'; this.style.transform='scale(1)'">
+                        <div style="font-size:32px; margin-bottom:8px;"><i class="fas ${tema.icono}"></i></div>
+                        <div style="font-weight:600; font-size:14px; color:#1e3799;">${tema.nombre}</div>
+                        <div style="font-size:11px; color:#747d8c;">${tema.descripcion}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="margin-top:15px; font-size:12px; color:#95a5a6;">
+                <i class="fas fa-sync-alt"></i> Puedes cambiar el tema en cualquier momento
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+window.seleccionarTemaBienvenida = function(temaId) {
+    const modal = document.getElementById('modal-bienvenida-temas');
+    if (modal) modal.remove();
+    
+    aplicarTema(temaId);
+    mostrarNotificacionTema(temaId);
+    localStorage.setItem('zoarkids_onboarding_temas', 'true');
+    
+    if (usuarioSesion && usuarioSesion.email) {
+        guardarTemaPreferido(usuarioSesion.email, temaId);
+        llamarSupabase('usuarios?email=eq.' + encodeURIComponent(usuarioSesion.email), {
+            method: "PATCH",
+            body: JSON.stringify({ onboarding_completado: true })
+        });
+    }
+    
+    // Iniciar onboarding del sistema después de seleccionar tema
+    setTimeout(() => {
+        if (typeof iniciarOnboardingSistema === 'function') {
+            iniciarOnboardingSistema();
+        }
+    }, 500);
+};
+
+// ============ BOTÓN DE CAMBIO RÁPIDO CON LONG-PRESS ============
+function configurarBotonTema() {
+    const btnTema = document.getElementById('btn-cambiar-tema');
+    if (!btnTema) return;
+    
+    let pressTimer = null;
+    let longPress = false;
+    
+    const temaActual = obtenerTemaActual();
+    const tema = TEMAS[temaActual] || TEMAS['predeterminado'];
+    btnTema.innerHTML = `<i class="fas ${tema.icono}" aria-hidden="true"></i><span class="btn-cambiar-tema-texto">Tema</span>`;
+    btnTema.title = `Tema: ${tema.nombre} (Click: siguiente, Mantener: menú)`;
+    btnTema.setAttribute('aria-label', `Cambiar tema. Tema actual: ${tema.nombre}`);
+    
+    btnTema.addEventListener('mousedown', function() {
+        longPress = false;
+        pressTimer = setTimeout(() => {
+            longPress = true;
+            mostrarMenuTemas(this);
+        }, 800);
+    });
+    
+    btnTema.addEventListener('mouseup', function() {
+        clearTimeout(pressTimer);
+        if (!longPress) {
+            cambiarTemaSiguiente();
+        }
+    });
+    
+    btnTema.addEventListener('mouseleave', function() {
+        clearTimeout(pressTimer);
+    });
+    
+    btnTema.addEventListener('touchstart', function() {
+        longPress = false;
+        pressTimer = setTimeout(() => {
+            longPress = true;
+            mostrarMenuTemas(this);
+        }, 800);
+    });
+    
+    btnTema.addEventListener('touchend', function() {
+        clearTimeout(pressTimer);
+        if (!longPress) {
+            cambiarTemaSiguiente();
+        }
+    });
+    
+    const btnTemaSidebar = document.getElementById('btn-cambiar-tema-sidebar');
+    if (btnTemaSidebar) {
+        btnTemaSidebar.addEventListener('click', function() {
+            cambiarTemaSiguiente();
+        });
+    }
+}
+
+function mostrarMenuTemas(elemento) {
+    const menuExistente = document.getElementById('menu-temas-flotante');
+    if (menuExistente) menuExistente.remove();
+    
+    const rect = elemento.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.id = 'menu-temas-flotante';
+    menu.style.cssText = `
+        position: fixed;
+        top: ${rect.bottom + 10}px;
+        right: 10px;
+        background: var(--bg-card-main, #ffffff);
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        border: 1px solid var(--border-color, #eef2f7);
+        padding: 12px;
+        z-index: 9999;
+        min-width: 200px;
+        backdrop-filter: blur(10px);
+        animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    `;
+    
+    menu.innerHTML = Object.entries(TEMAS).map(([id, tema]) => `
+        <div onclick="window.seleccionarTemaDesdeMenu('${id}')" 
+             style="display:flex; align-items:center; gap:12px; padding:10px 14px; 
+                    border-radius:10px; cursor:pointer; transition:all 0.2s ease;
+                    ${obtenerTemaActual() === id ? 'background:var(--bg-card-inner, #f0f4f8);' : ''}"
+             onmouseover="this.style.background='var(--bg-card-inner, #f0f4f8)'"
+             onmouseout="this.style.background='${obtenerTemaActual() === id ? 'var(--bg-card-inner, #f0f4f8)' : 'transparent'}'">
+            <i class="fas ${tema.icono}" style="font-size:20px; color:var(--azul-botones, #2575fc);"></i>
+            <div>
+                <div style="font-weight:600; font-size:13px; color:var(--text-main, #2c3e50);">${tema.nombre}</div>
+                <div style="font-size:11px; color:var(--text-muted, #747d8c);">${tema.descripcion}</div>
+            </div>
+            ${obtenerTemaActual() === id ? '<i class="fas fa-check-circle" style="color:#2ecc71; margin-left:auto;"></i>' : ''}
+        </div>
+    `).join('');
+    
+    document.body.appendChild(menu);
+    
+    setTimeout(() => {
+        document.addEventListener('click', function cerrarMenu(e) {
+            if (!menu.contains(e.target) && e.target !== elemento) {
+                menu.remove();
+                document.removeEventListener('click', cerrarMenu);
+            }
+        });
+    }, 100);
+}
+
+window.seleccionarTemaDesdeMenu = function(temaId) {
+    const menu = document.getElementById('menu-temas-flotante');
+    if (menu) menu.remove();
+    aplicarTema(temaId);
+    mostrarNotificacionTema(temaId);
+};
+
+// ============ FUNCIONES DE SUPABASE ============
+async function llamarSupabase(endpoint, opciones = {}) {
+    ultimoStatusHttpSupabase = null;
+    if (modoPrueba) {
+        try {
+            const [tabla, query = ''] = endpoint.split('?');
+            const key = `zk360_prueba_tabla_${tabla}`;
+            const method = (opciones.method || 'GET').toUpperCase();
+            const filters = new URLSearchParams(query);
+            const matches = row => [...filters.entries()].every(([field, value]) =>
+                !value.startsWith('eq.') || String(row[field]) === value.slice(3)
+            );
+            let rows = JSON.parse(localStorage.getItem(key) || '[]');
+            if (!Array.isArray(rows)) rows = [];
+            if (method === 'GET') return rows.filter(matches);
+            if (method === 'POST') {
+                const payload = JSON.parse(opciones.body || '{}');
+                (Array.isArray(payload) ? payload : [payload]).forEach(row => {
+                    if (row.id == null) row.id = `local-${Date.now()}-${crypto.randomUUID()}`;
+                    rows.push(row);
+                });
+                localStorage.setItem(key, JSON.stringify(rows));
+                return true;
+            }
+            if (method === 'PATCH') {
+                const changes = JSON.parse(opciones.body || '{}');
+                localStorage.setItem(key, JSON.stringify(rows.map(row => matches(row) ? { ...row, ...changes } : row)));
+                return true;
+            }
+            if (method === 'DELETE') {
+                localStorage.setItem(key, JSON.stringify(rows.filter(row => !matches(row))));
+                return true;
+            }
+        } catch (error) {
+            console.error('Error en datos locales de prueba:', error);
+            return null;
+        }
+    }
+    const method = (opciones.method || 'GET').toUpperCase();
+    const esLectura = method === 'GET';
+    const opcionesRemotas = { ...opciones };
+    delete opcionesRemotas.__desdeCola;
+    if (!navigator.onLine) {
+        if (esLectura) {
+            try {
+                const respuestaLocal = await window.ZK360OfflineStore?.getResponse(endpoint);
+                if (respuestaLocal !== undefined && respuestaLocal !== null) return respuestaLocal;
+            } catch (error) {
+                console.error('No se pudo leer la caché offline:', error);
+            }
+            return null;
+        }
+        return encolarCambioOffline(endpoint, method, opcionesRemotas);
+    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        mostrarNotificacion('Configura Supabase en config.local.js.', 'error');
+        return null;
+    }
+
+    const url = SUPABASE_URL + '/rest/v1/' + endpoint;
+    const session = (() => {
+        try {
+            return JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+        } catch {
+            return {};
+        }
+    })();
+    let accessToken = session.access_token;
+    if (!accessToken) {
+        if (opciones.__desdeCola) return null;
+        if (modoOffline) {
+            if (esLectura) return await window.ZK360OfflineStore?.getResponse(endpoint) ?? null;
+            return encolarCambioOffline(endpoint, method, opcionesRemotas);
+        }
+        mostrarNotificacion('La sesión expiró. Inicia sesión nuevamente.', 'error');
+        window.location.replace('index.html');
+        return null;
+    }
+    if (session.expires_at && session.expires_at * 1000 <= Date.now()) {
+        if (!session.refresh_token) {
+            sessionStorage.removeItem('zk360_supabase_session');
+            if (opciones.__desdeCola) return null;
+            if (modoOffline) {
+                if (esLectura) return await window.ZK360OfflineStore?.getResponse(endpoint) ?? null;
+                return encolarCambioOffline(endpoint, method, opcionesRemotas);
+            }
+            window.location.replace('index.html');
+            return null;
+        }
+        try {
+            const refreshed = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+                method: 'POST',
+                cache: 'no-store',
+                headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: session.refresh_token })
+            });
+            const refreshedSession = await refreshed.json().catch(() => ({}));
+            if (!refreshed.ok || !refreshedSession.access_token) {
+                sessionStorage.removeItem('zk360_supabase_session');
+                if (opciones.__desdeCola) return null;
+                if (modoOffline) {
+                    if (esLectura) return await window.ZK360OfflineStore?.getResponse(endpoint) ?? null;
+                    return encolarCambioOffline(endpoint, method, opcionesRemotas);
+                }
+                window.location.replace('index.html');
+                return null;
+            }
+            sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
+                access_token: refreshedSession.access_token,
+                refresh_token: refreshedSession.refresh_token,
+                expires_at: refreshedSession.expires_at,
+                user: refreshedSession.user
+            }));
+            accessToken = refreshedSession.access_token;
+        } catch (error) {
+            if (!esLectura && !opciones.__desdeCola && error instanceof TypeError) {
+                return encolarCambioOffline(endpoint, method, opcionesRemotas);
+            }
+            if (esLectura) return window.ZK360OfflineStore?.getResponse(endpoint) ?? null;
+            return null;
+        }
+    }
+    const headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + accessToken,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    };
+    const config = { ...opcionesRemotas, headers: { ...headers, ...opcionesRemotas.headers } };
+    let response;
+    try {
+        response = await fetch(url, config);
+    } catch (error) {
+        console.error("Error en Supabase:", error);
+        if (!esLectura && !opciones.__desdeCola &&
+            (error instanceof TypeError || !navigator.onLine)) {
+            return encolarCambioOffline(endpoint, method, opcionesRemotas);
+        }
+        if (esLectura && error instanceof TypeError) {
+            try {
+                return await window.ZK360OfflineStore?.getResponse(endpoint) ?? null;
+            } catch (cacheError) {
+                console.error('No se pudo consultar la caché offline:', cacheError);
+            }
+        }
+        mostrarNotificacion(error.message || "Error de conexión con el servidor", "error");
+        return null;
+    }
+
+    if (!response.ok) {
+        ultimoStatusHttpSupabase = response.status;
+        const error = new Error('Supabase respondió con HTTP ' + response.status);
+        console.error("Error en Supabase:", error);
+        if (response.status === 401) sessionStorage.removeItem('zk360_supabase_session');
+        mostrarNotificacion(error.message, "error");
+        return null;
+    }
+
+    let resultado;
+    try {
+        const texto = await response.text();
+        resultado = texto ? JSON.parse(texto) : true;
+    } catch (error) {
+        console.error('Supabase devolvió una respuesta inválida:', error);
+        mostrarNotificacion('El servidor respondió, pero no se pudo interpretar su respuesta.', 'error');
+        return null;
+    }
+
+    try {
+        if (esLectura) {
+            await window.ZK360OfflineStore?.setResponse(endpoint, resultado);
+        } else if (opciones.__desdeCola) {
+            await window.ZK360OfflineStore?.invalidateTable(endpoint.split('?')[0]);
+        } else {
+            await window.ZK360OfflineStore?.applyMutationToCaches(endpoint, method, opciones.body ? JSON.parse(opciones.body) : {}, Date.now());
+        }
+    } catch (error) {
+        console.error('La operación en Supabase funcionó, pero no se actualizó la caché offline:', error);
+        mostrarNotificacion('Se guardó en Supabase, pero no se pudo actualizar la copia offline.', 'warning');
+    }
+    return resultado;
+}
+
+async function encolarCambioOffline(endpoint, method, opciones) {
+    if (modoPrueba) return null;
+    if (usuarioSesion?.rol !== 'maestro' || !seccionAsignadaMaestro ||
+        seccionAsignadaMaestro === 'admin_total' || !window.ZK360OfflineStore) {
+        mostrarNotificacion('Este cambio necesita conexión y una sesión de maestro asignado.', 'warning');
+        return null;
+    }
+    try {
+        const body = opciones.body ? JSON.parse(opciones.body) : {};
+        await window.ZK360OfflineStore.enqueueMutation({
+            endpoint,
+            method,
+            body,
+            ownerEmail: usuarioSesion.email
+        });
+        mostrarNotificacion('Cambio guardado en este dispositivo; se sincronizará al recuperar internet.', 'success');
+        publicarEstadoColaOffline();
+        return true;
+    } catch (error) {
+        console.error('No se pudo guardar el cambio para sincronizarlo:', error);
+        mostrarNotificacion('No se pudo guardar el cambio offline en este dispositivo.', 'error');
+        return null;
+    }
+}
+
+function publicarEstadoColaOffline(requiereAutenticacion = false, mensaje = '') {
+    window.ZK360OfflineStore?.listMutations().then(cambios => {
+        window.dispatchEvent(new CustomEvent('zk360:offline-sync-status', {
+            detail: {
+                pending: cambios.length,
+                offline: !navigator.onLine,
+                requiresLogin: requiereAutenticacion,
+                message: mensaje
+            }
+        }));
+    }).catch(error => console.error('No se pudo consultar la cola offline:', error));
+}
+
+async function sincronizarCambiosOffline() {
+    if (!navigator.onLine || modoPrueba || !window.ZK360OfflineStore || sincronizacionOfflineEnCurso) return;
+    sincronizacionOfflineEnCurso = true;
+    try {
+        const cambios = await window.ZK360OfflineStore.listMutations();
+        if (!cambios.length) {
+            publicarEstadoColaOffline();
+            return;
+        }
+        const session = (() => {
+            try { return JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}'); }
+            catch (error) { return {}; }
+        })();
+        if (!session.access_token) {
+            publicarEstadoColaOffline(true);
+            return;
+        }
+        if (session.user?.email && usuarioSesion?.email &&
+            session.user.email.toLowerCase() !== usuarioSesion.email.toLowerCase()) {
+            publicarEstadoColaOffline(true, 'Inicia sesión con la cuenta del maestro que guardó estos cambios.');
+            return;
+        }
+        const cambiosUsuario = cambios.filter(item =>
+            String(item.ownerEmail || '').toLowerCase() === String(usuarioSesion?.email || '').toLowerCase()
+        );
+        if (!cambiosUsuario.length) {
+            publicarEstadoColaOffline(true, 'Inicia sesión con la cuenta del maestro que guardó estos cambios.');
+            return;
+        }
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            publicarEstadoColaOffline(false, 'Configura Supabase para sincronizar los cambios pendientes.');
+            return;
+        }
+
+        let falloSincronizacion = false;
+        let requiereAutenticacion = false;
+        let mensajeSincronizacion = '';
+        let sincronizados = 0;
+        for (const cambio of cambiosUsuario) {
+            if (!navigator.onLine) break;
+            if (['PATCH', 'DELETE'].includes(cambio.method)) {
+                if (!Array.isArray(cambio.baseline) || !cambio.baseline.length) {
+                    await window.ZK360OfflineStore.removeMutation(cambio.id);
+                    await window.ZK360OfflineStore.invalidateTable(cambio.endpoint.split('?')[0]);
+                    mostrarNotificacion('Se descartó un cambio offline porque no había una versión previa para compararlo. Se conservaron los datos de Supabase.', 'warning');
+                    continue;
+                }
+                const servidor = await llamarSupabase(cambio.endpoint);
+                if (!Array.isArray(servidor)) {
+                    falloSincronizacion = true;
+                    requiereAutenticacion = ultimoStatusHttpSupabase === 401 ||
+                        !sessionStorage.getItem('zk360_supabase_session');
+                    mensajeSincronizacion = requiereAutenticacion
+                        ? 'Inicia sesión para continuar la sincronización de tus cambios.'
+                        : '';
+                    break;
+                }
+                if (!window.ZK360OfflineStore.equalSnapshots(cambio.baseline, servidor)) {
+                    await window.ZK360OfflineStore.removeMutation(cambio.id);
+                    await window.ZK360OfflineStore.invalidateTable(cambio.endpoint.split('?')[0]);
+                    mostrarNotificacion('Hubo un cambio simultáneo en Supabase. Se conservaron los datos del servidor y no se aplicó el cambio offline.', 'warning');
+                    continue;
+                }
+            }
+
+            const resultado = await llamarSupabase(cambio.endpoint, {
+                method: cambio.method,
+                body: JSON.stringify(cambio.body),
+                __desdeCola: true
+            });
+            if (resultado === null) {
+                if (cambio.method === 'POST' && ultimoStatusHttpSupabase === 409) {
+                    await window.ZK360OfflineStore.removeMutation(cambio.id);
+                    try {
+                        await window.ZK360OfflineStore.invalidateTable(cambio.endpoint.split('?')[0]);
+                    } catch (error) {
+                        console.error('No se pudo actualizar la caché tras un conflicto de sincronización:', error);
+                    }
+                    mostrarNotificacion('El servidor ya contiene un registro en conflicto. Se conservó la versión de Supabase.', 'warning');
+                    continue;
+                }
+                falloSincronizacion = true;
+                requiereAutenticacion = ultimoStatusHttpSupabase === 401 ||
+                    !sessionStorage.getItem('zk360_supabase_session');
+                mensajeSincronizacion = requiereAutenticacion
+                    ? 'Inicia sesión para continuar la sincronización de tus cambios.'
+                    : '';
+                break;
+            }
+            await window.ZK360OfflineStore.removeMutation(cambio.id);
+            sincronizados++;
+        }
+        if (sincronizados) {
+            mostrarNotificacion(`${sincronizados} cambio(s) guardado(s) offline se sincronizaron con Supabase.`, 'success');
+        }
+        publicarEstadoColaOffline(requiereAutenticacion, mensajeSincronizacion || (falloSincronizacion
+            ? 'No se pudo completar la sincronización. Se reintentará cuando el servicio esté disponible.'
+            : ''));
+    } catch (error) {
+        console.error('Falló la sincronización offline:', error);
+        publicarEstadoColaOffline(false, 'No se pudo completar la sincronización. Se reintentará cuando el servicio esté disponible.');
+    } finally {
+        sincronizacionOfflineEnCurso = false;
+    }
+}
+
+async function cargarAlumnos(seccion = null) {
+    try {
+        let endpoint = "alumnos?order=id.asc";
+        if (seccion && seccion !== "todos") {
+            endpoint = 'alumnos?seccion=eq.' + seccion + '&order=id.asc';
+        }
+        const data = await llamarSupabase(endpoint);
+        return data || [];
+    } catch (error) { return []; }
+}
+
+async function validarUsuarioRegistrado(email) {
+    if (!email) return false;
+    const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,seccion');
+    if (usuarios === null) return null;
+    return usuarios.length > 0 ? usuarios[0] : false;
+}
+
+async function guardarAlumno(alumno) {
+    return await llamarSupabase("alumnos", { method: "POST", body: JSON.stringify(alumno) });
+}
+
+async function actualizarAlumno(id, datos) {
+    return await llamarSupabase('alumnos?id=eq.' + id, { method: "PATCH", body: JSON.stringify(datos) });
+}
+
+async function eliminarAlumno(id) {
+    return await llamarSupabase('alumnos?id=eq.' + id, { method: "DELETE" });
+}
+
+async function guardarLog(log) {
+    try {
+        await llamarSupabase("logs", { method: "POST", body: JSON.stringify(log) });
+    } catch (error) {
+        const logs = JSON.parse(localStorage.getItem('zk360_historial') || '[]');
+        logs.push(log);
+        localStorage.setItem('zk360_historial', JSON.stringify(logs));
+    }
+}
+
+// ============ NOTIFICACIONES ============
 function mostrarNotificacion(mensaje, tipo = "info") {
     const contenedor = document.getElementById('notificacion-sistema');
     if (!contenedor) {
@@ -47,322 +744,628 @@ function mostrarNotificacion(mensaje, tipo = "info") {
         nuevo.id = 'notificacion-sistema';
         document.body.appendChild(nuevo);
     }
-
-    const colores = {
-        info: '#2575fc',
-        success: '#2ecc71',
-        error: '#ff7675',
-        warning: '#f39c12'
-    };
-
-    const iconos = {
-        info: 'fa-circle-info',
-        success: 'fa-circle-check',
-        error: 'fa-triangle-exclamation',
-        warning: 'fa-triangle-exclamation'
-    };
-
+    
+    const colores = { info: '#2575fc', success: '#2ecc71', error: '#ff7675', warning: '#f39c12' };
+    const iconos = { info: 'fa-circle-info', success: 'fa-circle-check', error: 'fa-triangle-exclamation', warning: 'fa-triangle-exclamation' };
+    
     const notif = document.getElementById('notificacion-sistema');
-    notif.innerHTML = `
-        <div class="notificacion-burbuja ${tipo}" style="border-left-color: ${colores[tipo] || '#2575fc'};">
-            <i class="fa-solid ${iconos[tipo] || 'fa-circle-info'}"></i>
-            <span>${mensaje}</span>
-            <button onclick="this.parentElement.remove()" style="background:none; border:none; color:#95a5a6; cursor:pointer; font-size:18px;">&times;</button>
-        </div>
-    `;
-
+    const burbuja = document.createElement('div');
+    burbuja.className = `notificacion-burbuja ${tipo}`;
+    burbuja.style.borderLeftColor = colores[tipo] || '#2575fc';
+    const icono = document.createElement('i');
+    icono.className = `fas ${iconos[tipo] || 'fa-circle-info'}`;
+    const texto = document.createElement('span');
+    texto.textContent = String(mensaje);
+    const cerrar = document.createElement('button');
+    cerrar.type = 'button';
+    cerrar.setAttribute('aria-label', 'Cerrar notificación');
+    cerrar.style.cssText = 'background:none;border:none;color:#95a5a6;cursor:pointer;font-size:18px;';
+    cerrar.textContent = '×';
+    cerrar.addEventListener('click', () => burbuja.remove());
+    burbuja.append(icono, texto, cerrar);
+    notif.replaceChildren(burbuja);
+    
+    contadorNotificaciones++;
+    actualizarBadgeNotificaciones();
+    notificacionesPendientes.push({ mensaje, tipo, timestamp: new Date().toISOString() });
+    localStorage.setItem('zk360_notificaciones_pendientes', JSON.stringify(notificacionesPendientes));
+    
     setTimeout(() => {
         const notifEl = document.querySelector('.notificacion-burbuja');
         if (notifEl) notifEl.style.opacity = '0';
-        setTimeout(() => {
-            const cont = document.getElementById('notificacion-sistema');
-            if (cont) cont.innerHTML = '';
+        setTimeout(() => { 
+            const cont = document.getElementById('notificacion-sistema'); 
+            if (cont) cont.replaceChildren();
         }, 500);
     }, 4000);
 }
 
-// ============ FUNCIÓN PARA LLAMAR A SUPABASE ============
-async function llamarSupabase(endpoint, opciones = {}) {
-    const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
-    const headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    };
-
-    const config = {
-        ...opciones,
-        headers: { ...headers, ...opciones.headers }
-    };
-
-    try {
-        const response = await fetch(url, config);
-        if (!response.ok) {
-            throw new Error(`Error ${response.status}: ${response.statusText}`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error("Error en Supabase:", error);
-        mostrarNotificacion("Error de conexión con el servidor", "error");
-        return null;
-    }
-}
-
-// ============ FUNCIONES PARA SUPABASE ============
-async function cargarAlumnosDesdeSupabase(seccion = null) {
-    try {
-        let endpoint = "alumnos?order=id.asc";
-        if (seccion && seccion !== "todos") {
-            endpoint = `alumnos?seccion=eq.${seccion}&order=id.asc`;
-        }
-        const data = await llamarSupabase(endpoint);
-        if (data) {
-            return data;
-        }
-        return [];
-    } catch (error) {
-        console.error("Error cargando alumnos:", error);
-        return [];
-    }
-}
-
-async function guardarAlumnoEnSupabase(alumno) {
-    try {
-        const data = await llamarSupabase("alumnos", {
-            method: "POST",
-            body: JSON.stringify(alumno)
+function confirmarAccion(mensaje) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay activo';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        const modal = document.createElement('div');
+        modal.className = 'modal-burbuja';
+        const texto = document.createElement('p');
+        texto.textContent = mensaje;
+        const acciones = document.createElement('div');
+        acciones.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:20px;';
+        const cancelar = document.createElement('button');
+        cancelar.type = 'button';
+        cancelar.className = 'btn-cerrar-modal btn-cancelar';
+        cancelar.textContent = 'Cancelar';
+        const aceptar = document.createElement('button');
+        aceptar.type = 'button';
+        aceptar.className = 'btn-primary';
+        aceptar.textContent = 'Confirmar';
+        let resuelto = false;
+        const cerrar = resultado => {
+            if (resuelto) return;
+            resuelto = true;
+            overlay.remove();
+            resolve(resultado);
+        };
+        cancelar.addEventListener('click', () => cerrar(false));
+        aceptar.addEventListener('click', () => cerrar(true));
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) cerrar(false);
         });
-        return data;
-    } catch (error) {
-        console.error("Error guardando alumno:", error);
-        return null;
-    }
-}
-
-async function actualizarAlumnoEnSupabase(id, datos) {
-    try {
-        const data = await llamarSupabase(`alumnos?id=eq.${id}`, {
-            method: "PATCH",
-            body: JSON.stringify(datos)
-        });
-        return data;
-    } catch (error) {
-        console.error("Error actualizando alumno:", error);
-        return null;
-    }
-}
-
-async function eliminarAlumnoEnSupabase(id) {
-    try {
-        const data = await llamarSupabase(`alumnos?id=eq.${id}`, {
-            method: "DELETE"
-        });
-        return data;
-    } catch (error) {
-        console.error("Error eliminando alumno:", error);
-        return null;
-    }
-}
-
-async function guardarAsistenciaEnSupabase(asistencia) {
-    try {
-        const data = await llamarSupabase("asistencia", {
-            method: "POST",
-            body: JSON.stringify(asistencia)
-        });
-        return data;
-    } catch (error) {
-        console.error("Error guardando asistencia:", error);
-        return null;
-    }
-}
-
-async function actualizarClasesTotales(id, nuevasClases) {
-    try {
-        const data = await llamarSupabase(`alumnos?id=eq.${id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ clases_totales: nuevasClases })
-        });
-        return data;
-    } catch (error) {
-        console.error("Error actualizando clases totales:", error);
-        return null;
-    }
-}
-
-async function guardarLogEnSupabase(log) {
-    try {
-        const data = await llamarSupabase("logs", {
-            method: "POST",
-            body: JSON.stringify(log)
-        });
-        return data;
-    } catch (error) {
-        console.error("Error guardando log:", error);
-        return null;
-    }
-}
-
-// ============ NOTIFICACIONES PUSH ============
-function registrarDispositivoParaPush() {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'denied') {
-        mostrarNotificacion("Activa las notificaciones desde la configuración de tu navegador", "warning");
-        return;
-    }
-    if (Notification.permission === 'granted') {
-        return;
-    }
-    Notification.requestPermission().then(permiso => {
-        if (permiso === 'granted') {
-            mostrarNotificacion("Notificaciones activadas. Recibirás alertas de tus turnos.", "success");
-        }
+        acciones.append(cancelar, aceptar);
+        modal.append(texto, acciones);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        aceptar.focus();
     });
 }
 
-function enviarNotificacionPush(titulo, mensaje) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-        mostrarNotificacion(`🔔 ${titulo}: ${mensaje}`, "info");
+window.confirmarAccion = confirmarAccion;
+
+function actualizarBadgeNotificaciones() {
+    const badge = document.getElementById('notificacion-contador');
+    if (badge) {
+        badge.textContent = contadorNotificaciones > 99 ? '99+' : String(contadorNotificaciones);
+        badge.style.display = contadorNotificaciones > 0 ? 'inline' : 'none';
+    }
+}
+
+window.abrirNotificaciones = function() {
+    const modal = document.getElementById('modal-notificaciones');
+    if (modal) {
+        modal.classList.add('activo');
+        cargarNotificacionesEnModal();
+        contadorNotificaciones = 0;
+        notificacionesPendientes = [];
+        localStorage.removeItem('zk360_notificaciones_pendientes');
+        actualizarBadgeNotificaciones();
+    }
+};
+
+function cargarNotificacionesEnModal() {
+    const container = document.getElementById('lista-notificaciones');
+    if (!container) return;
+    container.replaceChildren();
+    if (!notificacionesPendientes.length) {
+        const vacio = document.createElement('p');
+        vacio.style.cssText = 'text-align:center;padding:30px;color:#95a5a6';
+        vacio.textContent = 'No hay notificaciones pendientes';
+        container.appendChild(vacio);
         return;
     }
-    try {
-        const notif = new Notification(titulo, {
-            body: mensaje,
-            icon: 'logo.png',
-            tag: 'zoarkids_notificacion',
-            requireInteraction: true
-        });
-        notif.onclick = function() { window.focus(); this.close(); };
-        setTimeout(() => notif.close(), 10000);
-    } catch (e) {
-        mostrarNotificacion(`🔔 ${titulo}: ${mensaje}`, "info");
-    }
+    notificacionesPendientes.slice().reverse().forEach(notificacion => {
+        const item = document.createElement('article');
+        item.className = 'notificacion-lista-item';
+        const mensaje = document.createElement('p');
+        mensaje.textContent = String(notificacion.mensaje || '');
+        const fecha = document.createElement('small');
+        const instante = new Date(notificacion.timestamp);
+        fecha.textContent = Number.isNaN(instante.getTime()) ? '' : instante.toLocaleString();
+        item.append(mensaje, fecha);
+        container.appendChild(item);
+    });
 }
 
-// ============ VERIFICAR TURNO Y NOTIFICAR ============
-function verificarTurnoYNotificar() {
-    const hoy = new Date();
-    const dia = hoy.getDay();
+// ============ GESTIÓN DE INACTIVIDAD ============
+const INACTIVIDAD_TIMEOUT = 60000;
 
-    // Notificar el jueves sobre el turno del domingo
-    if (dia === 4) {
-        const claveFecha = calcularProximoDomingo();
-        const turno = cronogramaOficial2026[claveFecha];
-        if (turno) {
-            const nombreLower = usuarioSesion.nombre.toLowerCase();
-            let seccionEncontrada = null;
-            for (const [nombre, seccion] of Object.entries(turno.seccion)) {
-                if (nombre === nombreLower) {
-                    seccionEncontrada = seccion;
-                    break;
-                }
-            }
-            if (!seccionEncontrada && usuarioSesion.pareja) {
-                const parejaLower = usuarioSesion.pareja.toLowerCase();
-                for (const [nombre, seccion] of Object.entries(turno.seccion)) {
-                    if (nombre === parejaLower) {
-                        seccionEncontrada = seccion;
-                        break;
-                    }
-                }
-            }
-            if (seccionEncontrada) {
-                const nombresSeccion = {
-                    "infancia": "Primera Infancia (1-3 años)",
-                    "medianos": "Medianos (4-8 años)",
-                    "grandes": "Grandes (9-12 años)"
-                };
-                enviarNotificacionPush(
-                    'Recordatorio de Turno - ZoarKids 360',
-                    `${usuarioSesion.nombre}, estás encargado de ${nombresSeccion[seccionEncontrada] || seccionEncontrada} este domingo.`
-                );
-            }
+function iniciarTimerInactividad() {
+    if (inactividadPausada) return;
+    clearTimeout(timerInactividad);
+    timerInactividad = setTimeout(() => {
+        if (!inactividadPausada) {
+            mostrarNotificacion('Sesión expirada por inactividad. Redirigiendo al login...', 'warning');
+            setTimeout(() => { window.cerrarSesion(); }, 2000);
         }
-    }
+    }, INACTIVIDAD_TIMEOUT);
 }
+
+function reiniciarTimerInactividad() {
+    if (inactividadPausada) {
+        inactividadPausada = false;
+        iniciarTimerInactividad();
+        return;
+    }
+    iniciarTimerInactividad();
+}
+
+function pausarInactividad() {
+    inactividadPausada = true;
+    clearTimeout(timerInactividad);
+}
+
+function reanudarInactividad() {
+    inactividadPausada = false;
+    iniciarTimerInactividad();
+}
+
+// Eventos que reinician el timer
+document.addEventListener('mousemove', reiniciarTimerInactividad);
+document.addEventListener('click', reiniciarTimerInactividad);
+document.addEventListener('keydown', reiniciarTimerInactividad);
+document.addEventListener('touchstart', reiniciarTimerInactividad);
 
 // ============ INICIALIZACIÓN ============
 window.addEventListener('DOMContentLoaded', async () => {
-    // Prevenir gestos
-    document.addEventListener('gesturestart', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
-    document.addEventListener('gesturechange', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
-    document.addEventListener('gestureend', function(e) { e.preventDefault(); e.stopPropagation(); return false; }, { passive: false });
-    document.addEventListener('touchmove', function(e) {
-        if (e.touches && e.touches.length >= 2) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        }
-    }, { passive: false });
-    document.addEventListener('wheel', function(e) {
-        if (e.ctrlKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        }
-    }, { passive: false });
+    // Cargar tema guardado
+    const temaGuardado = localStorage.getItem('zoarkids_tema_activo') || 'predeterminado';
+    aplicarTema(temaGuardado);
+    console.log(' Tema aplicado:', temaGuardado);
+
+    const btnTema = document.getElementById('btn-cambiar-tema');
+    if (btnTema) {
+        const tema = TEMAS[temaGuardado] || TEMAS['predeterminado'];
+        btnTema.innerHTML = `<i class="fas ${tema.icono}" aria-hidden="true"></i><span class="btn-cambiar-tema-texto">Tema</span>`;
+    }
+
+    // Cargar notificaciones pendientes
+    const pendientes = JSON.parse(localStorage.getItem('zk360_notificaciones_pendientes') || '[]');
+    notificacionesPendientes = pendientes;
+    contadorNotificaciones = pendientes.length;
+    actualizarBadgeNotificaciones();
 
     // Recuperar sesión
     const sesionTemporal = sessionStorage.getItem('zk360_usuario_activo');
     const sesionPersistente = localStorage.getItem('zk360_usuario_persistente');
-
-    if (sesionPersistente) {
+    const esPrueba = sessionStorage.getItem('zk360_modo_prueba') === 'true';
+    const perfilOffline = (() => {
+        try { return JSON.parse(localStorage.getItem('zk360_maestro_offline') || 'null'); }
+        catch (error) { return null; }
+    })();
+    const perfilOfflineValido = perfilOffline?.rol === 'maestro' && perfilOffline.seccion &&
+        perfilOffline.expira_en && new Date(perfilOffline.expira_en).getTime() > Date.now();
+    modoOffline = sessionStorage.getItem('zk360_modo_offline') === 'true';
+    const claveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true';
+    
+    if (claveTemporal) esClaveTemporal = true;
+    
+    if (esPrueba) {
+        modoPrueba = true;
+        usuarioSesion = JSON.parse(sesionTemporal);
+        const labelPrueba = document.getElementById('modo-prueba-label');
+        if (labelPrueba) labelPrueba.style.display = 'block';
+        const btnRevertir = document.getElementById('btn-revertir-prueba');
+        if (btnRevertir) btnRevertir.style.display = 'block';
+    } else if (sesionPersistente) {
         usuarioSesion = JSON.parse(sesionPersistente);
     } else if (sesionTemporal) {
         usuarioSesion = JSON.parse(sesionTemporal);
     }
 
-    if (!usuarioSesion) {
-        window.location.href = "index.html";
+    if (!modoPrueba && !navigator.onLine) {
+        if (usuarioSesion?.rol !== 'maestro' || !perfilOfflineValido ||
+            perfilOffline.email !== usuarioSesion.email) {
+            sessionStorage.removeItem('zk360_usuario_activo');
+            sessionStorage.removeItem('zk360_modo_offline');
+            window.location.replace('index.html');
+            return;
+        }
+        modoOffline = true;
+        sessionStorage.setItem('zk360_modo_offline', 'true');
+    }
+
+    if (modoOffline && (!perfilOfflineValido ||
+        usuarioSesion?.rol !== 'maestro' ||
+        perfilOffline.email !== usuarioSesion.email)) {
+        sessionStorage.removeItem('zk360_modo_offline');
+        sessionStorage.removeItem('zk360_usuario_activo');
+        window.location.replace('index.html');
+        return;
+    }
+    if (!modoPrueba && !navigator.onLine && usuarioSesion?.rol !== 'maestro') {
+        sessionStorage.removeItem('zk360_usuario_activo');
+        sessionStorage.removeItem('zk360_modo_offline');
+        window.location.replace('index.html');
+        return;
+    }
+    
+    if (!usuarioSesion) { 
+        window.location.href = "index.html"; 
+        return; 
+    }
+
+    // No aceptar sesiones persistidas de usuarios que ya no están registrados.
+    // En modo de prueba se conserva el usuario local; si Supabase no responde,
+    // no se invalida una sesión legítima por un fallo temporal de conexión.
+    if (!modoPrueba && !modoOffline && navigator.onLine) {
+        const usuarioRegistrado = await validarUsuarioRegistrado(usuarioSesion.email);
+        if (usuarioRegistrado === false) {
+            sessionStorage.removeItem('zk360_usuario_activo');
+            localStorage.removeItem('zk360_usuario_persistente');
+            window.location.replace('index.html');
+            return;
+        }
+        if (usuarioRegistrado) {
+            usuarioSesion = { ...usuarioSesion, ...usuarioRegistrado };
+            sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
+            if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
+                localStorage.setItem('zk360_maestro_offline', JSON.stringify({
+                    nombre: usuarioSesion.nombre,
+                    email: usuarioSesion.email,
+                    rol: 'maestro',
+                    pareja: usuarioSesion.pareja || null,
+                    seccion: usuarioSesion.seccion,
+                    guardado_en: new Date().toISOString(),
+                    expira_en: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                }));
+            }
+            if (localStorage.getItem('zk360_usuario_persistente')) {
+                localStorage.setItem('zk360_usuario_persistente', JSON.stringify(usuarioSesion));
+            }
+        }
+    }
+
+    const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
+    const menuConfiguracionHorarios = document.getElementById('menu-configuracion-horarios');
+    const menuBandejaLecciones = document.getElementById('menu-bandeja-lecciones');
+    const btnAgregarActividad = document.getElementById('btn-agregar-actividad');
+    if (menuConfiguracionHorarios) menuConfiguracionHorarios.style.display = usuarioSesion.rol === 'admin' ? 'flex' : 'none';
+    if (menuBandejaLecciones) menuBandejaLecciones.style.display = usuarioSesion.rol === 'admin' ? 'flex' : 'none';
+    if (btnAgregarActividad) btnAgregarActividad.style.display = usuarioSesion.rol === 'admin' ? 'inline-flex' : 'none';
+    gestionarPermisosHistorial();
+
+    // Cargar tema preferido desde Supabase
+    const temaPreferido = await cargarTemaPreferido(usuarioSesion.email);
+    if (temaPreferido) {
+        aplicarTema(temaPreferido);
+    }
+
+    // Verificar si es primer inicio (onboarding de temas)
+    const onboardingTemas = localStorage.getItem('zoarkids_onboarding_temas') === 'true';
+    if (!onboardingTemas) {
+        setTimeout(mostrarModalBienvenidaTemas, 800);
+    }
+
+    // Actualizar UI del usuario - verificar existencia de elementos
+    const nombreUsuario = document.getElementById('txt-nombre-usuario');
+    if (nombreUsuario) nombreUsuario.textContent = usuarioSesion.nombre + ' (' + usuarioSesion.rol.toUpperCase() + ')';
+    
+    const avatarInicial = document.getElementById('avatar-inicial');
+    if (avatarInicial) avatarInicial.textContent = usuarioSesion.nombre.charAt(0);
+    
+    const perfNombre = document.getElementById('perf-nombre');
+    if (perfNombre) perfNombre.textContent = usuarioSesion.nombre;
+    
+    const perfCorreo = document.getElementById('perf-correo');
+    if (perfCorreo) perfCorreo.textContent = usuarioSesion.email || usuarioSesion.nombre.toLowerCase() + '@iglesiazoarsv.org';
+    
+    const perfRol = document.getElementById('perf-rol');
+    if (perfRol) perfRol.textContent = usuarioSesion.rol;
+
+    // Procesar calendario y asignación
+    procesarCalendario();
+    const perfSeccion = document.getElementById('perf-seccion');
+    if (perfSeccion) perfSeccion.textContent = seccionAsignadaMaestro || "Sin asignación";
+    const botonSustituto = document.getElementById('btn-solicitar-sustituto');
+    if (botonSustituto) {
+        const puedeSolicitar = usuarioSesion.rol === 'maestro' &&
+            Boolean(seccionAsignadaMaestro) &&
+            seccionAsignadaMaestro !== 'admin_total';
+        botonSustituto.hidden = !puedeSolicitar;
+    }
+
+    // Mostrar la zona de botones para TODOS los usuarios (Maestros y Admins)
+const zonaAdmin = document.getElementById('zona-acciones-admin-asistencia');
+if (zonaAdmin) {
+    zonaAdmin.style.display = 'flex';
+
+    // ============ CONTROL STRICTO DE BOTONES SEGÚN EL ROL ============
+    
+    // Evaluar si es Admin o Pastor
+    const esAdmin = usuarioSesion && usuarioSesion.rol === "admin";
+
+    // 1. Mostrar la barra de acciones
+    const zonaAccionesAsistencia = document.getElementById('zona-acciones-admin-asistencia');
+    if (zonaAccionesAsistencia) {
+        zonaAccionesAsistencia.style.display = 'flex';
+    }
+
+    // 2. Control de visibilidad de botones específicos
+    const btnVerTabla = document.getElementById('btn-ver-tabla-completa');
+    const btnEditar = document.getElementById('btn-abrir-modal-editar-nino');
+    const btnEliminar = document.getElementById('btn-abrir-modal-eliminar-nino');
+    const btnInscribir = document.getElementById('btn-abrir-modal-nuevo-nino');
+    const btnCumpleaneros = document.getElementById('btn-cumpleaneros');
+    const btnCumpleanerosSinClase = document.getElementById('btn-cumpleaneros-sin-clase');
+    if (btnInscribir) btnInscribir.style.display = '';
+    if (btnCumpleaneros) btnCumpleaneros.style.display = '';
+    if (btnCumpleanerosSinClase) btnCumpleanerosSinClase.style.display = '';
+
+    if (usuarioSesion?.rol !== 'admin') {
+        // MAESTROS (Entorno Real / Cuentas predeterminadas)
+        if (btnVerTabla) btnVerTabla.style.display = 'none'; // NUNCA muestra "Ver Todos"
+        if (btnEditar) btnEditar.style.display = 'none';     // Oculta Editar
+        if (btnEliminar) btnEliminar.style.display = 'none'; // Oculta Eliminar
+    } else {
+        // ADMINISTRADORES Y PASTORES
+        if (btnVerTabla) btnVerTabla.style.display = 'inline-block';
+        if (btnEditar) btnEditar.style.display = 'inline-block';
+        if (btnEliminar) btnEliminar.style.display = 'inline-block';
+    }}
+
+// Ocultar los botones de Editar y Eliminar para Maestros, dejando solo "Inscribir"
+if (usuarioSesion?.rol !== 'admin') {
+    const btnEditar = document.getElementById('btn-abrir-modal-editar-nino');
+    const btnEliminar = document.getElementById('btn-abrir-modal-eliminar-nino');
+    
+    if (btnEditar) btnEditar.style.display = 'none';
+    if (btnEliminar) btnEliminar.style.display = 'none';
+}
+
+    if (esClaveTemporal) {
+        setTimeout(() => {
+            abrirModalCambiarClave(true);
+        }, 1000);
+    }
+
+    configurarNavegacion();
+    configurarBotonTema();
+    configurarVistasAdministrativas();
+    await cargarConfiguracionHorario(false);
+    if (usuarioSesion.rol === 'admin') {
+        await actualizarBadgeFeedbackAdmin();
+        window.timerFeedbackAdmin = setInterval(actualizarBadgeFeedbackAdmin, 60000);
+    }
+    await cargarAlumnosSegunRol();
+    await verificarBloqueoSustituto();
+    
+    // Cargar dashboard inmediatamente
+    cargarDashboard();
+    cargarBiblioteca();
+    cargarGaleria('todas');
+    cargarChats();
+    cargarActividadesMensuales();
+    window.addEventListener('online', sincronizarCambiosOffline);
+    window.addEventListener('online', () => {
+        if (modoOffline && !sessionStorage.getItem('zk360_supabase_session')) {
+            publicarEstadoColaOffline(true);
+        }
+    });
+    window.addEventListener('offline', () => publicarEstadoColaOffline());
+    await sincronizarCambiosOffline();
+    publicarEstadoColaOffline(modoOffline && !sessionStorage.getItem('zk360_supabase_session'));
+
+    if (!modoPrueba) { 
+        await verificarOnboarding(); 
+    } else {
+        // ============ INICIALIZAR MODO PRUEBA ============
+        console.log(' Modo Prueba detectado - Aplicando sin restricciones');
+        
+        // Cargar script de prueba si no está cargado
+        if (typeof window.initModoPrueba === 'undefined') {
+            try {
+                // Verificar si el script ya existe
+                let scriptExistente = document.querySelector('script[src*="prueba.js"]');
+                if (!scriptExistente) {
+                    const script = document.createElement('script');
+                    script.src = 'prueba.js?v=' + Date.now();
+                    script.onload = function() {
+                        console.log(' script prueba.js cargado');
+                        if (typeof window.initModoPrueba === 'function') {
+                            window.initModoPrueba();
+                        }
+                    };
+                    script.onerror = function() {
+                        console.warn(' No se pudo cargar prueba.js, aplicando modo prueba manual');
+                        aplicarModoPruebaManual();
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    if (typeof window.initModoPrueba === 'function') {
+                        window.initModoPrueba();
+                    }
+                }
+            } catch (e) {
+                console.warn(' Error cargando prueba.js, aplicando modo prueba manual', e);
+                aplicarModoPruebaManual();
+            }
+        } else {
+            window.initModoPrueba();
+        }
+    }
+
+    iniciarTimerInactividad();
+
+    // ============ OCULTAR HISTORIAL POR COMPLETO A MAESTROS ============
+function gestionarPermisosHistorial() {
+    const esAdmin = usuarioSesion && (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor");
+    const opcionMenuHistorial = document.querySelector('.menu-link[data-vista="historial"]');
+    const moduloHistorial = document.getElementById('modulo-historial');
+
+    if (opcionMenuHistorial) opcionMenuHistorial.hidden = !esAdmin;
+    if (moduloHistorial) moduloHistorial.hidden = !esAdmin;
+}
+
+// Ejecutar al cargar la página
+gestionarPermisosHistorial();
+});
+
+// ============ MODO PRUEBA MANUAL (FALLBACK) ============
+function aplicarModoPruebaManual() {
+    console.log('🧪 Aplicando modo prueba manual (sin restricciones)');
+    
+    // Desbloquear botón de asistencia
+    const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
+    if (btnGuardar) {
+        btnGuardar.disabled = false;
+        btnGuardar.classList.remove('deshabilitado');
+        btnGuardar.innerHTML = '<i class="fa-solid fa-flask"></i> Prueba: Reportar Asistencia';
+    }
+    
+    // Desbloquear nueva lección
+    document.querySelectorAll('#btn-nueva-leccion, #btn-nueva-leccion-inicio').forEach(btn => {
+        if (btn) {
+            btn.disabled = false;
+            btn.title = 'Modo Prueba - Sin restricciones';
+        }
+    });
+    
+    // Desbloquear sustituto
+    const btnSustituto = document.getElementById('btn-solicitar-sustituto');
+    if (btnSustituto) {
+        btnSustituto.disabled = false;
+        btnSustituto.title = 'Modo Prueba - Sin restricciones';
+    }
+    
+    // Mostrar indicador
+    mostrarIndicadorPruebaManual();
+    
+    mostrarNotificacion(' Modo Prueba activado - Todas las funciones desbloqueadas', 'info');
+}
+
+// ============ INDICADOR DE PRUEBA MANUAL ============
+function mostrarIndicadorPruebaManual() {
+    document.getElementById('indicador-modo-prueba')?.remove();
+}
+
+// ============ EXPORTAR FUNCIONES DE PRUEBA ============
+window.desactivarModoPrueba = async function() {
+    if (await confirmarAccion('¿Salir del modo prueba? Volverás a la pantalla de login.')) {
+        sessionStorage.removeItem('zk360_modo_prueba');
+        sessionStorage.removeItem('zk360_usuario_activo');
+        const indicador = document.getElementById('indicador-modo-prueba');
+        if (indicador) indicador.style.display = 'none';
+        mostrarNotificacion('Saliendo del modo prueba...', 'warning');
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 500);
+    }
+};
+
+// ============ ONBOARDING DEL SISTEMA ============
+function iniciarOnboardingSistema() {
+    const pasos = [
+        { titulo: "Bienvenido a ZoarKids 360", descripcion: "Sistema de gestión para la Escuela Dominical de la Iglesia Zoar.", selector: null },
+        { titulo: "Tu rol es " + (usuarioSesion ? usuarioSesion.rol : 'Maestro'), descripcion: "Explora las funciones disponibles según tu rol.", selector: null },
+        { titulo: "Menú de navegación", descripcion: "Accede a todos los módulos desde el menú lateral.", selector: '.menu-items' },
+        { titulo: "Dashboard", descripcion: "Visualiza estadísticas y reportes generales.", selector: '[data-vista="dashboard"]' }
+    ];
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'onboarding-backdrop';
+    backdrop.id = 'onboarding-backdrop-sistema';
+    backdrop.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+        z-index: 9998; display: flex; justify-content: center; align-items: center;
+    `;
+    
+    const tooltip = document.createElement('div');
+    tooltip.className = 'onboarding-tooltip';
+    tooltip.style.cssText = `
+        background: var(--bg-card-main, #ffffff);
+        border-radius: 16px; padding: 24px; max-width: 380px; width: 100%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 10000;
+        animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    `;
+    
+    tooltip.innerHTML = `
+        <div class="tooltip-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span class="tooltip-step" style="font-size:0.8rem; color:#747d8c; font-weight:600;">Paso 1 de ${pasos.length}</span>
+            <button class="tooltip-close" onclick="cerrarOnboardingSistema()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#95a5a6;">&times;</button>
+        </div>
+        <div class="tooltip-body">
+            <h3 style="font-size:1.2rem; margin-bottom:8px; color:#1e3799;">${pasos[0].titulo}</h3>
+            <p style="color:#747d8c; font-size:0.95rem; line-height:1.5;">${pasos[0].descripcion}</p>
+        </div>
+        <div class="tooltip-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; gap:10px;">
+            <button class="btn-secondary" onclick="cerrarOnboardingSistema()" style="background:#cbd5e1; color:#2c3e50; border:none; padding:8px 20px; border-radius:12px; font-weight:600; cursor:pointer;">Omitir</button>
+            <button class="btn-primary" onclick="siguientePasoOnboardingSistema()" style="background:linear-gradient(135deg, #11998e, #38ef7d); color:white; border:none; padding:8px 20px; border-radius:12px; font-weight:600; cursor:pointer;">Siguiente <i class="fas fa-arrow-right"></i></button>
+        </div>
+    `;
+    
+    backdrop.appendChild(tooltip);
+    document.body.appendChild(backdrop);
+    
+    window.onboardingPasos = pasos;
+    window.onboardingPaso = 0;
+}
+
+function siguientePasoOnboardingSistema() {
+    const pasos = window.onboardingPasos;
+    const paso = window.onboardingPaso + 1;
+
+    if (paso >= pasos.length) {
+        cerrarOnboardingSistema();
         return;
     }
 
-    // Actualizar UI
-    document.getElementById('txt-nombre-usuario').textContent = `${usuarioSesion.nombre} (${usuarioSesion.rol.toUpperCase()})`;
-    document.getElementById('avatar-inicial').textContent = usuarioSesion.nombre.charAt(0);
-    document.getElementById('perf-nombre').textContent = usuarioSesion.nombre;
-    document.getElementById('perf-correo').textContent = `${usuarioSesion.nombre.toLowerCase()}@iglesiazoarsv.org`;
-    document.getElementById('perf-rol').textContent = usuarioSesion.rol;
-
-    // Procesar calendario
-    procesarAlgoritmoCalendarioKids();
-    document.getElementById('perf-seccion').textContent = seccionAsignadaMaestro || "Sin asignación";
-
-    // Configurar menú
-    configurarMenuSegunRol();
-
-    if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
-        document.getElementById('zona-acciones-admin-asistencia').style.display = 'flex';
-    }
-
-    // Cargar alumnos desde Supabase
-    await cargarAlumnosSegunRol();
-    
-    // Cargar historial
-    cargarHistorialAuditoria();
-    configurarEventos();
-    
-    // Registrar para notificaciones
-    setTimeout(registrarDispositivoParaPush, 3000);
-    setTimeout(verificarTurnoYNotificar, 5000);
-});
-
-// ============ CONFIGURAR MENÚ ============
-function configurarMenuSegunRol() {
-    const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
-    document.getElementById('menu-registros').style.display = esAdmin ? 'flex' : 'none';
-    document.getElementById('menu-reportes').style.display = esAdmin ? 'flex' : 'none';
-    if (!esAdmin) {
-        const seccionPerfil = document.querySelector('#desplegable-usuario p:last-child');
-        if (seccionPerfil && seccionPerfil.innerHTML.includes('Sección asignada')) {
-            seccionPerfil.style.display = 'none';
-        }
+    window.onboardingPaso = paso;
+    const tooltip = document.querySelector('.onboarding-tooltip');
+    if (tooltip) {
+        tooltip.querySelector('.tooltip-step').textContent = `Paso ${paso + 1} de ${pasos.length}`;
+        tooltip.querySelector('.tooltip-body h3').textContent = pasos[paso].titulo;
+        tooltip.querySelector('.tooltip-body p').textContent = pasos[paso].descripcion;
     }
 }
 
-// ============ CONFIGURAR EVENTOS ============
-function configurarEventos() {
+function cerrarOnboardingSistema() {
+    const backdrop = document.getElementById('onboarding-backdrop-sistema');
+    if (backdrop) backdrop.remove();
+    localStorage.setItem('zoarkids_onboarding_sistema', 'true');
+}
+
+window.cerrarOnboardingSistema = cerrarOnboardingSistema;
+window.siguientePasoOnboardingSistema = siguientePasoOnboardingSistema;
+
+// ============ VERIFICAR TURNO DEL MAESTRO - CORREGIDO ============
+function verificarTurnoMaestro() {
+    if (!seccionAsignadaMaestro || seccionAsignadaMaestro === "admin_total") {
+        return false;
+    }
+    
+    const claveFecha = calcularProximoDomingo();
+    const turno = cronogramaOficial2026[claveFecha];
+    if (!turno) return false;
+    
+    const nombreLower = (usuarioSesion.nombre || '').toLocaleLowerCase('es').trim();
+    const parejaLower = usuarioSesion.pareja
+        ? usuarioSesion.pareja.toLocaleLowerCase('es').trim()
+        : '';
+
+    if (seccionAsignadaMaestro === 'infancia') {
+        const nombresInfancia = (turno.pi || '').toLocaleLowerCase('es').split(' y ').map(n => n.trim());
+        return nombresInfancia.includes(nombreLower) || (parejaLower && nombresInfancia.includes(parejaLower));
+    }
+
+    if (seccionAsignadaMaestro === 'medianos') {
+        return (turno.me || '').toLocaleLowerCase('es').trim() === nombreLower;
+    }
+
+    if (seccionAsignadaMaestro === 'grandes') {
+        return (turno.gr || '').toLocaleLowerCase('es').trim() === nombreLower;
+    }
+
+    return false;
+}
+
+// ============ EASTER EGG - 15 CLICS ============
+function iniciarEasterEgg() {
+    return;
+}
+
+// ============ CONFIGURAR NAVEGACIÓN ============
+function configurarNavegacion() {
     document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
         link.addEventListener('click', function() {
             const vista = this.dataset.vista;
@@ -370,365 +1373,1631 @@ function configurarEventos() {
         });
     });
 
-    document.getElementById('trigger-menu').addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.getElementById('menu-lateral').classList.toggle('abierto');
-    });
+    const triggerMenu = document.getElementById('trigger-menu');
+    if (triggerMenu) {
+        triggerMenu.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('menu-lateral');
+            if (menu) menu.classList.toggle('abierto');
+        });
+    }
 
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('menu-lateral');
         const trigger = document.getElementById('trigger-menu');
-        if (window.innerWidth <= 768 && menu.classList.contains('abierto')) {
+        if (window.innerWidth <= 768 && menu && menu.classList.contains('abierto')) {
             if (!menu.contains(e.target) && !trigger.contains(e.target)) {
                 menu.classList.remove('abierto');
             }
         }
     });
 
-    document.getElementById('wrapper-perfil-click').addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.getElementById('desplegable-usuario').classList.toggle('activo');
-    });
+    const perfilWrapper = document.getElementById('wrapper-perfil-click');
+    if (perfilWrapper) {
+        perfilWrapper.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const dropdown = document.getElementById('desplegable-usuario');
+            if (dropdown) dropdown.classList.toggle('activo');
+        });
+    }
 
     document.addEventListener('click', () => {
-        document.getElementById('desplegable-usuario').classList.remove('activo');
+        const dropdown = document.getElementById('desplegable-usuario');
+        if (dropdown) dropdown.classList.remove('activo');
     });
 
-    document.getElementById('trigger-info-app').addEventListener('click', () => {
-        document.getElementById('pantalla-modal-creditos').classList.add('activo');
+    const triggerInfo = document.getElementById('trigger-info-app');
+    if (triggerInfo) {
+        triggerInfo.addEventListener('click', () => {
+            const modal = document.getElementById('pantalla-modal-creditos');
+            if (modal) modal.classList.add('activo');
+        });
+    }
+
+    const btnCerrarModal = document.getElementById('btn-cerrar-modal-click');
+    if (btnCerrarModal) {
+        btnCerrarModal.addEventListener('click', () => {
+            const modal = document.getElementById('pantalla-modal-creditos');
+            if (modal) modal.classList.remove('activo');
+        });
+    }
+
+    const btnLogout = document.getElementById('btn-logout-click');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', function() {
+            mostrarNotificacion('Cerrando sesión...', 'warning');
+            setTimeout(() => { window.cerrarSesion(); }, 3000);
+        });
+    }
+
+    const btnAyuda = document.getElementById('btn-pedir-ayuda');
+    if (btnAyuda) {
+        btnAyuda.addEventListener('click', function() {
+            const ayudaLink = document.querySelector('[data-vista="ayuda"]');
+            if (ayudaLink) ayudaLink.click();
+            const dropdown = document.getElementById('desplegable-usuario');
+            if (dropdown) dropdown.classList.remove('activo');
+        });
+    }
+
+    // Eventos de asistencia
+    const btnGuardarAsistencia = document.getElementById('btn-guardar-asistencia-final');
+    if (btnGuardarAsistencia) {
+        btnGuardarAsistencia.addEventListener('click', function() {
+            if (this.disabled) { mostrarNotificacion("La ventana de asistencia está cerrada.", "warning"); return; }
+            enviarAsistenciaSupabase();
+        });
+    }
+
+    const btnVerTabla = document.getElementById('btn-ver-tabla-completa');
+    if (btnVerTabla) {
+        btnVerTabla.addEventListener('click', function() {
+            if (modoPrueba) return;
+            modoAdminVerTodos = !modoAdminVerTodos;
+            this.textContent = modoAdminVerTodos ? 'Ver Mi Sección' : 'Ver Todos';
+            this.style.background = modoAdminVerTodos ? '#2ecc71' : '#6c5ce7';
+            cargarAlumnosSegunRol();
+        });
+    }
+
+    const btnCumpleaneros = document.getElementById('btn-cumpleaneros');
+    if (btnCumpleaneros) btnCumpleaneros.addEventListener('click', mostrarCumpleaneros);
+    
+    const btnCumpleanerosSinClase = document.getElementById('btn-cumpleaneros-sin-clase');
+    if (btnCumpleanerosSinClase) btnCumpleanerosSinClase.addEventListener('click', mostrarCumpleaneros);
+
+    // MODALES ALUMNOS
+    const btnNuevoNino = document.getElementById('btn-abrir-modal-nuevo-nino');
+    const abrirRegistroNino = () => {
+            const modal = document.getElementById('modal-registro-niño');
+            if (modal) modal.classList.add('activo');
+            const input = document.getElementById('reg-nombre');
+            if (input) input.focus();
+    };
+    if (btnNuevoNino) btnNuevoNino.addEventListener('click', abrirRegistroNino);
+    const btnInscribirSinClase = document.getElementById('btn-inscribir-sin-clase');
+    if (btnInscribirSinClase) btnInscribirSinClase.addEventListener('click', abrirRegistroNino);
+
+    const btnCancelarNino = document.getElementById('btn-cancelar-nino-modal');
+    if (btnCancelarNino) btnCancelarNino.addEventListener('click', cerrarModalRegistro);
+
+    const btnEditarNino = document.getElementById('btn-abrir-modal-editar-nino');
+    if (btnEditarNino) {
+        btnEditarNino.addEventListener('click', () => {
+            const modal = document.getElementById('modal-buscar-editar');
+            if (modal) modal.classList.add('activo');
+            const input = document.getElementById('txt-codigo-buscar-edit');
+            if (input) input.focus();
+        });
+    }
+
+    const btnCerrarEdit = document.getElementById('btn-cerrar-busq-edit');
+    if (btnCerrarEdit) btnCerrarEdit.addEventListener('click', cerrarModalEditar);
+
+    const btnEliminarNino = document.getElementById('btn-abrir-modal-eliminar-nino');
+    if (btnEliminarNino) {
+        btnEliminarNino.addEventListener('click', () => {
+            const modal = document.getElementById('modal-eliminar-alumno');
+            if (modal) modal.classList.add('activo');
+            const input = document.getElementById('txt-codigo-buscar-del');
+            if (input) input.focus();
+        });
+    }
+
+    const btnCerrarDel = document.getElementById('btn-cerrar-busq-del');
+    if (btnCerrarDel) btnCerrarDel.addEventListener('click', cerrarModalEliminar);
+
+    const formRegistro = document.getElementById('form-registro-alumno');
+    if (formRegistro) {
+        formRegistro.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await registrarNuevoAlumno(this);
+        });
+    }
+
+    const formEdicion = document.getElementById('form-edicion-campos-nino');
+    if (formEdicion) {
+        formEdicion.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await actualizarAlumno(this);
+        });
+    }
+
+    // ENTER EN MODALES
+    document.querySelectorAll('.modal-overlay input, .modal-overlay textarea, .modal-overlay select').forEach(el => {
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const modal = this.closest('.modal-overlay');
+                if (modal) {
+                    const btnSubmit = modal.querySelector('button[type="submit"], .btn-enviar-clase:not(.btn-cancelar)');
+                    if (btnSubmit) btnSubmit.click();
+                }
+            }
+        });
     });
 
-    document.getElementById('btn-cerrar-modal-click').addEventListener('click', () => {
-        document.getElementById('pantalla-modal-creditos').classList.remove('activo');
+    // BIBLIOTECA - Botón Nueva Lección
+    const btnNuevaLeccion = document.getElementById('btn-nueva-leccion');
+    if (btnNuevaLeccion) {
+        btnNuevaLeccion.addEventListener('click', function() {
+            const estaEnTurno = verificarTurnoMaestro();
+            if (!estaEnTurno) {
+                mostrarNotificacion('Solo puedes preinscribir lecciones si estás de turno en la clase del domingo en curso.', 'warning');
+                return;
+            }
+            abrirFormularioLeccion();
+        });
+    }
+
+    // BIBLIOTECA - Botón Solicitar Sustituto
+    const btnSustituto = document.getElementById('btn-solicitar-sustituto');
+    if (btnSustituto) {
+        btnSustituto.addEventListener('click', abrirSolicitarSustituto);
+    }
+
+    // GALERÍA
+    const formSubirFoto = document.getElementById('form-subir-foto');
+    if (formSubirFoto) {
+        formSubirFoto.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await subirFotoGaleria(this);
+        });
+    }
+
+    // CHAT
+    const chatBuscar = document.getElementById('chat-buscar');
+    if (chatBuscar) {
+        chatBuscar.addEventListener('input', function() {
+            buscarContactos(this.value);
+        });
+    }
+
+    const chatInput = document.getElementById('chat-input-texto');
+    if (chatInput) {
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') { enviarMensaje(); }
+        });
+    }
+
+    const btnAgregarContacto = document.getElementById('btn-agregar-contacto');
+    if (btnAgregarContacto) btnAgregarContacto.addEventListener('click', abrirAgregarContacto);
+
+    // SUGERENCIAS
+    const txtAyuda = document.getElementById('txt-ayuda-mensaje');
+    if (txtAyuda) {
+        txtAyuda.addEventListener('input', function() {
+            const contador = document.getElementById('contador-caracteres');
+            const max = 500;
+            const actual = this.value.length;
+            if (contador) {
+                contador.textContent = actual + '/' + max;
+                contador.style.color = actual > max ? '#ff7675' : '#95a5a6';
+            }
+            if (actual > max) { this.style.borderColor = '#ff7675'; } 
+            else { this.style.borderColor = '#dfe4ea'; }
+        });
+    }
+
+    // HISTORIAL
+    const filtroHistorial = document.getElementById('input-filtro-historial');
+    if (filtroHistorial) {
+        filtroHistorial.addEventListener('input', function() {
+            const termino = this.value.toLowerCase().trim();
+            const resultados = document.getElementById('resultados-historial');
+            const tabla = document.getElementById('tabla-logs-cuerpo');
+            const btnLimpiar = document.getElementById('btn-limpiar-historial');
+            if (btnLimpiar) btnLimpiar.style.display = termino ? 'inline-flex' : 'none';
+            if (termino) {
+                let logs = [];
+                try {
+                    const guardados = JSON.parse(localStorage.getItem('zk360_historial') || '[]');
+                    if (Array.isArray(guardados)) logs = guardados;
+                } catch (error) {
+                    console.error('No se pudo leer el historial para filtrar:', error);
+                }
+                const filtrados = logs.filter(log => [log.usuario, log.accion, log.fecha]
+                    .some(valor => String(valor || '').toLocaleLowerCase('es').includes(termino)));
+                if (filtrados.length === 0) {
+                    if (resultados) resultados.innerHTML = '<p style="color:#95a5a6; text-align:center; padding:15px;">No se encontraron resultados</p>';
+                    if (tabla) tabla.style.display = 'none';
+                    return;
+                }
+                if (resultados) {
+                    resultados.replaceChildren();
+                    filtrados.slice(0, 30).forEach(log => {
+                        const tarjeta = document.createElement('div');
+                        tarjeta.style.cssText = 'padding:10px 12px; border-bottom:1px solid #eef2f7; font-size:13px; background:white; border-radius:8px; margin-bottom:4px;';
+                        const usuario = document.createElement('strong');
+                        usuario.style.color = '#1e3799';
+                        usuario.textContent = log.usuario || '';
+                        const accion = document.createElement('span');
+                        accion.style.color = '#2c3e50';
+                        accion.textContent = ` - ${log.accion || ''}`;
+                        const fecha = document.createElement('span');
+                        fecha.style.cssText = 'color:#95a5a6; font-size:11px; display:block; margin-top:3px;';
+                        fecha.textContent = log.fecha || '';
+                        tarjeta.append(usuario, accion, fecha);
+                        resultados.appendChild(tarjeta);
+                    });
+                }
+                if (tabla) tabla.style.display = 'none';
+            } else {
+                if (resultados) resultados.replaceChildren();
+                if (tabla) tabla.style.display = 'table';
+                cargarHistorial();
+            }
+        });
+    }
+
+    const btnLimpiarHistorial = document.getElementById('btn-limpiar-historial');
+    if (btnLimpiarHistorial) {
+        btnLimpiarHistorial.addEventListener('click', function() {
+            const input = document.getElementById('input-filtro-historial');
+            if (input) input.value = '';
+            this.style.display = 'none';
+            const resultados = document.getElementById('resultados-historial');
+            if (resultados) resultados.innerHTML = '';
+            const tabla = document.getElementById('tabla-logs-cuerpo');
+            if (tabla) tabla.style.display = 'table';
+            const btnLimpiar = document.getElementById('btn-limpiar-historial');
+            if (btnLimpiar) btnLimpiar.style.display = 'none';
+            cargarHistorial();
+        });
+    }
+
+    // CAMPANA DE NOTIFICACIONES
+    const btnNotificaciones = document.getElementById('btn-notificaciones');
+    if (btnNotificaciones) btnNotificaciones.addEventListener('click', window.abrirNotificaciones);
+
+    // MODAL ADMIN - BANDEJA DE LECCIONES PENDIENTES
+    const btnBandeja = document.getElementById('btn-bandeja-lecciones');
+    if (btnBandeja) {
+        btnBandeja.addEventListener('click', function() {
+            if (usuarioSesion.rol !== 'admin') {
+                mostrarNotificacion('Solo el Administrador puede acceder a esta bandeja', 'error');
+                return;
+            }
+            abrirBandejaLecciones();
+        });
+    }
+
+    // REVERTIR PRUEBA
+    const btnRevertir = document.getElementById('btn-revertir-prueba');
+    if (btnRevertir) {
+        btnRevertir.addEventListener('click', function() {
+            if (usuarioSesion.rol === 'admin') {
+                seleccionarRolPrueba('maestro_con_clase');
+            } else if (usuarioSesion.seccion) {
+                seleccionarRolPrueba('maestro_sin_clase');
+            } else {
+                seleccionarRolPrueba('maestro_con_clase');
+            }
+        });
+    }
+
+    // CERRAR MODALES DE AYUDA
+    const btnCerrarSugerencia = document.getElementById('btn-cerrar-sugerencia-modal');
+    if (btnCerrarSugerencia) {
+        btnCerrarSugerencia.addEventListener('click', function() {
+            const modal = document.getElementById('modal-sugerencia');
+            if (modal) modal.classList.remove('activo');
+        });
+    }
+
+    const btnCerrarReporte = document.getElementById('btn-cerrar-reporte-modal');
+    if (btnCerrarReporte) {
+        btnCerrarReporte.addEventListener('click', function() {
+            const modal = document.getElementById('modal-reporte-error');
+            if (modal) modal.classList.remove('activo');
+        });
+    }
+
+    // EASTER EGG
+    setTimeout(iniciarEasterEgg, 500);
+}
+
+// ============ SOLICITAR SUSTITUTO (REPARADO Y SIEMPRE VISIBLE) ============
+
+function validarElegibilidadSustituto() {
+    const dia = new Date().getDay();
+    const diasPermitidos = configuracionHorario.dias_solicitud_sustituto;
+    if (!diasPermitidos.includes(dia)) {
+        const nombresDias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        const permitidos = diasPermitidos.map(diaPermitido => nombresDias[diaPermitido]).join(' y ');
+        mostrarNotificacion(`Solo puedes solicitar sustituto ${permitidos ? `los ${permitidos}` : 'en los días autorizados'}.`, 'warning');
+        return false;
+    }
+    if (usuarioSesion?.rol !== 'maestro') {
+        mostrarNotificacion('Solo los maestros pueden solicitar sustituto.', 'warning');
+        return false;
+    }
+    if (!seccionAsignadaMaestro ||
+        ['admin_total', 'sin asignación'].includes(String(seccionAsignadaMaestro).trim().toLocaleLowerCase('es'))) {
+        mostrarNotificacion('No tienes una clase asignada.', 'warning');
+        return false;
+    }
+    if (!verificarTurnoMaestro()) {
+        mostrarNotificacion('No apareces en el cronograma del próximo domingo.', 'warning');
+        return false;
+    }
+    return true;
+}
+
+async function abrirSolicitarSustituto() {
+    if (!validarElegibilidadSustituto()) return;
+    const bloqueo = await verificarBloqueoSustituto();
+    if (bloqueo.bloqueado) {
+        mostrarNotificacion(bloqueo.mensaje, 'warning');
+        return;
+    }
+    const modal = document.getElementById('modal-sustituto');
+    if (!modal) {
+        mostrarNotificacion('No se encontró el modal de sustitutos.', 'error');
+        return;
+    }
+    modal.classList.add('activo');
+    modal.style.display = 'flex';
+    await cargarMaestrosLibres();
+}
+
+async function cargarMaestrosLibres() {
+    const lista = document.getElementById('lista-sustitutos');
+    if (!lista) return;
+    lista.replaceChildren();
+    const cargando = document.createElement('p');
+    cargando.style.cssText = 'text-align:center;padding:20px';
+    cargando.textContent = 'Cargando maestros...';
+    lista.appendChild(cargando);
+    try {
+        const fecha = calcularProximoDomingo();
+        const registros = await llamarSupabase('sustituciones?fecha_domingo=eq.' + encodeURIComponent(fecha) + '&select=*');
+        const usuarios = await llamarSupabase('usuarios?rol=eq.maestro&select=*');
+        if (!registros || !usuarios) throw new Error('No se pudieron consultar las sustituciones o los maestros.');
+
+        const rechazados = registros.filter(r => r.estado === 'rechazada').map(r => r.receptor_email);
+        const ocupados = registros.filter(r => ['pendiente', 'aceptada', 'aceptada_parcial'].includes(r.estado)).map(r => r.receptor_email);
+        const noDisponibles = new Set([...rechazados, ...ocupados]);
+        const esPrimeraInfancia = seccionAsignadaMaestro === 'infancia';
+        const parejaNombre = esPrimeraInfancia && usuarioSesion.pareja ? usuarioSesion.pareja.toLocaleLowerCase('es') : '';
+        const disponibles = usuarios.filter(u => {
+            const noEsUsuario = u.email !== usuarioSesion.email;
+            const noEsPareja = !parejaNombre || (u.nombre || '').toLocaleLowerCase('es') !== parejaNombre;
+            const libre = !u.seccion;
+            return noEsUsuario && noEsPareja && libre && !noDisponibles.has(u.email);
+        });
+        window.maestrosLibresSustituto = disponibles;
+
+        if (esPrimeraInfancia && !window.solicitudParejaSustituto?.modo) {
+            lista.replaceChildren();
+            const aviso = document.createElement('p');
+            aviso.style.cssText = 'font-size:13px;color:#747d8c';
+            aviso.textContent = 'Se solicitará primero la confirmación de tu pareja.';
+            const boton = document.createElement('button');
+            boton.className = 'btn-primary';
+            boton.textContent = 'Solicitar confirmación a mi pareja';
+            boton.addEventListener('click', confirmarSolicitudInternaPareja);
+            lista.append(aviso, boton);
+            return;
+        }
+        if (!disponibles.length) {
+            lista.replaceChildren();
+            const aviso = document.createElement('p');
+            aviso.style.cssText = 'text-align:center;padding:15px;color:#747d8c';
+            aviso.textContent = 'No hay maestros libres para esta fecha.';
+            lista.appendChild(aviso);
+            return;
+        }
+
+        const contenedor = document.createElement('div');
+        contenedor.style.marginTop = '10px';
+        disponibles.forEach(usuario => {
+            const fila = document.createElement('div');
+            fila.style.cssText = 'padding:12px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center;gap:12px;';
+            const identidad = document.createElement('div');
+            const nombre = document.createElement('strong');
+            nombre.textContent = usuario.nombre || '';
+            const correo = document.createElement('p');
+            correo.style.cssText = 'font-size:12px;color:#95a5a6;margin:2px 0';
+            correo.textContent = usuario.email || '';
+            identidad.append(nombre, correo);
+            const boton = document.createElement('button');
+            boton.className = 'btn-primary';
+            boton.textContent = 'Solicitar';
+            boton.addEventListener('click', () => abrirFormularioSolicitud(usuario.email));
+            fila.append(identidad, boton);
+            contenedor.appendChild(fila);
+        });
+        lista.replaceChildren(contenedor);
+    } catch (error) {
+        console.error('Error cargando sustitutos:', error);
+        lista.replaceChildren();
+        const aviso = document.createElement('p');
+        aviso.style.cssText = 'text-align:center;padding:20px;color:#ff7675';
+        aviso.textContent = 'Error al cargar maestros disponibles.';
+        lista.appendChild(aviso);
+    }
+}
+
+function abrirFormularioSolicitud(email) {
+    const lista = document.getElementById('lista-sustitutos');
+    if (!lista) return;
+
+    const tarjeta = document.createElement('div');
+    tarjeta.style.cssText = 'background:#f8f9fa;border:1px solid #eef2f7;border-radius:12px;padding:16px;';
+    const titulo = document.createElement('p');
+    titulo.style.cssText = 'margin:0 0 8px;font-weight:700;color:#1e3799;';
+    titulo.textContent = `Solicitud para: ${email}`;
+    const label = document.createElement('label');
+    label.htmlFor = 'motivo-sustituto';
+    label.style.cssText = 'display:block;font-weight:600;margin:12px 0 5px';
+    label.textContent = 'Motivo';
+    const textarea = document.createElement('textarea');
+    textarea.id = 'motivo-sustituto';
+    textarea.rows = 4;
+    textarea.maxLength = 500;
+    textarea.required = true;
+    textarea.placeholder = 'Escribe el motivo de la solicitud...';
+    textarea.style.cssText = 'width:100%;padding:9px;border:1px solid #dfe4ea;border-radius:8px; resize:vertical;';
+    const acciones = document.createElement('div');
+    acciones.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:12px; flex-wrap:wrap;';
+    const cancelar = document.createElement('button');
+    cancelar.type = 'button';
+    cancelar.className = 'btn-cerrar-modal btn-cancelar';
+    cancelar.textContent = 'Cancelar';
+    cancelar.addEventListener('click', cargarMaestrosLibres);
+    const enviar = document.createElement('button');
+    enviar.type = 'button';
+    enviar.className = 'btn-primary';
+    enviar.textContent = 'Enviar';
+    enviar.addEventListener('click', () => seleccionarSustituto(email));
+    acciones.append(cancelar, enviar);
+    tarjeta.append(titulo, label, textarea, acciones);
+    lista.replaceChildren(tarjeta);
+
+    textarea.focus();
+}
+
+async function seleccionarSustituto(email) {
+    if (!validarElegibilidadSustituto()) return;
+    const motivoEl = document.getElementById('motivo-sustituto');
+    const motivo = motivoEl ? motivoEl.value.trim() : '';
+    if (motivo.length < 10) {
+        mostrarNotificacion('Escribe un motivo de al menos 10 caracteres.', 'warning');
+        if (motivoEl) motivoEl.focus();
+        return;
+    }
+    if (parejasRechazadas.includes(email)) {
+        mostrarNotificacion('Este maestro ya rechazó una solicitud para esta fecha.', 'warning');
+        return;
+    }
+    const bloqueo = await verificarBloqueoSustituto();
+    if (bloqueo.bloqueado) {
+        mostrarNotificacion(bloqueo.mensaje, 'warning');
+        return;
+    }
+    try {
+        const fecha = calcularProximoDomingo();
+        const registro = await llamarSupabase('sustituciones', {
+            method: 'POST',
+            body: JSON.stringify({
+                solicitante_email: usuarioSesion.email,
+                solicitante_nombre: usuarioSesion.nombre,
+                receptor_email: email,
+                fecha_domingo: fecha,
+                seccion: seccionAsignadaMaestro,
+                motivo,
+                estado: 'pendiente',
+                tipo: 'individual',
+                expira_en: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString()
+            })
+        });
+        if (!registro) throw new Error('No se pudo guardar la solicitud.');
+        const modal = document.getElementById('modal-sustituto');
+        if (modal) modal.classList.remove('activo');
+        const btn = document.getElementById('btn-solicitar-sustituto');
+        if (btn) { btn.disabled = true; btn.title = 'Solicitud pendiente de respuesta'; }
+        mostrarNotificacion('Solicitud enviada. El botón se reactivará al recibir respuesta o al expirar en 5 horas.', 'success');
+    } catch (error) {
+        console.error('Error enviando solicitud:', error);
+        mostrarNotificacion('No se pudo enviar la solicitud.', 'error');
+    }
+}
+
+async function transferirClase(email, turno, claveSeccion, nuevosNombres) {
+    try {
+        // La forma de objeto se usa al aceptar solicitudes persistidas; se conservan
+        // los argumentos anteriores para compatibilidad con llamadas existentes.
+        const solicitud = email && typeof email === 'object' ? email : null;
+        const fecha = solicitud ? solicitud.fecha_domingo : calcularProximoDomingo();
+        const seccion = solicitud ? solicitud.seccion : seccionAsignadaMaestro;
+        const mapa = { infancia: 'pi', medianos: 'me', grandes: 'gr' };
+        const clave = solicitud ? mapa[seccion] : claveSeccion;
+        const cronograma = turno || cronogramaOficial2026[fecha];
+        if (!cronograma || !clave) throw new Error('No se encontró la asignación del cronograma.');
+
+        let receptores = [];
+        if (solicitud) {
+            if (solicitud.grupo_id) {
+                const grupo = await llamarSupabase('sustituciones?grupo_id=eq.' + encodeURIComponent(solicitud.grupo_id) + '&select=*');
+                if (!grupo || grupo.length !== 2 || grupo.some(r => r.estado !== 'aceptada')) return false;
+                receptores = grupo;
+            } else {
+                receptores = [solicitud];
+            }
+            const usuarios = await Promise.all(receptores.map(r => llamarSupabase('usuarios?email=eq.' + encodeURIComponent(r.receptor_email))));
+            if (usuarios.some(u => !u || !u.length)) throw new Error('No se encontraron todos los sustitutos.');
+            const nombresBase = (cronograma[clave] || '').split(' y ').map(n => n.trim());
+            if (solicitud.grupo_id) {
+                nuevosNombres = usuarios.map(u => u[0].nombre);
+            } else {
+                const origen = (solicitud.solicitante_nombre || '').toLocaleLowerCase('es');
+                const indice = nombresBase.findIndex(n => n.toLocaleLowerCase('es') === origen);
+                if (indice >= 0) nombresBase[indice] = usuarios[0][0].nombre;
+                else if (nombresBase.length === 1) nombresBase[0] = usuarios[0][0].nombre;
+                else nombresBase.push(usuarios[0][0].nombre);
+                nuevosNombres = nombresBase;
+            }
+        }
+
+        const actualizado = await llamarSupabase('cronograma?fecha=eq.' + encodeURIComponent(fecha), {
+            method: 'PATCH',
+            body: JSON.stringify({ [clave]: Array.isArray(nuevosNombres) ? nuevosNombres.join(' y ') : nuevosNombres })
+        });
+        if (actualizado === null) throw new Error('No se pudo actualizar el cronograma.');
+
+        if (solicitud) {
+            for (const r of receptores) {
+                await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(r.receptor_email), {
+                    method: 'PATCH', body: JSON.stringify({ seccion })
+                });
+            }
+            const solicitantes = new Set(receptores.flatMap(r => [r.solicitante_email, r.pareja_email].filter(Boolean)));
+            for (const solicitanteEmail of solicitantes) {
+                await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(solicitanteEmail), {
+                    method: 'PATCH', body: JSON.stringify({ seccion: null })
+                });
+            }
+            for (const r of receptores) {
+                await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(r.id), {
+                    method: 'PATCH', body: JSON.stringify({ estado: 'aceptada', aceptada_en: new Date().toISOString() })
+                });
+            }
+            mostrarNotificacion('Sustitución aceptada y asignación transferida.', 'success');
+        } else {
+            await llamarSupabase('cronograma?fecha=eq.' + encodeURIComponent(fecha), {
+                method: 'PATCH', body: JSON.stringify({ [clave]: nuevosNombres.join(' y ') })
+            });
+        }
+        await verificarBloqueoSustituto();
+        setTimeout(() => window.location.reload(), 1200);
+        return true;
+    } catch (error) {
+        console.error('Error transfiriendo clase:', error);
+        mostrarNotificacion('No se pudo transferir la asignación.', 'error');
+        return false;
+    }
+}
+
+async function confirmarSolicitudInternaPareja() {
+    if (!validarElegibilidadSustituto()) return;
+    const motivoEl = document.getElementById('motivo-sustituto');
+    const motivo = motivoEl ? motivoEl.value.trim() : '';
+    if (motivo.length < 10) {
+        mostrarNotificacion('Escribe un motivo de al menos 10 caracteres.', 'warning');
+        return;
+    }
+    if (seccionAsignadaMaestro !== 'infancia' || !usuarioSesion.pareja) {
+        mostrarNotificacion('Esta confirmación solo aplica a Primera Infancia con pareja registrada.', 'error');
+        return;
+    }
+    try {
+        let pareja = typeof obtenerUsuarioPorNombre === 'function' ? await obtenerUsuarioPorNombre(usuarioSesion.pareja) : null;
+        if (!pareja) {
+            const resultado = await llamarSupabase('usuarios?nombre=eq.' + encodeURIComponent(usuarioSesion.pareja));
+            pareja = resultado && resultado[0];
+        }
+        if (!pareja || !pareja.email) throw new Error('No se encontró el correo de tu pareja.');
+        const resultado = await llamarSupabase('sustituciones', {
+            method: 'POST',
+            body: JSON.stringify({
+                solicitante_email: usuarioSesion.email,
+                solicitante_nombre: usuarioSesion.nombre,
+                receptor_email: pareja.email,
+                pareja_email: pareja.email,
+                fecha_domingo: calcularProximoDomingo(),
+                seccion: 'infancia',
+                motivo,
+                estado: 'confirmacion_pareja',
+                tipo: 'confirmacion_pareja',
+                expira_en: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString()
+            })
+        });
+        if (!resultado) throw new Error('No se pudo guardar la confirmación.');
+        const modal = document.getElementById('modal-sustituto');
+        if (modal) modal.classList.remove('activo');
+        const btn = document.getElementById('btn-solicitar-sustituto');
+        if (btn) { btn.disabled = true; btn.title = 'Esperando confirmación de tu pareja'; }
+        mostrarNotificacion('Solicitud enviada a tu pareja.', 'success');
+    } catch (error) {
+        console.error(error);
+        mostrarNotificacion(error.message || 'No se pudo solicitar confirmación.', 'error');
+    }
+}
+
+async function seleccionarModoSustitutoPareja(modo) {
+    const solicitud = window.solicitudParejaSustituto;
+    if (seccionAsignadaMaestro !== 'infancia' || !solicitud || !['solo', 'ambos'].includes(modo)) return;
+    window.solicitudParejaSustituto.modo = modo;
+    const modal = document.getElementById('modal-sustituto');
+    if (modal) modal.classList.add('activo');
+    await cargarMaestrosLibres();
+    const lista = document.getElementById('lista-sustitutos');
+    if (!lista) return;
+    const disponibles = window.maestrosLibresSustituto || [];
+    lista.replaceChildren();
+    const cabecera = document.createElement('p');
+    cabecera.style.fontWeight = '600';
+    cabecera.textContent = modo === 'solo'
+        ? 'Selecciona un sustituto para la solicitud.'
+        : 'Elijan dos maestros distintos para cubrir Primera Infancia.';
+    lista.appendChild(cabecera);
+    const crearSelector = (id, etiqueta) => {
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.style.cssText = 'display:block;margin:10px 0 4px';
+        label.textContent = etiqueta;
+        const select = document.createElement('select');
+        select.id = id;
+        select.style.cssText = 'width:100%;padding:9px;border:1px solid #dfe4ea;border-radius:8px';
+        const opcionInicial = document.createElement('option');
+        opcionInicial.value = '';
+        opcionInicial.textContent = 'Selecciona un maestro';
+        select.appendChild(opcionInicial);
+        disponibles.forEach(usuario => {
+            const opcion = document.createElement('option');
+            opcion.value = usuario.email;
+            opcion.textContent = `${usuario.nombre} (${usuario.email})`;
+            select.appendChild(opcion);
+        });
+        lista.append(label, select);
+    };
+    crearSelector('sustituto-pareja-a', modo === 'ambos' ? 'Sustituto del solicitante' : 'Maestro sustituto');
+    if (modo === 'ambos') crearSelector('sustituto-pareja-b', 'Sustituto de la pareja');
+    const motivoLabel = document.createElement('label');
+    motivoLabel.htmlFor = 'motivo-sustituto';
+    motivoLabel.style.cssText = 'display:block;margin:10px 0 4px';
+    motivoLabel.textContent = 'Motivo (mínimo 10 caracteres)';
+    const motivo = document.createElement('textarea');
+    motivo.id = 'motivo-sustituto';
+    motivo.rows = 3;
+    motivo.style.cssText = 'width:100%;padding:9px;border:1px solid #dfe4ea;border-radius:8px';
+    motivo.value = solicitud.motivo || '';
+    const enviar = document.createElement('button');
+    enviar.type = 'button';
+    enviar.className = 'btn-primary';
+    enviar.style.marginTop = '10px';
+    enviar.textContent = modo === 'ambos' ? 'Enviar ambas solicitudes' : 'Enviar solicitud';
+    enviar.addEventListener('click', async () => {
+        const select = document.getElementById('sustituto-pareja-a');
+        if (modo === 'ambos') {
+            await enviarSolicitudDoble();
+            return;
+        }
+        if (!select?.value || motivo.value.trim().length < 10) {
+            mostrarNotificacion('Selecciona un maestro y escribe un motivo de al menos 10 caracteres.', 'warning');
+            return;
+        }
+        await seleccionarSustituto(select.value);
     });
+    lista.append(motivoLabel, motivo, enviar);
+}
 
-    // Botón subir archivo
-    document.getElementById('btn-subir-archivo').addEventListener('click', function() {
-        const opciones = document.createElement('div');
-        opciones.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 9999;
-            display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(4px);
-        `;
-        opciones.id = 'dialogo-camara-archivo';
+async function enviarSolicitudDoble() {
+    if (!validarElegibilidadSustituto()) return;
+    if (seccionAsignadaMaestro !== 'infancia') {
+        mostrarNotificacion('La solicitud en pareja solo aplica a maestros de Primera Infancia.', 'error');
+        return;
+    }
+    const selectA = document.getElementById('sustituto-pareja-a');
+    const selectB = document.getElementById('sustituto-pareja-b');
+    const motivoEl = document.getElementById('motivo-sustituto');
+    const motivo = motivoEl ? motivoEl.value.trim() : '';
+    if (!selectA || !selectB || !selectA.value || !selectB.value) {
+        mostrarNotificacion('Seleccionen dos maestros sustitutos.', 'warning');
+        return;
+    }
+    if (selectA.value === selectB.value) {
+        mostrarNotificacion('Los sustitutos deben ser distintos. Cambia una selección.', 'error');
+        return;
+    }
+    if (motivo.length < 10) {
+        mostrarNotificacion('Escribe un motivo de al menos 10 caracteres.', 'warning');
+        return;
+    }
+    const bloqueo = await verificarBloqueoSustituto();
+    if (bloqueo.bloqueado) { mostrarNotificacion(bloqueo.mensaje, 'warning'); return; }
+    const original = window.solicitudParejaSustituto;
+    if (!original) { mostrarNotificacion('No existe una confirmación de pareja activa.', 'error'); return; }
+    try {
+        const grupoId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'pareja-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        const parejaEmail = original.pareja_email || original.receptor_email;
+        const datos = [
+            { solicitante_email: original.solicitante_email, solicitante_nombre: original.solicitante_nombre, pareja_email: parejaEmail, receptor_email: selectA.value, fecha_domingo: original.fecha_domingo, seccion: 'infancia', motivo, estado: 'pendiente', tipo: 'pareja', grupo_id: grupoId, expira_en: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString() },
+            { solicitante_email: original.solicitante_email, solicitante_nombre: usuarioSesion.nombre, pareja_email: parejaEmail, receptor_email: selectB.value, fecha_domingo: original.fecha_domingo, seccion: 'infancia', motivo, estado: 'pendiente', tipo: 'pareja', grupo_id: grupoId, expira_en: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString() }
+        ];
+        const respuesta = await llamarSupabase('sustituciones', { method: 'POST', body: JSON.stringify(datos) });
+        if (!respuesta) throw new Error('No se pudieron enviar las dos solicitudes.');
+        await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(original.id), { method: 'PATCH', body: JSON.stringify({ estado: 'pareja_confirmada' }) });
+        const modal = document.getElementById('modal-sustituto');
+        if (modal) modal.classList.remove('activo');
+        mostrarNotificacion('Las dos solicitudes fueron enviadas. La operación se cancelará si alguna se rechaza o expira.', 'success');
+        const btn = document.getElementById('btn-solicitar-sustituto');
+        if (btn) { btn.disabled = true; btn.title = 'Solicitudes de pareja pendientes'; }
+    } catch (error) {
+        console.error(error);
+        mostrarNotificacion(error.message || 'No se pudieron enviar las solicitudes.', 'error');
+    }
+}
 
-        opciones.innerHTML = `
-            <div style="background: white; border-radius: 24px; padding: 30px; max-width: 350px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                <h3 style="margin-bottom: 20px; color: #2c3e50;"><i class="fa-solid fa-file-arrow-up"></i> Subir Archivo</h3>
-                <p style="color: #747d8c; margin-bottom: 20px;">¿Cómo deseas capturar el archivo?</p>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <button onclick="abrirCamara()" style="background: #2575fc; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px;">
-                        <i class="fa-solid fa-camera"></i> Tomar Foto con Cámara
-                    </button>
-                    <button onclick="abrirArchivos()" style="background: #6c5ce7; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px;">
-                        <i class="fa-solid fa-folder-open"></i> Seleccionar de Archivos
-                    </button>
-                    <button onclick="cerrarDialogoCamara()" style="background: #ff7675; color: white; border: none; padding: 12px; border-radius: 14px; font-weight: 600; cursor: pointer;">
-                        Cancelar
-                    </button>
+async function verificarBloqueoSustituto() {
+    const fecha = calcularProximoDomingo();
+    const vacio = { bloqueado: false, mensaje: '', asignacion: null };
+    try {
+        const registros = await llamarSupabase('sustituciones?fecha_domingo=eq.' + encodeURIComponent(fecha) + '&select=*');
+        if (!registros) return { bloqueado: true, mensaje: 'No se pudo verificar el estado de las solicitudes.' };
+        const ahora = Date.now();
+        const gruposExpirados = new Set();
+        for (const r of registros) {
+            if (['pendiente', 'confirmacion_pareja', 'pareja_confirmada', 'aceptada_parcial'].includes(r.estado) && r.expira_en && new Date(r.expira_en).getTime() <= ahora) {
+                if (r.grupo_id) gruposExpirados.add(r.grupo_id);
+                else await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(r.id), { method: 'PATCH', body: JSON.stringify({ estado: 'expirada' }) });
+            }
+        }
+        for (const grupoId of gruposExpirados) {
+            await llamarSupabase('sustituciones?grupo_id=eq.' + encodeURIComponent(grupoId), { method: 'PATCH', body: JSON.stringify({ estado: 'cancelada', cancelada_en: new Date().toISOString() }) });
+        }
+        const vigentes = registros.filter(r => !((r.expira_en && new Date(r.expira_en).getTime() <= ahora) || (r.grupo_id && gruposExpirados.has(r.grupo_id))));
+        const email = usuarioSesion && usuarioSesion.email;
+        const aceptadaComoReceptor = vigentes.find(r => r.receptor_email === email && r.estado === 'aceptada');
+        const aceptadaComoSolicitante = vigentes.find(r => (r.solicitante_email === email || r.pareja_email === email) && r.estado === 'aceptada');
+        const pendientePropia = vigentes.find(r => (r.solicitante_email === email || r.pareja_email === email) && ['pendiente', 'confirmacion_pareja', 'pareja_confirmada', 'aceptada_parcial'].includes(r.estado));
+
+        if (aceptadaComoReceptor) {
+            seccionAsignadaMaestro = aceptadaComoReceptor.seccion;
+            const nombres = { infancia: 'pi', medianos: 'me', grandes: 'gr' };
+            const destino = document.getElementById('docente-' + nombres[aceptadaComoReceptor.seccion]);
+            if (destino) destino.textContent = usuarioSesion.nombre;
+        }
+
+        // Ofrece respuesta accionable al receptor para solicitudes pendientes.
+        window.responderSolicitudSustituto = async function(id, aceptar) {
+            const fila = registros.find(r => String(r.id) === String(id));
+            if (!fila || fila.receptor_email !== usuarioSesion.email) return;
+            if (!aceptar) {
+                if (fila.grupo_id) {
+                    await llamarSupabase('sustituciones?grupo_id=eq.' + encodeURIComponent(fila.grupo_id), { method: 'PATCH', body: JSON.stringify({ estado: 'cancelada', rechazado_por: usuarioSesion.email }) });
+                } else {
+                    await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(fila.id), { method: 'PATCH', body: JSON.stringify({ estado: 'rechazada', respondida_en: new Date().toISOString() }) });
+                }
+                parejasRechazadas.push(fila.solicitante_email);
+                mostrarNotificacion('Solicitud rechazada. El solicitante puede volver a intentarlo.', 'info');
+                const tarjeta = document.getElementById('aviso-sustitucion-entrante');
+                if (tarjeta) tarjeta.remove();
+                return;
+            }
+            if (fila.tipo === 'confirmacion_pareja') {
+                await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(fila.id), { method: 'PATCH', body: JSON.stringify({ estado: 'pareja_confirmada', confirmada_en: new Date().toISOString() }) });
+                window.solicitudParejaSustituto = fila;
+                const tarjeta = document.getElementById('aviso-sustitucion-entrante');
+                if (tarjeta) tarjeta.remove();
+                const modal = document.getElementById('modal-sustituto');
+                const lista = document.getElementById('lista-sustitutos');
+                if (modal && lista) {
+                    modal.classList.add('activo');
+                    const mensaje = document.createElement('p');
+                    mensaje.textContent = 'Confirmaste la solicitud de tu pareja. Elige el modo:';
+                    const solo = document.createElement('button');
+                    solo.className = 'btn-primary';
+                    solo.textContent = 'Solo yo necesito sustituto';
+                    solo.addEventListener('click', () => seleccionarModoSustitutoPareja('solo'));
+                    const ambos = document.createElement('button');
+                    ambos.className = 'btn-primary';
+                    ambos.style.marginLeft = '8px';
+                    ambos.textContent = 'Los dos necesitamos sustituto';
+                    ambos.addEventListener('click', () => seleccionarModoSustitutoPareja('ambos'));
+                    lista.replaceChildren(mensaje, solo, ambos);
+                }
+                return;
+            }
+            if (fila.grupo_id) {
+                await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(fila.id), { method: 'PATCH', body: JSON.stringify({ estado: 'aceptada', aceptada_en: new Date().toISOString() }) });
+                const grupo = await llamarSupabase('sustituciones?grupo_id=eq.' + encodeURIComponent(fila.grupo_id) + '&select=*');
+                const tarjeta = document.getElementById('aviso-sustitucion-entrante');
+                if (tarjeta) tarjeta.remove();
+                if (grupo && grupo.length === 2 && grupo.every(r => r.estado === 'aceptada')) await transferirClase(fila, null, null, null, null);
+                else mostrarNotificacion('Aceptaste. La asignación se confirma cuando acepte el segundo maestro.', 'success');
+                return;
+            }
+            await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(fila.id), { method: 'PATCH', body: JSON.stringify({ estado: 'aceptada', aceptada_en: new Date().toISOString() }) });
+            const tarjeta = document.getElementById('aviso-sustitucion-entrante');
+            if (tarjeta) tarjeta.remove();
+            await transferirClase({ ...fila, estado: 'aceptada' }, null, null, null, null);
+        };
+
+        window.responderConfirmacionPareja = async function(id, aceptar) {
+            return window.responderSolicitudSustituto(id, aceptar);
+        };
+        const entrante = vigentes.find(r => r.receptor_email === email && ['pendiente', 'confirmacion_pareja'].includes(r.estado));
+        if (entrante && !document.getElementById('aviso-sustitucion-entrante')) {
+            const aviso = document.createElement('div');
+            aviso.id = 'aviso-sustitucion-entrante';
+            aviso.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:11000;max-width:380px;background:white;padding:16px;border-radius:14px;box-shadow:0 8px 30px #0003';
+            const titulo = document.createElement('strong');
+            titulo.textContent = entrante.tipo === 'confirmacion_pareja' ? 'Confirmación de pareja' : 'Solicitud de sustitución';
+            const detalle = document.createElement('p');
+            detalle.textContent = `${entrante.solicitante_nombre || 'Un maestro'} solicita cobertura para ${entrante.fecha_domingo}. Motivo: ${entrante.motivo || 'No indicado'}`;
+            const aceptar = document.createElement('button');
+            aceptar.className = 'btn-primary';
+            aceptar.textContent = 'Aceptar';
+            aceptar.addEventListener('click', () => window.responderSolicitudSustituto(entrante.id, true));
+            const rechazar = document.createElement('button');
+            rechazar.className = 'btn-admin btn-danger';
+            rechazar.style.marginLeft = '8px';
+            rechazar.textContent = 'Rechazar';
+            rechazar.addEventListener('click', () => window.responderSolicitudSustituto(entrante.id, false));
+            aviso.append(titulo, detalle, aceptar, rechazar);
+            document.body.appendChild(aviso);
+        }
+        if (typeof window.timerVerificacionSustituciones === 'undefined') {
+            window.timerVerificacionSustituciones = setInterval(() => verificarBloqueoSustituto(), 60000);
+        }
+
+        const btn = document.getElementById('btn-solicitar-sustituto');
+        if (btn) {
+            btn.disabled = Boolean(aceptadaComoReceptor || aceptadaComoSolicitante || pendientePropia);
+            btn.title = aceptadaComoReceptor ? 'Ya aceptaste cubrir esta clase' : pendientePropia ? 'Solicitud pendiente de respuesta' : aceptadaComoSolicitante ? 'Ya delegaste esta clase para este domingo' : '';
+        }
+        if (aceptadaComoReceptor) return { bloqueado: true, mensaje: 'Ya aceptaste cubrir esta clase', asignacion: aceptadaComoReceptor };
+        if (aceptadaComoSolicitante) return { bloqueado: true, mensaje: 'Ya delegaste esta clase para este domingo.' };
+        if (pendientePropia) return { bloqueado: true, mensaje: 'Ya tienes una solicitud pendiente sin respuesta.' };
+        return vacio;
+    } catch (error) {
+        console.error('Error verificando sustituciones:', error);
+        return { bloqueado: true, mensaje: 'No se pudo verificar el estado de las solicitudes.' };
+    }
+}
+
+// ============ BANDEJA DE LECCIONES PENDIENTES (ADMIN) ============
+async function abrirBandejaLecciones() {
+    let modal = document.getElementById('modal-bandeja-lecciones');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-bandeja-lecciones';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-burbuja" style="max-width:700px; max-height:80vh; overflow-y:auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3><i class="fas fa-inbox"></i> Bandeja de Lecciones Pendientes</h3>
+                    <button onclick="document.getElementById('modal-bandeja-lecciones').classList.remove('activo')" 
+                            style="background:none; border:none; font-size:24px; cursor:pointer; color:#95a5a6;">&times;</button>
+                </div>
+                <div id="contenido-bandeja-lecciones" style="max-height:60vh; overflow-y:auto;">
+                    <p style="color:#95a5a6; text-align:center; padding:20px;">Cargando lecciones...</p>
                 </div>
             </div>
         `;
-        document.body.appendChild(opciones);
-    });
+        document.body.appendChild(modal);
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) this.classList.remove('activo');
+        });
+    }
+    modal.classList.add('activo');
+    await cargarLeccionesPendientes();
+}
 
-    document.getElementById('captura-cuaderno').addEventListener('change', function(e) {
-        procesarArchivoSeleccionado(this);
-    });
-
-    document.getElementById('captura-camara').addEventListener('change', function(e) {
-        procesarArchivoSeleccionado(this);
-    });
-
-    document.getElementById('btn-confirmar-envio').addEventListener('click', function() {
-        const inputArchivo = document.getElementById('captura-cuaderno');
-        const inputCamara = document.getElementById('captura-camara');
-        const archivo = inputArchivo.files[0] || inputCamara.files[0];
-        if (!archivo) {
-            mostrarNotificacion("Por favor, selecciona un archivo primero.", "error");
+async function cargarLeccionesPendientes() {
+    const container = document.getElementById('contenido-bandeja-lecciones');
+    if (!container) return;
+    
+    try {
+        const lecciones = await llamarSupabase("lecciones?estado=eq.pre-inscripcion&order=id.desc");
+        if (!lecciones || lecciones.length === 0) {
+            container.innerHTML = '<p style="color:#95a5a6; text-align:center; padding:20px;">No hay lecciones pendientes de revisión</p>';
             return;
         }
-        registrarCargaClase(archivo);
-    });
+        
+        const nombresSeccion = { 'infancia': 'Primera Infancia', 'medianos': 'Medianos', 'grandes': 'Grandes' };
+        
+        container.innerHTML = lecciones.map(l => `
+            <div style="background:#f8f9fa; border-radius:12px; padding:15px; margin-bottom:10px; border-left:4px solid #f39c12;">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div>
+                        <h4 style="margin:0; color:#1e3799;">${l.titulo}</h4>
+                        <p style="margin:4px 0; font-size:13px; color:#555;"><i class="fas fa-user"></i> ${l.autor}</p>
+                        <p style="margin:4px 0; font-size:12px; color:#747d8c;">${nombresSeccion[l.seccion] || l.seccion} - ${new Date(l.fecha_domingo).toLocaleDateString()}</p>
+                    </div>
+                    <span class="badge-estado badge-preinscripcion"><i class="fas fa-clock"></i> Pendiente</span>
+                </div>
+                <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-admin" onclick="abrirCompletarLeccionAdmin(${l.id})" style="background:#2ecc71;">
+                        <i class="fas fa-check-double"></i> Revisar y Publicar
+                    </button>
+                    <button class="btn-admin btn-danger" onclick="eliminarLeccion(${l.id})">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error("Error:", error);
+        container.innerHTML = '<p style="color:#ff7675; text-align:center; padding:20px;">Error al cargar lecciones pendientes</p>';
+    }
+}
 
-    document.getElementById('btn-guardar-asistencia-final').addEventListener('click', function() {
-        if (this.disabled) {
-            mostrarNotificacion("La ventana de asistencia está cerrada.", "warning");
+async function abrirCompletarLeccionAdmin(id) {
+    try {
+        const lecciones = await llamarSupabase('lecciones?id=eq.' + id);
+        if (!lecciones || lecciones.length === 0) {
+            mostrarNotificacion("Lección no encontrada", "error");
             return;
         }
-        enviarAsistenciaSupabase();
-    });
+        const l = lecciones[0];
+        
+        const modal = document.createElement('div');
+        modal.id = 'modal-completar-admin';
+        modal.className = 'modal-overlay activo';
+        modal.style.zIndex = '9999';
+        modal.innerHTML = `
+            <div class="modal-burbuja" style="max-width:550px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3><i class="fas fa-check-double"></i> Publicar Lección</h3>
+                    <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#95a5a6;">&times;</button>
+                </div>
+                <form id="form-completar-admin">
+                    <div style="margin-bottom:12px;">
+                        <label style="font-weight:bold; display:block; margin-bottom:4px;">Título</label>
+                        <input type="text" value="${l.titulo}" disabled style="width:100%; padding:8px; border:1px solid #dfe4ea; border-radius:8px; background:#f8f9fa;">
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-weight:bold; display:block; margin-bottom:4px;">Resumen Oficial <span style="color:#ff7675;">*</span></label>
+                        <textarea id="admin-resumen" rows="3" style="width:100%; padding:8px; border:1px solid #dfe4ea; border-radius:8px;" placeholder="Escribe el resumen oficial de la clase..." required>${l.resumen_admin || ''}</textarea>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-weight:bold; display:block; margin-bottom:4px;">Portada</label>
+                        <input type="file" id="admin-portada" accept="image/*" style="width:100%; padding:8px; border:1px solid #dfe4ea; border-radius:8px;">
+                    </div>
+                    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                        <button type="button" onclick="this.closest('.modal-overlay').remove()" class="btn-cerrar-modal btn-cancelar">Cancelar</button>
+                        <button type="submit" class="btn-enviar-clase" style="background:#2ecc71;">Publicar Lección</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('form-completar-admin').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await publicarLeccionAdmin(id);
+        });
+        
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al cargar la lección", "error");
+    }
+}
 
-    document.getElementById('btn-logout-click').addEventListener('click', function() {
-        if (confirm("¿Estás seguro de que quieres cerrar sesión? Se cerrará tu sesión actual.")) {
-            window.cerrarSesion();
+async function publicarLeccionAdmin(id) {
+    const resumen = document.getElementById('admin-resumen').value.trim();
+    if (!resumen) {
+        mostrarNotificacion("Escribe el resumen oficial de la lección", "error");
+        return;
+    }
+    
+    let portadaData = null;
+    const portadaFile = document.getElementById('admin-portada').files[0];
+    if (portadaFile) {
+        try {
+            portadaData = await leerArchivoBase64(portadaFile);
+        } catch (error) {
+            mostrarNotificacion("Error al leer la imagen", "error");
+            return;
         }
-    });
+    }
+    
+    try {
+        const datosActualizar = {
+            resumen_admin: resumen,
+            estado: 'publicada',
+            publicado_en: new Date().toISOString()
+        };
+        if (portadaData) { datosActualizar.portada = portadaData; }
+        
+        await llamarSupabase('lecciones?id=eq.' + id, {
+            method: "PATCH",
+            body: JSON.stringify(datosActualizar)
+        });
+        
+        mostrarNotificacion("Lección publicada exitosamente", "success");
+        document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+        cargarBiblioteca();
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: 'Publicó la lección en la biblioteca',
+            fecha: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al publicar la lección", "error");
+    }
+}
 
-    document.getElementById('btn-pedir-ayuda').addEventListener('click', function() {
-        document.querySelector('[data-vista="ayuda"]').click();
-        document.getElementById('desplegable-usuario').classList.remove('activo');
-    });
-
-    document.getElementById('btn-cumpleaneros').addEventListener('click', function() {
-        mostrarCumpleaneros();
-    });
-
-    document.getElementById('btn-ver-tabla-completa').addEventListener('click', function() {
-        modoAdminVerTodos = !modoAdminVerTodos;
-        this.textContent = modoAdminVerTodos ? 'Ver Mi Sección' : 'Ver Todos';
-        this.style.background = modoAdminVerTodos ? '#2ecc71' : '#6c5ce7';
-        cargarAlumnosSegunRol();
-    });
-
-    // MODALES
-    document.getElementById('btn-abrir-modal-nuevo-nino').addEventListener('click', () => {
-        document.getElementById('modal-registro-niño').classList.add('activo');
-    });
-    document.getElementById('btn-cancelar-nino-modal').addEventListener('click', () => {
-        cerrarModalRegistro();
-    });
-
-    document.getElementById('btn-abrir-modal-editar-nino').addEventListener('click', () => {
-        document.getElementById('modal-buscar-editar').classList.add('activo');
-    });
-    document.getElementById('btn-cerrar-busq-edit').addEventListener('click', () => {
-        cerrarModalEditar();
-    });
-
-    document.getElementById('btn-abrir-modal-eliminar-nino').addEventListener('click', () => {
-        document.getElementById('modal-eliminar-alumno').classList.add('activo');
-    });
-    document.getElementById('btn-cerrar-busq-del').addEventListener('click', () => {
-        cerrarModalEliminar();
-    });
-
-    document.getElementById('form-registro-alumno').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await registrarNuevoAlumno(this);
-    });
-
-    document.getElementById('form-edicion-campos-nino').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await actualizarAlumno(this);
-    });
-
-    document.getElementById('txt-ayuda-mensaje').addEventListener('input', function() {
-        const contador = document.getElementById('contador-caracteres');
-        const max = 500;
-        const actual = this.value.length;
-        contador.textContent = `${actual}/${max}`;
-        if (actual > max) {
-            contador.style.color = '#ff7675';
-            this.style.borderColor = '#ff7675';
+// ============ DASHBOARD OPTIMIZADO ============
+async function cargarDashboard() {
+    if (cacheDashboard && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL) {
+        renderizarDashboard(cacheDashboard);
+        actualizarDashboardBackground();
+        return;
+    }
+    
+    try {
+        const [alumnos, usuarios, asistencia] = await Promise.all([
+            cargarAlumnos(),
+            llamarSupabase("usuarios?rol=eq.maestro"),
+            llamarSupabase("asistencia?select=alumno_id,fecha&order=fecha.desc&limit=100")
+        ]);
+        
+        const data = {
+            alumnos: alumnos || [],
+            usuarios: usuarios || [],
+            asistencia: asistencia || []
+        };
+        
+        cacheDashboard = data;
+        cacheTimestamp = Date.now();
+        sessionStorage.setItem('zk360_cache_dashboard', JSON.stringify(data));
+        sessionStorage.setItem('zk360_cache_timestamp', cacheTimestamp.toString());
+        
+        renderizarDashboard(data);
+    } catch (error) {
+        console.error("Error cargando dashboard:", error);
+        const cached = sessionStorage.getItem('zk360_cache_dashboard');
+        if (cached) {
+            renderizarDashboard(JSON.parse(cached));
+            mostrarNotificacion("Usando datos en caché", "info");
+            actualizarDashboardBackground();
         } else {
-            contador.style.color = '#95a5a6';
-            this.style.borderColor = '#dfe4ea';
+            mostrarNotificacion("Error al cargar estadísticas", "error");
+        }
+    }
+}
+
+// ============ RENDERIZAR DASHBOARD - CORREGIDO ============
+function renderizarDashboard(data) {
+    const { alumnos, usuarios } = data;
+    
+    // Total Alumnos
+    const statAlumnos = document.getElementById('stat-alumnos');
+    if (statAlumnos) statAlumnos.textContent = alumnos.length || 0;
+    
+    // ASISTENCIA PROMEDIO - CORREGIDO
+    // El promedio NO debe ser mayor a 100%
+    let totalAsistencia = 0;
+    let alumnosConDatos = 0;
+    
+    alumnos.forEach(a => {
+        if (a.clases_totales !== undefined && a.clases_totales !== null) {
+            totalAsistencia += a.clases_totales;
+            alumnosConDatos++;
         }
     });
+    
+    // Promedio: suma de clases totales / cantidad de alumnos que tienen datos
+    // Si el total de alumnos es 6 y cada uno tiene 6 clases, el promedio es 6 (no 217%)
+    let promedio = 0;
+    if (alumnosConDatos > 0) {
+        promedio = Math.round(totalAsistencia / alumnosConDatos);
+    }
+    
+    const statAsistencia = document.getElementById('stat-asistencia');
+    if (statAsistencia) statAsistencia.textContent = promedio + '%';
+    
+    // Clases del mes - CORREGIDO (número de domingos en el mes)
+    const hoy = new Date();
+    const mesActual = hoy.getMonth();
+    const añoActual = hoy.getFullYear();
+    let clasesMes = 0;
+    const ultimoDia = new Date(añoActual, mesActual + 1, 0);
+    for (let d = 1; d <= ultimoDia.getDate(); d++) {
+        const fecha = new Date(añoActual, mesActual, d);
+        if (fecha.getDay() === 0) clasesMes++;
+    }
+    const statClases = document.getElementById('stat-clases');
+    if (statClases) statClases.textContent = clasesMes;
+    
+    // Maestros activos
+    const statMaestros = document.getElementById('stat-maestros');
+    if (statMaestros) statMaestros.textContent = usuarios ? usuarios.length : 0;
+    
+    // Renderizar barras de asistencia por sección - CORREGIDO
+    renderizarBarrasAsistencia(alumnos);
+    renderizarTopAsistencia(alumnos);
+}
 
-    document.getElementById('btn-solicitar-edicion')?.addEventListener('click', function() {
-        document.getElementById('modal-solicitar-edicion').classList.add('activo');
-    });
+// ============ BARRAS DE ASISTENCIA POR SECCIÓN - CORREGIDO ============
+function renderizarBarrasAsistencia(alumnos) {
+    const secciones = ['infancia', 'medianos', 'grandes'];
+    const nombres = { 'infancia': 'Primera Infancia', 'medianos': 'Medianos', 'grandes': 'Grandes' };
+    const colores = { 'infancia': 'verde', 'medianos': 'naranja', 'grandes': 'rojo' };
+    const contenedor = document.getElementById('barras-asistencia');
+    if (!contenedor) return;
+    
+    contenedor.innerHTML = '';
 
-    document.getElementById('btn-cancelar-solicitud').addEventListener('click', function() {
-        document.getElementById('modal-solicitar-edicion').classList.remove('activo');
-        document.getElementById('txt-justificacion-edicion').value = '';
-    });
+    for (const sec of secciones) {
+        const alumnosSec = alumnos.filter(a => a.seccion === sec);
+        const totalSec = alumnosSec.length;
+        let totalClasesSec = 0;
+        
+        alumnosSec.forEach(a => {
+            totalClasesSec += a.clases_totales || 0;
+        });
+        
+        // PROMEDIO CORRECTO: total de clases / total de alumnos de esa sección
+        let promSec = 0;
+        if (totalSec > 0) {
+            promSec = Math.round(totalClasesSec / totalSec);
+        }
+        
+        // Limitar a 100% para visualización
+        const porcentajeVisual = Math.min(promSec, 100);
+        
+        contenedor.innerHTML += `
+            <div style="margin:6px 0;">
+                <div style="display:flex; justify-content:space-between; font-size:13px;">
+                    <span>${nombres[sec]}</span>
+                    <span>${promSec}%</span>
+                </div>
+                <div class="barra-container">
+                    <div class="barra-progreso ${colores[sec]}" style="width:${porcentajeVisual}%;"></div>
+                </div>
+            </div>
+        `;
+    }
+}
 
-    // Búsqueda en reportes
-    document.getElementById('input-filtro-reportes').addEventListener('input', function() {
-        const termino = this.value.toLowerCase().trim();
-        const resultados = document.getElementById('resultados-busqueda-reportes');
-        const tabla = document.getElementById('tabla-logs-cuerpo');
-
-        if (termino) {
-            const logs = JSON.parse(localStorage.getItem('zk360_historial')) || [];
-            const filtrados = logs.filter(log => 
-                log.usuario.toLowerCase().includes(termino) || 
-                log.accion.toLowerCase().includes(termino) ||
-                log.fecha.toLowerCase().includes(termino)
-            );
-
-            if (filtrados.length === 0) {
-                resultados.innerHTML = '<p style="color:#95a5a6; text-align:center; padding:15px;">No se encontraron resultados</p>';
-                tabla.style.display = 'none';
-                return;
-            }
-
-            resultados.innerHTML = filtrados.slice(0, 30).map(log => `
-                <div style="padding:10px 12px; border-bottom:1px solid #eef2f7; font-size:13px; background:white; border-radius:8px; margin-bottom:4px;">
-                    <strong style="color:#1e3799;">${log.usuario}</strong>
-                    <span style="color:#2c3e50;"> - ${log.accion}</span>
-                    <span style="color:#95a5a6; font-size:11px; display:block; margin-top:3px;">${log.fecha}</span>
+// ============ TOP ASISTENCIA ============
+function renderizarTopAsistencia(alumnos) {
+    const secciones = ['infancia', 'medianos', 'grandes'];
+    const nombres = { 'infancia': 'Primera Infancia', 'medianos': 'Medianos', 'grandes': 'Grandes' };
+    const container = document.getElementById('top-asistencia-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    for (const sec of secciones) {
+        const alumnosSec = alumnos.filter(a => a.seccion === sec);
+        const ordenados = alumnosSec.sort((a, b) => (b.clases_totales || 0) - (a.clases_totales || 0));
+        const top = ordenados.slice(0, 3);
+        
+        let topHtml = `<div class="top-col"><h5><i class="fas fa-medal"></i> ${nombres[sec]}</h5>`;
+        
+        if (top.length === 0) {
+            topHtml += '<p style="color:#95a5a6; font-size:12px;">Sin datos</p>';
+        } else {
+            topHtml += top.map((a, i) => `
+                <div class="top-item">
+                    <span>${i+1}. ${a.nombre_completo}</span>
+                    <span style="color:#2575fc; font-weight:bold;">${a.clases_totales || 0}</span>
                 </div>
             `).join('');
-            tabla.style.display = 'none';
-        } else {
-            resultados.innerHTML = '';
-            tabla.style.display = 'table';
-            cargarHistorialAuditoria();
         }
+        
+        topHtml += '</div>';
+        container.innerHTML += topHtml;
+    }
+}
+
+async function actualizarDashboardBackground() {
+    try {
+        const [alumnos, usuarios] = await Promise.all([
+            cargarAlumnos(),
+            llamarSupabase("usuarios?rol=eq.maestro")
+        ]);
+        const data = { alumnos: alumnos || [], usuarios: usuarios || [] };
+        cacheDashboard = data;
+        cacheTimestamp = Date.now();
+        sessionStorage.setItem('zk360_cache_dashboard', JSON.stringify(data));
+        sessionStorage.setItem('zk360_cache_timestamp', cacheTimestamp.toString());
+    } catch (error) {
+        console.error("Error actualizando dashboard:", error);
+    }
+}
+
+// ============ ACTIVIDADES MENSUALES ============
+async function cargarActividadesMensuales() {
+    const container = document.getElementById('actividades-mensuales');
+    if (!container) return;
+
+    container.replaceChildren();
+    try {
+        const hoy = new Date();
+        const mesActual = hoy.getMonth() + 1;
+        const añoActual = hoy.getFullYear();
+        const primerDia = `${añoActual}-${String(mesActual).padStart(2, '0')}-01`;
+        const siguienteMes = new Date(añoActual, mesActual, 1);
+        const limiteMes = `${siguienteMes.getFullYear()}-${String(siguienteMes.getMonth() + 1).padStart(2, '0')}-01`;
+        const actividades = await llamarSupabase(
+            `eventos_calendario?fecha=gte.${primerDia}&fecha=lt.${limiteMes}&order=fecha.asc`
+        );
+        const alumnos = await cargarAlumnos();
+        const cumpleaneros = (Array.isArray(alumnos) ? alumnos : []).filter(alumno => {
+            const fechaNacimiento = String(alumno.fecha_nacimiento || alumno.nacimiento || '');
+            return /^\d{4}-\d{2}-\d{2}$/.test(fechaNacimiento) &&
+                Number(fechaNacimiento.slice(5, 7)) === mesActual;
+        });
+        const crearSeccion = (titulo, icono) => {
+            const seccion = document.createElement('section');
+            seccion.className = 'actividad-mes-seccion';
+            const encabezado = document.createElement('h4');
+            const i = document.createElement('i');
+            i.className = `fa-solid ${icono}`;
+            encabezado.append(i, document.createTextNode(` ${titulo}`));
+            seccion.appendChild(encabezado);
+            return seccion;
+        };
+        const mostrarFecha = fecha => {
+            const partes = String(fecha || '').split('-').map(Number);
+            if (partes.length < 3 || !partes[2]) return 'Fecha por confirmar';
+            return `${partes[2]} de ${new Date(partes[0], partes[1] - 1, partes[2]).toLocaleString('es', { month: 'long' })}`;
+        };
+
+        if (cumpleaneros.length) {
+            const seccion = crearSeccion('Cumpleaños del mes', 'fa-cake-candles');
+            cumpleaneros
+                .sort((a, b) => {
+                    const fechaA = String(a.fecha_nacimiento || a.nacimiento || '');
+                    const fechaB = String(b.fecha_nacimiento || b.nacimiento || '');
+                    return Number(fechaA.slice(8, 10)) - Number(fechaB.slice(8, 10));
+                })
+                .forEach(alumno => {
+                    const fila = document.createElement('div');
+                    fila.className = 'actividad-mes-fila';
+                    const nombre = document.createElement('span');
+                    nombre.textContent = alumno.nombre_completo || 'Alumno';
+                    const fecha = document.createElement('time');
+                    fecha.textContent = mostrarFecha(alumno.fecha_nacimiento || alumno.nacimiento);
+                    fila.append(nombre, fecha);
+                    seccion.appendChild(fila);
+                });
+            container.appendChild(seccion);
+        }
+
+        const eventosDelMes = Array.isArray(actividades) ? actividades : [];
+        if (eventosDelMes.length) {
+            const seccion = crearSeccion('Actividades del mes', 'fa-calendar-check');
+            eventosDelMes.forEach(evento => {
+                const fila = document.createElement('article');
+                fila.className = 'actividad-mes-fila';
+                const contenido = document.createElement('div');
+                const titulo = document.createElement('strong');
+                titulo.textContent = evento.titulo || 'Actividad';
+                contenido.appendChild(titulo);
+                if (evento.descripcion) {
+                    const descripcion = document.createElement('p');
+                    descripcion.textContent = evento.descripcion;
+                    contenido.appendChild(descripcion);
+                }
+                const fecha = document.createElement('time');
+                fecha.textContent = mostrarFecha(evento.fecha);
+                fila.append(contenido, fecha);
+                seccion.appendChild(fila);
+            });
+            container.appendChild(seccion);
+        }
+
+        if (!cumpleaneros.length && !eventosDelMes.length) {
+            const vacio = document.createElement('p');
+            vacio.className = 'actividad-mes-vacio';
+            vacio.textContent = 'No hay cumpleaños ni actividades programadas para este mes.';
+            container.appendChild(vacio);
+        }
+    } catch (error) {
+        console.error("Error cargando actividades:", error);
+        const aviso = document.createElement('p');
+        aviso.className = 'actividad-mes-vacio';
+        aviso.textContent = navigator.onLine
+            ? 'No se pudieron cargar las actividades. Intenta de nuevo.'
+            : 'No hay una copia de las actividades disponible sin conexión.';
+        container.replaceChildren(aviso);
+    }
+}
+
+async function crearActividadMensual() {
+    if (usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Solo el administrador puede agregar actividades.', 'error');
+        return;
+    }
+    const titulo = document.getElementById('act-titulo').value.trim();
+    const descripcion = document.getElementById('act-descripcion').value.trim();
+    const fecha = document.getElementById('act-fecha').value;
+    const tipo = document.getElementById('act-tipo').value;
+    
+    if (!titulo || !fecha) {
+        mostrarNotificacion('Título y fecha son obligatorios', 'error');
+        return;
+    }
+    
+    try {
+        const guardado = await llamarSupabase('eventos_calendario', {
+            method: 'POST',
+            body: JSON.stringify({ titulo, descripcion, fecha, tipo, creado_por: usuarioSesion.nombre })
+        });
+        if (!guardado) throw new Error('No se confirmó el guardado de la actividad.');
+        
+        mostrarNotificacion('Actividad creada exitosamente', 'success');
+        const modal = document.getElementById('modal-nueva-actividad');
+        if (modal) modal.classList.remove('activo');
+        const formActividad = document.getElementById('form-nueva-actividad');
+        if (formActividad) formActividad.reset();
+        cargarActividadesMensuales();
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: 'Creó actividad "' + titulo + '"',
+            fecha: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion('Error al crear la actividad', 'error');
+    }
+}
+
+function configurarVistasAdministrativas() {
+    const btnAgregar = document.getElementById('btn-agregar-actividad');
+    btnAgregar?.addEventListener('click', () => {
+        if (usuarioSesion?.rol !== 'admin') return;
+        const modal = document.getElementById('modal-nueva-actividad');
+        if (modal) modal.classList.add('activo');
+        document.getElementById('act-titulo')?.focus();
+    });
+
+    document.getElementById('btn-cancelar-actividad')?.addEventListener('click', () => {
+        document.getElementById('modal-nueva-actividad')?.classList.remove('activo');
+    });
+    document.getElementById('form-nueva-actividad')?.addEventListener('submit', event => {
+        event.preventDefault();
+        crearActividadMensual();
+    });
+    document.getElementById('form-configuracion-horarios')?.addEventListener('submit', event => {
+        event.preventDefault();
+        guardarConfiguracionHorario();
     });
 }
 
-// ============ FUNCIONES DE CÁMARA Y ARCHIVOS ============
-function abrirCamara() {
-    document.getElementById('captura-camara').click();
-    cerrarDialogoCamara();
-}
-
-function abrirArchivos() {
-    document.getElementById('captura-cuaderno').click();
-    cerrarDialogoCamara();
-}
-
-function cerrarDialogoCamara() {
-    const dialogo = document.getElementById('dialogo-camara-archivo');
-    if (dialogo) dialogo.remove();
-}
-
-function procesarArchivoSeleccionado(input) {
-    const file = input.files[0];
-    const vistaPrevia = document.getElementById('vista-previa-archivo');
-    const iconoPrevia = document.getElementById('icono-previa');
-    const nombrePrevia = document.getElementById('nombre-previa');
-    const tamanoPrevia = document.getElementById('tamano-previa');
-
-    if (file) {
-        vistaPrevia.style.display = 'block';
-        nombrePrevia.textContent = file.name;
-        tamanoPrevia.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
-
-        const ext = file.name.split('.').pop().toLowerCase();
-        const iconos = {
-            'pdf': 'fa-file-pdf', 'doc': 'fa-file-word', 'docx': 'fa-file-word',
-            'xls': 'fa-file-excel', 'xlsx': 'fa-file-excel',
-            'ppt': 'fa-file-powerpoint', 'pptx': 'fa-file-powerpoint',
-            'jpg': 'fa-file-image', 'jpeg': 'fa-file-image', 'png': 'fa-file-image', 'gif': 'fa-file-image'
-        };
-        iconoPrevia.className = `fa-solid ${iconos[ext] || 'fa-file'}`;
-        iconoPrevia.style.color = iconos[ext] ? '#2575fc' : '#95a5a6';
-    } else {
-        vistaPrevia.style.display = 'none';
+function renderizarConfiguracionHorario() {
+    const dia = document.getElementById('cfg-dia-asistencia');
+    const inicio = document.getElementById('cfg-hora-inicio');
+    const fin = document.getElementById('cfg-hora-fin');
+    const motivo = document.getElementById('cfg-motivo');
+    if (!dia || !inicio || !fin || !motivo) return;
+    dia.value = String(configuracionHorario.dia_asistencia);
+    inicio.value = configuracionHorario.hora_inicio_asistencia;
+    fin.value = configuracionHorario.hora_fin_asistencia;
+    motivo.value = configuracionHorario.motivo || '';
+    document.querySelectorAll('input[name="cfg-dia-sustitucion"]').forEach(input => {
+        input.checked = configuracionHorario.dias_solicitud_sustituto.includes(Number(input.value));
+    });
+    const actualizado = document.getElementById('cfg-actualizado');
+    if (actualizado) {
+        actualizado.textContent = configuracionHorario.actualizado_en
+            ? `Último ajuste: ${new Date(configuracionHorario.actualizado_en).toLocaleString()} · ${configuracionHorario.actualizado_por || 'Administrador'}`
+            : 'Horario habitual; aún no se han realizado ajustes.';
     }
 }
 
-// ============ CERRAR MODALES ============
-function cerrarModalRegistro() {
-    document.getElementById('modal-registro-niño').classList.remove('activo');
-    document.getElementById('form-registro-alumno').reset();
-}
-
-function cerrarModalEditar() {
-    document.getElementById('modal-buscar-editar').classList.remove('activo');
-    document.getElementById('form-edicion-campos-nino').style.display = 'none';
-    document.getElementById('txt-codigo-buscar-edit').value = '';
-    document.getElementById('edit-nombre-input').value = '';
-    document.getElementById('edit-fecha-nacimiento').value = '';
-}
-
-function cerrarModalEliminar() {
-    document.getElementById('modal-eliminar-alumno').classList.remove('activo');
-    document.getElementById('txt-codigo-buscar-del').value = '';
-}
-
-function cerrarModalCumpleaneros() {
-    document.getElementById('modal-cumpleaneros').classList.remove('activo');
-}
-
-function cerrarModalVistaPrevia() {
-    document.getElementById('modal-vista-previa').classList.remove('activo');
-    document.getElementById('contenido-vista-previa').innerHTML = '';
-}
-
-// ============ NAVEGACIÓN ============
-function activarVistaPestaña(idVista, btnElemento) {
-    document.querySelectorAll('.modulo-vista').forEach(v => v.classList.remove('activo'));
-    document.querySelectorAll('.menu-link[data-vista]').forEach(l => l.classList.remove('activo'));
-
-    const target = document.getElementById(`modulo-${idVista}`);
-    if (target) target.classList.add('activo');
-    if (btnElemento) btnElemento.classList.add('activo');
-
-    if (idVista === 'asistencia') {
-        cargarAlumnosSegunRol();
+async function cargarConfiguracionHorario(renderizar = false) {
+    let configuracion = null;
+    try {
+        const filas = await llamarSupabase('app_configuracion?id=eq.1&select=*');
+        if (Array.isArray(filas) && filas[0]?.configuracion && typeof filas[0].configuracion === 'object') {
+            configuracion = filas[0].configuracion;
+        }
+    } catch (error) {
+        console.error('No se pudo cargar la configuración compartida de horarios:', error);
     }
 
-    if (idVista === 'reportes') {
-        cargarHistorialAuditoria();
+    if (!configuracion) {
+        try {
+            configuracion = JSON.parse(localStorage.getItem('zk360_config_horario_cache') || 'null');
+        } catch (error) {
+            console.error('No se pudo leer la copia local de horarios:', error);
+        }
     }
-
-    if (window.innerWidth <= 768) {
-        document.getElementById('menu-lateral').classList.remove('abierto');
-    }
+    configuracionHorario = {
+        ...CONFIGURACION_HORARIO_DEFAULT,
+        ...(configuracion || {}),
+        dias_solicitud_sustituto: Array.isArray(configuracion?.dias_solicitud_sustituto)
+            ? configuracion.dias_solicitud_sustituto.map(Number).filter(dia => dia >= 0 && dia <= 6)
+            : [...CONFIGURACION_HORARIO_DEFAULT.dias_solicitud_sustituto]
+    };
+    if (configuracion) localStorage.setItem('zk360_config_horario_cache', JSON.stringify(configuracionHorario));
+    if (renderizar) renderizarConfiguracionHorario();
+    return configuracionHorario;
 }
 
-// ============ CALENDARIO ============
-function calcularProximoDomingo() {
-    const hoy = new Date();
-    const dia = hoy.getDay();
-    const diasFaltantes = dia === 0 ? 0 : 7 - dia;
-    const domingo = new Date(hoy);
-    domingo.setDate(hoy.getDate() + diasFaltantes);
-    return `${domingo.getDate()}/${domingo.getMonth() + 1}/${domingo.getFullYear()}`;
-}
-
-function procesarAlgoritmoCalendarioKids() {
-    const claveFecha = calcularProximoDomingo();
-    const turno = cronogramaOficial2026[claveFecha];
-
-    if (turno) {
-        document.getElementById('docente-pi').textContent = turno.pi;
-        document.getElementById('docente-me').textContent = turno.me;
-        document.getElementById('docente-gr').textContent = turno.gr;
-
-        const nombreLower = usuarioSesion.nombre.toLowerCase();
-        let encontrado = false;
-        
-        for (const [nombre, seccion] of Object.entries(turno.seccion)) {
-            if (nombre === nombreLower) {
-                seccionAsignadaMaestro = seccion;
-                encontrado = true;
-                break;
+async function guardarConfiguracionHorario() {
+    if (usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Solo el administrador puede modificar los horarios.', 'error');
+        return;
+    }
+    const inicio = document.getElementById('cfg-hora-inicio')?.value || '';
+    const fin = document.getElementById('cfg-hora-fin')?.value || '';
+    const motivo = document.getElementById('cfg-motivo')?.value.trim() || '';
+    const inicioMinutos = horaAMinutos(inicio);
+    const finMinutos = horaAMinutos(fin);
+    if (inicioMinutos === null || finMinutos === null || finMinutos <= inicioMinutos) {
+        mostrarNotificacion('El horario de cierre debe ser posterior al de apertura.', 'warning');
+        return;
+    }
+    if (motivo.length < 5) {
+        mostrarNotificacion('Escribe el motivo del ajuste (mínimo 5 caracteres).', 'warning');
+        return;
+    }
+    const diasSustitucion = [...document.querySelectorAll('input[name="cfg-dia-sustitucion"]:checked')]
+        .map(input => Number(input.value));
+    const nuevo = {
+        dia_asistencia: Number(document.getElementById('cfg-dia-asistencia')?.value || 0),
+        hora_inicio_asistencia: inicio,
+        hora_fin_asistencia: fin,
+        dias_solicitud_sustituto: diasSustitucion,
+        motivo,
+        actualizado_por: usuarioSesion.nombre,
+        actualizado_en: new Date().toISOString()
+    };
+    try {
+        const filas = await llamarSupabase('app_configuracion?id=eq.1&select=id');
+        const existe = Array.isArray(filas) && filas.length > 0;
+        const guardado = await llamarSupabase(
+            existe ? 'app_configuracion?id=eq.1' : 'app_configuracion',
+            {
+                method: existe ? 'PATCH' : 'POST',
+                body: JSON.stringify(existe
+                    ? { configuracion: nuevo, actualizado_por: usuarioSesion.nombre, actualizado_en: nuevo.actualizado_en }
+                    : { id: 1, configuracion: nuevo, actualizado_por: usuarioSesion.nombre, actualizado_en: nuevo.actualizado_en })
             }
-        }
-
-        if (!encontrado && usuarioSesion.pareja) {
-            const parejaLower = usuarioSesion.pareja.toLowerCase();
-            for (const [nombre, seccion] of Object.entries(turno.seccion)) {
-                if (nombre === parejaLower) {
-                    seccionAsignadaMaestro = seccion;
-                    encontrado = true;
-                    break;
-                }
-            }
-        }
-
-        if (!encontrado) {
-            seccionAsignadaMaestro = null;
-        }
+        );
+        if (!guardado) throw new Error('No se confirmó el guardado de los horarios.');
+        configuracionHorario = nuevo;
+        localStorage.setItem('zk360_config_horario_cache', JSON.stringify(nuevo));
+        renderizarConfiguracionHorario();
+        actualizarTextoHorarioAsistencia();
+        mostrarNotificacion('Horarios compartidos actualizados.', 'success');
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: `Ajustó horarios: ${motivo}`,
+            fecha: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error guardando configuración de horarios:', error);
+        mostrarNotificacion('No se pudieron guardar los horarios. Verifica la conexión y permisos.', 'error');
     }
+}
 
-    if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
-        seccionAsignadaMaestro = "admin_total";
+function horaAMinutos(hora) {
+    const partes = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+    return partes ? Number(partes[1]) * 60 + Number(partes[2]) : null;
+}
+
+function actualizarTextoHorarioAsistencia() {
+    const estado = document.getElementById('txt-estado-horario-asistencia');
+    if (!estado) return;
+    const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    estado.textContent = `Horario: ${dias[configuracionHorario.dia_asistencia]} ${configuracionHorario.hora_inicio_asistencia}–${configuracionHorario.hora_fin_asistencia}`;
+}
+
+async function cargarFeedbackAdministrador() {
+    const lista = document.getElementById('lista-feedback-admin');
+    if (!lista || usuarioSesion?.rol !== 'admin') return;
+    lista.replaceChildren();
+    const cargando = document.createElement('p');
+    cargando.textContent = 'Cargando sugerencias y reportes…';
+    lista.appendChild(cargando);
+    try {
+        const registros = await llamarSupabase('sugerencias?select=*&order=fecha.desc&limit=100');
+        if (!Array.isArray(registros)) throw new Error('No se pudieron cargar los mensajes.');
+        const pendientes = registros.filter(registro =>
+            ['sugerencia', 'reporte'].includes(registro.tipo) &&
+            !['atendida', 'resuelta', 'cerrada'].includes(registro.estado)
+        );
+        lista.replaceChildren();
+        if (!pendientes.length) {
+            const vacio = document.createElement('p');
+            vacio.className = 'actividad-mes-vacio';
+            vacio.textContent = 'No hay sugerencias ni errores pendientes.';
+            lista.appendChild(vacio);
+            await actualizarBadgeFeedbackAdmin(pendientes.length);
+            return;
+        }
+        pendientes.forEach(registro => {
+            const tarjeta = document.createElement('article');
+            tarjeta.className = 'feedback-admin-card';
+            const titulo = document.createElement('h4');
+            titulo.textContent = registro.tipo === 'sugerencia' ? 'Sugerencia' : 'Reporte de error';
+            const mensaje = document.createElement('p');
+            mensaje.textContent = registro.mensaje || '';
+            const autor = document.createElement('small');
+            autor.textContent = `${registro.usuario || 'Usuario'} · ${registro.fecha ? new Date(registro.fecha).toLocaleString() : 'Fecha no disponible'}`;
+            const resolver = document.createElement('button');
+            resolver.type = 'button';
+            resolver.className = 'btn-admin';
+            resolver.textContent = 'Marcar como atendido';
+            resolver.addEventListener('click', () => marcarFeedbackAtendido(registro.id));
+            tarjeta.append(titulo, mensaje, autor, resolver);
+            lista.appendChild(tarjeta);
+        });
+        await actualizarBadgeFeedbackAdmin(pendientes.length);
+    } catch (error) {
+        console.error('Error cargando sugerencias y reportes:', error);
+        lista.replaceChildren();
+        const aviso = document.createElement('p');
+        aviso.className = 'actividad-mes-vacio';
+        aviso.textContent = 'No se pudo consultar la bandeja. Revisa conexión y permisos de Supabase.';
+        lista.appendChild(aviso);
     }
+}
 
-    const msgFecha = document.getElementById('msg-restriccion-fecha');
-    const hoy = new Date();
-    const dia = hoy.getDay();
+async function actualizarBadgeFeedbackAdmin(cantidadConocida) {
+    if (usuarioSesion?.rol !== 'admin') return;
+    try {
+        const cantidad = Number.isInteger(cantidadConocida)
+            ? cantidadConocida
+            : (await llamarSupabase('sugerencias?select=*&limit=100') || []).filter(registro =>
+                ['sugerencia', 'reporte'].includes(registro.tipo) &&
+                !['atendida', 'resuelta', 'cerrada'].includes(registro.estado)
+            ).length;
+        const enlace = document.getElementById('menu-reportes-feedback');
+        const badge = document.getElementById('badge-feedback-admin');
+        if (enlace) enlace.style.display = cantidad > 0 ? 'flex' : 'none';
+        if (badge) {
+            badge.textContent = String(cantidad);
+            badge.style.display = cantidad > 0 ? 'inline-flex' : 'none';
+        }
+    } catch (error) {
+        console.error('No se pudo actualizar el contador de sugerencias y errores:', error);
+    }
+}
 
-    if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
-        msgFecha.innerHTML = '<i class="fa-solid fa-unlock-keyhole"></i> Modo Admin - Envíos sin restricciones';
-    } else if (dia === 0) {
-        document.getElementById('captura-cuaderno').disabled = true;
-        document.getElementById('captura-camara').disabled = true;
-        document.getElementById('btn-subir-archivo').classList.add('deshabilitado');
-        document.getElementById('btn-confirmar-envio').classList.add('deshabilitado');
-        msgFecha.innerHTML = '<i class="fa-solid fa-lock"></i> Envíos bloqueados los domingos';
-    } else {
-        msgFecha.innerHTML = '<i class="fa-solid fa-lock-open"></i> Ventana activa para subir material';
+async function marcarFeedbackAtendido(id) {
+    if (usuarioSesion?.rol !== 'admin' || !id) return;
+    try {
+        const actualizado = await llamarSupabase(`sugerencias?id=eq.${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ estado: 'atendida' })
+        });
+        if (!actualizado) throw new Error('No se confirmó la actualización del mensaje.');
+        mostrarNotificacion('Mensaje marcado como atendido.', 'success');
+        await cargarFeedbackAdministrador();
+    } catch (error) {
+        console.error('No se pudo marcar el mensaje como atendido:', error);
+        mostrarNotificacion('No se pudo actualizar el mensaje.', 'error');
     }
 }
 
@@ -736,101 +3005,404 @@ function procesarAlgoritmoCalendarioKids() {
 async function cargarAlumnosSegunRol() {
     const panelNoAsignado = document.getElementById('contenedor-mensaje-no-asignado');
     const panelAsistencia = document.getElementById('contenedor-asistencia-activa');
-
-    if (!seccionAsignadaMaestro) {
-        panelNoAsignado.style.display = 'block';
-        panelAsistencia.style.display = 'none';
+    const sinAsignacionEnPrueba = modoPrueba && !seccionAsignadaMaestro;
+    if (!seccionAsignadaMaestro && !sinAsignacionEnPrueba) {
+        if (panelNoAsignado) panelNoAsignado.style.display = 'block';
+        if (panelAsistencia) panelAsistencia.style.display = 'none';
+        const seccionActual = document.getElementById('asistencia-seccion-actual');
+        if (seccionActual) seccionActual.textContent = 'Sin asignación';
         return;
     }
+    if (panelNoAsignado) panelNoAsignado.style.display = 'none';
+    if (panelAsistencia) panelAsistencia.style.display = 'block';
 
-    panelNoAsignado.style.display = 'none';
-    panelAsistencia.style.display = 'block';
-
-    let salaAFiltrar = seccionAsignadaMaestro;
-
+    let salaAFiltrar = sinAsignacionEnPrueba ? 'todos' : seccionAsignadaMaestro;
     if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
-        if (modoAdminVerTodos) {
-            salaAFiltrar = "todos";
-        } else {
-            salaAFiltrar = seccionAsignadaMaestro === "admin_total" ? "infancia" : seccionAsignadaMaestro;
-        }
+        if (modoAdminVerTodos) { salaAFiltrar = "todos"; }
+        else { salaAFiltrar = seccionAsignadaMaestro === "admin_total" ? "infancia" : seccionAsignadaMaestro; }
+    }
+    const nombresSeccion = { "infancia": "Primera Infancia", "medianos": "Medianos", "grandes": "Grandes" };
+    const seccionActual = document.getElementById('asistencia-seccion-actual');
+    if (seccionActual) {
+        seccionActual.textContent = salaAFiltrar === "todos" ? "TODAS LAS SECCIONES" : (nombresSeccion[salaAFiltrar] || salaAFiltrar);
     }
 
-    document.getElementById('asistencia-seccion-actual').textContent = salaAFiltrar === "todos" ? "TODAS LAS SECCIONES" : salaAFiltrar;
-
     try {
-        // Cargar desde Supabase
-        let alumnos = await cargarAlumnosDesdeSupabase(salaAFiltrar === "todos" ? null : salaAFiltrar);
-        if (!alumnos || alumnos.length === 0) {
-            alumnos = [];
+        let alumnos;
+        if (modoPrueba) {
+            const alumnosLocales = JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]');
+            alumnos = salaAFiltrar === "todos"
+                ? alumnosLocales
+                : alumnosLocales.filter(alumno => alumno.seccion === salaAFiltrar);
+        } else {
+            alumnos = await cargarAlumnos(salaAFiltrar === "todos" ? null : salaAFiltrar);
         }
-
+        if (!alumnos || alumnos.length === 0) { alumnos = []; }
         bancoAlumnosCompleto = alumnos;
-        bancoAlumnosFiltrados = alumnos;
-
         const tabla = document.getElementById('tabla-asistencia-niños-cuerpo');
+        if (!tabla) return;
         tabla.innerHTML = "";
-
         if (alumnos.length === 0) {
-            tabla.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:25px; color:#95a5a6;">No hay alumnos registrados en esta sección.</td></tr>`;
+            tabla.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:25px; color:#95a5a6;">No hay alumnos registrados en esta sección.</td></tr>';
             return;
         }
-
         alumnos.forEach((niño, index) => {
             const fila = document.createElement('tr');
-            const numeroOrden = index + 1;
-            fila.innerHTML = `
-                <td>${numeroOrden}</td>
-                <td>${niño.nombre_completo}</td>
-                <td style="text-align:center;"><input type="checkbox" class="asistencia-checkbox" data-id="${niño.id}"></td>
-                <td style="text-align:center;">${niño.clases_totales || 0}</td>
-            `;
+            const numero = document.createElement('td');
+            numero.textContent = String(index + 1);
+            const nombre = document.createElement('td');
+            nombre.textContent = niño.nombre_completo || '';
+            const asistencia = document.createElement('td');
+            asistencia.style.textAlign = 'center';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'asistencia-checkbox';
+            checkbox.dataset.id = String(niño.id ?? '');
+            asistencia.appendChild(checkbox);
+            const clases = document.createElement('td');
+            clases.style.textAlign = 'center';
+            clases.textContent = String(niño.clases_totales || 0);
+            fila.append(numero, nombre, asistencia, clases);
             tabla.appendChild(fila);
         });
 
-        // Configurar botón de asistencia
         const hoy = new Date();
-        const hora = hoy.getHours();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
         const txtEstado = document.getElementById('txt-estado-horario-asistencia');
 
         if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
-            btnGuardar.disabled = false;
-            btnGuardar.classList.remove('deshabilitado');
-            txtEstado.innerHTML = '<i class="fa-solid fa-unlock"></i> Modo Admin - Sin restricciones';
+            if (btnGuardar) {
+                btnGuardar.disabled = false;
+                btnGuardar.classList.remove('deshabilitado');
+            }
+            if (txtEstado) txtEstado.innerHTML = '<i class="fas fa-unlock"></i> Modo Admin - Sin restricciones';
             return;
         }
 
-        if (hoy.getDay() === 0 && hora >= 15 && hora < 16) {
-            btnGuardar.disabled = false;
-            btnGuardar.classList.remove('deshabilitado');
-            txtEstado.innerHTML = '<i class="fa-regular fa-clock"></i> Ventana abierta (3:00 PM - 4:00 PM)';
-        } else {
-            btnGuardar.disabled = true;
-            btnGuardar.classList.add('deshabilitado');
-            txtEstado.innerHTML = '<i class="fa-regular fa-clock"></i> Fuera de horario dominical';
+        const fechaHoy = hoy.toDateString();
+        const asistenciaGuardada = localStorage.getItem('asistencia_' + fechaHoy + '_' + usuarioSesion.nombre);
+        if (asistenciaGuardada === 'true') {
+            asistenciaEnviadaHoy = true;
+            if (btnGuardar) {
+                btnGuardar.disabled = true;
+                btnGuardar.classList.add('deshabilitado');
+            }
+            if (txtEstado) txtEstado.innerHTML = '<i class="fas fa-check-circle" style="color:#2ecc71;"></i> Asistencia ya reportada';
+            return;
         }
 
+        if (estaEnHorarioAsistencia(hoy)) {
+            if (btnGuardar) {
+                btnGuardar.disabled = false;
+                btnGuardar.classList.remove('deshabilitado');
+            }
+            if (txtEstado) txtEstado.textContent = `Ventana abierta (${configuracionHorario.hora_inicio_asistencia}–${configuracionHorario.hora_fin_asistencia})`;
+        } else {
+            if (btnGuardar) {
+                btnGuardar.disabled = true;
+                btnGuardar.classList.add('deshabilitado');
+            }
+            if (txtEstado) txtEstado.textContent = `Fuera de horario (${configuracionHorario.hora_inicio_asistencia}–${configuracionHorario.hora_fin_asistencia})`;
+        }
     } catch (err) {
         console.error("Error:", err);
         mostrarNotificacion("Error al cargar la lista de alumnos", "error");
     }
 }
 
+// ============ REGISTRAR ALUMNO ============
+async function registrarNuevoAlumno(formElement) {
+    const inputNombre = document.getElementById('reg-nombre');
+    const selectSeccion = document.getElementById('reg-seccion');
+    const inputNacimiento = document.getElementById('reg-nacimiento');
+
+    if (!inputNombre || !selectSeccion || !inputNacimiento) return;
+
+    const nombreVal = inputNombre.value.trim();
+    const seccionVal = selectSeccion.value;
+    const nacimientoVal = inputNacimiento.value;
+
+    if (!nombreVal || !seccionVal || !nacimientoVal) {
+        mostrarNotificacion("Por favor, completa todos los campos para inscribir.", "warning");
+        return;
+    }
+
+    // --- RESTRICCIÓN DE EDAD (Máximo 12 años) ---
+    const fechaNac = new Date(nacimientoVal);
+    const anioNacimiento = fechaNac.getFullYear();
+    const anioActual = new Date().getFullYear(); // 2026
+
+    // Un niño de más de 12 años nació antes de (anioActual - 12) = 2014
+    if (isNaN(anioNacimiento) || anioNacimiento < (anioActual - 12) || anioNacimiento > anioActual) {
+        mostrarNotificacion(`Edad no permitida. El alumno debe tener máximo 12 años (nacido entre ${anioActual - 12} y ${anioActual}).`, "error");
+        return;
+    }
+
+    if (modoPrueba) {
+        const alumnosLocales = JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]');
+        const nombreNormalizado = nombreVal.toLocaleLowerCase('es').trim();
+        if (alumnosLocales.some(alumno => alumno.nombre_completo.toLocaleLowerCase('es').trim() === nombreNormalizado)) {
+            mostrarNotificacion(`El alumno "${nombreVal}" ya está registrado en esta sesión de prueba.`, "error");
+            return;
+        }
+
+        alumnosLocales.push({
+            id: Date.now(),
+            nombre_completo: nombreVal,
+            seccion: seccionVal,
+            fecha_nacimiento: nacimientoVal,
+            clases_totales: 0
+        });
+        localStorage.setItem(CLAVE_ALUMNOS_MODO_PRUEBA, JSON.stringify(alumnosLocales));
+        mostrarNotificacion('Alumno guardado en modo prueba (local)', 'success');
+
+        if (formElement && typeof formElement.reset === 'function') {
+            formElement.reset();
+        }
+        cerrarModalRegistro();
+        await cargarAlumnosSegunRol();
+        return;
+    }
+
+    try {
+        mostrarNotificacion("Verificando alumno en el sistema...", "info");
+
+        // --- VERIFICAR DUPLICADOS EN SUPABASE ---
+        const existentes = await llamarSupabase(`alumnos?nombre_completo=ilike.${encodeURIComponent(nombreVal)}`);
+
+        if (existentes && existentes.length > 0) {
+            mostrarNotificacion(`El alumno "${nombreVal}" ya está registrado en el sistema.`, "error");
+            return; // Cancela la ejecución para NO volver a registrarlo
+        }
+
+        // --- INSERCIÓN EN SUPABASE ---
+        const nuevoAlumno = {
+            nombre_completo: nombreVal,
+            seccion: seccionVal,
+            fecha_nacimiento: nacimientoVal,
+            clases_totales: 0
+        };
+
+        const resultado = await llamarSupabase("alumnos", { 
+            method: "POST", 
+            body: JSON.stringify(nuevoAlumno) 
+        });
+
+        if (resultado) {
+            mostrarNotificacion(`¡Alumno "${nombreVal}" inscrito exitosamente!`, "success");
+
+            await registrarLogAuditoria(`Inscribió al alumno: ${nombreVal} (${seccionVal})`);
+
+            // Limpiar formulario y cerrar modal
+            if (formElement && typeof formElement.reset === 'function') {
+                formElement.reset();
+            } else {
+                const form = document.getElementById('form-registro-alumno');
+                if (form) form.reset();
+            }
+
+            cerrarModal('modal-registro-niño');
+
+            // Actualizar la lista en pantalla inmediatamente
+            await cargarTablaAsistencia();
+        }
+    } catch (error) {
+        console.error("Error al registrar alumno:", error);
+        mostrarNotificacion("Error de conexión al inscribir el alumno.", "error");
+    }
+}
+
+// ============ VERIFICAR CÓDIGO PARA EDITAR ============
+function verificarCodigoParaEditar() {
+    const input = document.getElementById('txt-codigo-buscar-edit');
+    if (!input) return;
+    const cod = parseInt(input.value);
+    if (isNaN(cod) || cod <= 0) { mostrarNotificacion("Ingresa un código válido", "error"); return; }
+    const nino = bancoAlumnosCompleto.find(x => x.id === cod);
+    if (!nino) { mostrarNotificacion("Código no encontrado. Usa el ID que aparece en la tabla.", "error"); return; }
+    idNinoAEditar = cod;
+    const editNombre = document.getElementById('edit-nombre-input');
+    if (editNombre) editNombre.value = nino.nombre_completo;
+    const editSeccion = document.getElementById('edit-seccion-select');
+    if (editSeccion) editSeccion.value = nino.seccion;
+    const editFecha = document.getElementById('edit-fecha-nacimiento');
+    if (editFecha && nino.fecha_nacimiento) editFecha.value = nino.fecha_nacimiento;
+    const formEdicion = document.getElementById('form-edicion-campos-nino');
+    if (formEdicion) formEdicion.style.display = 'block';
+    mostrarNotificacion("Alumno encontrado, edita los datos", "success");
+}
+
+async function actualizarAlumno() {
+    const nuevoNombre = document.getElementById('edit-nombre-input');
+    const nuevaSec = document.getElementById('edit-seccion-select');
+    const nuevaFecha = document.getElementById('edit-fecha-nacimiento');
+    
+    if (!nuevoNombre || !nuevaSec) return;
+    const nombreVal = nuevoNombre.value.trim();
+    const secVal = nuevaSec.value;
+    const fechaVal = nuevaFecha ? nuevaFecha.value : '';
+    
+    if (!nombreVal) { mostrarNotificacion("El nombre no puede estar vacío", "error"); return; }
+    if (fechaVal) {
+        const fechaNac = new Date(fechaVal);
+        const añoNacimiento = fechaNac.getFullYear();
+        const añoActual = new Date().getFullYear();
+        if (añoNacimiento < 2014 || añoNacimiento > añoActual) {
+            mostrarNotificacion('La fecha debe ser entre 2014 y ' + añoActual, 'error');
+            return;
+        }
+    }
+    const nino = bancoAlumnosCompleto.find(a => a.id === idNinoAEditar);
+    if (!nino) { mostrarNotificacion("Error: Alumno no encontrado", "error"); return; }
+    let cambios = false;
+    const datosActualizar = {};
+    if (nino.nombre_completo !== nombreVal) { datosActualizar.nombre_completo = nombreVal; cambios = true; }
+    if (nino.seccion !== secVal) { datosActualizar.seccion = secVal; cambios = true; }
+    if (nino.fecha_nacimiento !== fechaVal) { datosActualizar.fecha_nacimiento = fechaVal; cambios = true; }
+    if (!cambios) { mostrarNotificacion("No se detectaron cambios para actualizar", "info"); return; }
+    try {
+        const result = await actualizarAlumno(idNinoAEditar, datosActualizar);
+        if (result) {
+            mostrarNotificacion("Alumno actualizado con éxito", "success");
+            cerrarModalEditar();
+            await cargarAlumnosSegunRol();
+            await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Actualizó datos del alumno ' + nino.nombre_completo, fecha: new Date().toISOString() });
+        }
+    } catch (err) { mostrarNotificacion("Error al actualizar", "error"); }
+}
+
+function verificarCodigoParaEliminar() {
+    const input = document.getElementById('txt-codigo-buscar-del');
+    if (!input) return;
+    const cod = parseInt(input.value);
+    if (isNaN(cod) || cod <= 0) { mostrarNotificacion("Ingresa un código válido", "error"); return; }
+    const nino = bancoAlumnosCompleto.find(x => x.id === cod);
+    if (!nino) { mostrarNotificacion("Código no encontrado. Usa el ID que aparece en la tabla.", "error"); return; }
+    mostrarNotificacion('¿Eliminar permanentemente a "' + nino.nombre_completo + '" (ID: ' + nino.id + ')? Esta acción no se puede deshacer.', 'warning');
+    setTimeout(async () => {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay activo';
+        modal.style.zIndex = '9999';
+        modal.innerHTML = `
+            <div class="modal-burbuja" style="max-width:400px; text-align:center;">
+                <i class="fas fa-triangle-exclamation" style="font-size:45px; color:#ff7675;"></i>
+                <h3 style="margin:10px 0;">Confirmar Eliminación</h3>
+                <p style="color:#747d8c;">¿Eliminar permanentemente a "${nino.nombre_completo}"?<br>Esta acción no se puede deshacer.</p>
+                <div style="display:flex; gap:10px; justify-content:center; margin-top:15px;">
+                    <button class="btn-cerrar-modal btn-cancelar" onclick="this.closest('.modal-overlay').remove()" style="padding:10px 25px;">Cancelar</button>
+                    <button class="btn-enviar-clase" onclick="confirmarEliminar(${nino.id})" style="background:#ff7675; padding:10px 25px;">Eliminar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }, 500);
+}
+
+async function confirmarEliminar(id) {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+    try {
+        const result = await eliminarAlumno(id);
+        if (result !== null) {
+            mostrarNotificacion("Alumno eliminado del sistema", "success");
+            await cargarAlumnosSegunRol();
+            await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Eliminó un alumno', fecha: new Date().toISOString() });
+        }
+    } catch (err) { mostrarNotificacion("Error al eliminar", "error"); }
+}
+
+// ============ ENVIAR ASISTENCIA ============
+async function enviarAsistenciaSupabase() {
+    const checkboxes = document.querySelectorAll('.asistencia-checkbox:checked');
+    if (checkboxes.length === 0) { mostrarNotificacion("Selecciona al menos un alumno presente", "error"); return; }
+    const seccionEl = document.getElementById('asistencia-seccion-actual');
+    const seccion = seccionEl ? seccionEl.textContent : '';
+    const maestro = document.getElementById('chk-asistencia-maestro-firmado');
+    if (!maestro || (!maestro.checked && usuarioSesion.rol !== "admin" && usuarioSesion.rol !== "pastor")) {
+        mostrarNotificacion("Por favor, marca tu asistencia como maestro", "warning");
+        return;
+    }
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const alumnosPresentes = [];
+    document.querySelectorAll('.asistencia-checkbox:checked').forEach(cb => {
+        const id = parseInt(cb.dataset.id);
+        const alumno = bancoAlumnosCompleto.find(a => a.id === id);
+        if (alumno) { alumnosPresentes.push({ alumno_id: id, nombre: alumno.nombre_completo }); }
+    });
+    try {
+        for (const alumno of alumnosPresentes) {
+            const resultado = await llamarSupabase("asistencia", {
+                method: "POST",
+                body: JSON.stringify({
+                    alumno_id: alumno.alumno_id,
+                    fecha: fechaHoy,
+                    presente: true,
+                    seccion: seccion,
+                    maestro: usuarioSesion.nombre,
+                    maestro_email: usuarioSesion.email
+                })
+            });
+            if (!resultado) throw new Error('No se pudo guardar la asistencia de un alumno.');
+        }
+        const hoy = new Date().toDateString();
+        localStorage.setItem('asistencia_' + hoy + '_' + usuarioSesion.nombre, 'true');
+        mostrarNotificacion('Asistencia reportada: ' + alumnosPresentes.length + ' alumnos', "success");
+        cargarAlumnosSegunRol();
+        const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
+        if (btnGuardar) {
+            btnGuardar.disabled = true;
+            btnGuardar.classList.add('deshabilitado');
+            btnGuardar.innerHTML = '<i class="fas fa-check-circle"></i> Asistencia Reportada';
+        }
+    } catch (err) { mostrarNotificacion("Error al reportar asistencia", "error"); }
+}
+
+// ============ CERRAR MODALES ============
+function cerrarModalRegistro() {
+    const modal = document.getElementById('modal-registro-niño');
+    if (modal) modal.classList.remove('activo');
+    const form = document.getElementById('form-registro-alumno');
+    if (form) form.reset();
+}
+
+function cerrarModalEditar() {
+    const modal = document.getElementById('modal-buscar-editar');
+    if (modal) modal.classList.remove('activo');
+    const form = document.getElementById('form-edicion-campos-nino');
+    if (form) form.style.display = 'none';
+    const input = document.getElementById('txt-codigo-buscar-edit');
+    if (input) input.value = '';
+    const editNombre = document.getElementById('edit-nombre-input');
+    if (editNombre) editNombre.value = '';
+    const editFecha = document.getElementById('edit-fecha-nacimiento');
+    if (editFecha) editFecha.value = '';
+}
+
+function cerrarModalEliminar() {
+    const modal = document.getElementById('modal-eliminar-alumno');
+    if (modal) modal.classList.remove('activo');
+    const input = document.getElementById('txt-codigo-buscar-del');
+    if (input) input.value = '';
+}
+
+function cerrarModalCumpleaneros() {
+    const modal = document.getElementById('modal-cumpleaneros');
+    if (modal) modal.classList.remove('activo');
+}
+
 // ============ CUMBLEAÑEROS ============
 function mostrarCumpleaneros() {
     const modal = document.getElementById('modal-cumpleaneros');
     const lista = document.getElementById('lista-cumpleaneros');
+    if (!modal || !lista) return;
+    
     const mesActual = new Date().getMonth();
-
     const cumpleaneros = bancoAlumnosCompleto.filter(alumno => {
         if (!alumno.fecha_nacimiento) return false;
         const fecha = new Date(alumno.fecha_nacimiento);
         return fecha.getMonth() === mesActual;
     });
-
     if (cumpleaneros.length === 0) {
-        lista.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay cumpleañeros este mes.</p>';
+        lista.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay cumpleaños este mes.</p>';
     } else {
         lista.innerHTML = cumpleaneros.map((alumno) => {
             const fecha = new Date(alumno.fecha_nacimiento);
@@ -839,557 +3411,1305 @@ function mostrarCumpleaneros() {
             return `
                 <div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid #eef2f7;">
                     <span><strong>${alumno.id}.</strong> ${alumno.nombre_completo}</span>
-                    <span style="color:#f39c12;"><i class="fa-solid fa-cake-candles"></i> ${dia} de ${mes}</span>
+                    <span style="color:#f39c12;"><i class="fas fa-cake-candles"></i> ${dia} de ${mes}</span>
                     <span style="color:#95a5a6; font-size:12px;">${alumno.seccion}</span>
                 </div>
             `;
         }).join('');
     }
-
     modal.classList.add('activo');
 }
 
-// ============ REGISTRAR NUEVO ALUMNO ============
-async function registrarNuevoAlumno(form) {
-    const nombre = document.getElementById('reg-nombre').value.trim();
-    const seccion = document.getElementById('reg-seccion').value;
-    const nacimiento = document.getElementById('reg-nacimiento').value;
-
-    if (!nombre || !seccion || !nacimiento) {
-        mostrarNotificacion("Por favor, completa todos los campos", "error");
-        return;
-    }
-
-    const fechaNac = new Date(nacimiento);
-    if (fechaNac.getFullYear() < 2014) {
-        mostrarNotificacion("El alumno debe tener máximo 12 años (año ≥ 2014)", "error");
-        return;
-    }
-
-    const nuevoAlumno = {
-        nombre_completo: nombre,
-        seccion: seccion,
-        fecha_nacimiento: nacimiento,
-        clases_totales: 0
-    };
-
+// ============ BIBLIOTECA ============
+async function cargarBiblioteca() {
+    const grid = document.getElementById('grid-biblioteca');
+    if (!grid) return;
+    
     try {
-        const result = await guardarAlumnoEnSupabase(nuevoAlumno);
-        if (result) {
-            mostrarNotificacion(`Alumno registrado con éxito`, "success");
-            cerrarModalRegistro();
-            await cargarAlumnosSegunRol();
-            
-            await guardarLogEnSupabase({
-                usuario: usuarioSesion.nombre,
-                accion: `Registró a ${nombre} en ${seccion}`,
-                fecha: new Date().toISOString()
-            });
-        }
-    } catch (err) {
-        mostrarNotificacion("Error al registrar el alumno", "error");
-    }
-}
-
-// ============ VERIFICAR CÓDIGO PARA EDITAR ============
-window.verificarCodigoParaEditar = function() {
-    const cod = parseInt(document.getElementById('txt-codigo-buscar-edit').value);
-    if (isNaN(cod) || cod <= 0) {
-        mostrarNotificacion("Ingresa un código válido", "error");
-        return;
-    }
-
-    const nino = bancoAlumnosCompleto.find(x => x.id === cod);
-    if (!nino) {
-        mostrarNotificacion("Código no encontrado", "error");
-        return;
-    }
-
-    idNinoAEditar = cod;
-    document.getElementById('edit-nombre-input').value = nino.nombre_completo;
-    document.getElementById('edit-seccion-select').value = nino.seccion;
-    if (nino.fecha_nacimiento) {
-        document.getElementById('edit-fecha-nacimiento').value = nino.fecha_nacimiento;
-    }
-    document.getElementById('form-edicion-campos-nino').style.display = 'block';
-    mostrarNotificacion("Alumno encontrado, edita los datos", "success");
-};
-
-// ============ ACTUALIZAR ALUMNO ============
-async function actualizarAlumno(form) {
-    const nuevoNombre = document.getElementById('edit-nombre-input').value.trim();
-    const nuevaSec = document.getElementById('edit-seccion-select').value;
-    const nuevaFecha = document.getElementById('edit-fecha-nacimiento').value;
-
-    if (!nuevoNombre) {
-        mostrarNotificacion("El nombre no puede estar vacío", "error");
-        return;
-    }
-
-    if (nuevaFecha) {
-        const fechaNac = new Date(nuevaFecha);
-        if (fechaNac.getFullYear() < 2014) {
-            mostrarNotificacion("El alumno debe tener máximo 12 años (año ≥ 2014)", "error");
+        const lecciones = await llamarSupabase("lecciones?order=id.desc");
+        if (!lecciones || lecciones.length === 0) {
+            grid.innerHTML = '<p style="color:#95a5a6; text-align:center; grid-column:1/-1; padding:30px;">No hay lecciones disponibles.</p>';
             return;
         }
-    }
 
-    const nino = bancoAlumnosCompleto.find(a => a.id === idNinoAEditar);
-    if (!nino) {
-        mostrarNotificacion("Error: Alumno no encontrado", "error");
-        return;
-    }
-
-    // Verificar si hubo cambios
-    let cambios = false;
-    const datosActualizar = {};
-
-    if (nino.nombre_completo !== nuevoNombre) {
-        datosActualizar.nombre_completo = nuevoNombre;
-        cambios = true;
-    }
-    if (nino.seccion !== nuevaSec) {
-        datosActualizar.seccion = nuevaSec;
-        cambios = true;
-    }
-    if (nino.fecha_nacimiento !== nuevaFecha) {
-        datosActualizar.fecha_nacimiento = nuevaFecha;
-        cambios = true;
-    }
-
-    if (!cambios) {
-        mostrarNotificacion("No se detectaron cambios para actualizar", "info");
-        return;
-    }
-
-    try {
-        const result = await actualizarAlumnoEnSupabase(idNinoAEditar, datosActualizar);
-        if (result) {
-            mostrarNotificacion("Alumno actualizado con éxito", "success");
-            cerrarModalEditar();
-            await cargarAlumnosSegunRol();
-            
-            await guardarLogEnSupabase({
-                usuario: usuarioSesion.nombre,
-                accion: `Actualizó datos del alumno ${nino.nombre_completo}`,
-                fecha: new Date().toISOString()
-            });
+        const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
+        let leccionesMostrar = lecciones;
+        if (!esAdmin) {
+            leccionesMostrar = lecciones.filter(l => l.estado === 'publicada');
         }
-    } catch (err) {
-        mostrarNotificacion("Error al actualizar", "error");
+
+        if (leccionesMostrar.length === 0) {
+            grid.innerHTML = '<p style="color:#95a5a6; text-align:center; grid-column:1/-1; padding:30px;">No hay lecciones publicadas disponibles.</p>';
+            return;
+        }
+
+        const nombresSeccion = { 'infancia': 'Primera Infancia', 'medianos': 'Medianos', 'grandes': 'Grandes' };
+
+        grid.innerHTML = leccionesMostrar.map(l => {
+            const mes = new Date(l.fecha_domingo).toLocaleString('es', { month: 'long', year: 'numeric' });
+            const estadoBadge = l.estado === 'publicada' 
+                ? '<span class="badge-estado badge-publicada"><i class="fas fa-check"></i> Publicada</span>'
+                : '<span class="badge-estado badge-preinscripcion"><i class="fas fa-clock"></i> Pre-inscripción</span>';
+
+            const portadaHtml = l.portada 
+                ? '<img src="' + l.portada + '" alt="Portada" class="portada-biblioteca">'
+                : '<div class="portada-biblioteca">' + l.titulo + '</div>';
+
+            return `
+                <div class="tarjeta-biblioteca animacion-entrada" onclick="verLeccion(${l.id})">
+                    ${portadaHtml}
+                    <div style="padding:15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
+                            <h4 style="color:#1e3799; font-size:16px; margin:0;">${l.titulo}</h4>
+                            ${estadoBadge}
+                        </div>
+                        <p style="color:#747d8c; font-size:12px; margin:4px 0;"><i class="fas fa-user"></i> ${l.autor}</p>
+                        <p style="color:#747d8c; font-size:12px; margin:4px 0;"><i class="fas fa-calendar"></i> ${mes} - ${nombresSeccion[l.seccion] || l.seccion}</p>
+                        ${l.resumen_admin ? '<p style="color:#555; font-size:13px; margin:8px 0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">' + l.resumen_admin + '</p>' : ''}
+                        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                            <button class="btn-admin" onclick="event.stopPropagation(); verLeccion(${l.id})" style="font-size:11px; padding:4px 12px;"><i class="fas fa-eye"></i> Ver</button>
+                            ${esAdmin && l.estado === 'pre-inscripcion' ? '<button class="btn-admin" onclick="event.stopPropagation(); abrirCompletarLeccionAdmin(' + l.id + ')" style="font-size:11px; padding:4px 12px; background:#2ecc71;"><i class="fas fa-check-double"></i> Completar</button>' : ''}
+                            ${esAdmin ? '<button class="btn-admin btn-danger" onclick="event.stopPropagation(); eliminarLeccion(' + l.id + ')" style="font-size:11px; padding:4px 12px;"><i class="fas fa-trash"></i></button>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error("Error:", error);
+        grid.innerHTML = '<p style="color:#ff7675; text-align:center; grid-column:1/-1; padding:30px;">Error al cargar las lecciones</p>';
     }
 }
 
-// ============ ELIMINAR ALUMNO ============
-window.verificarCodigoParaEliminar = async function() {
-    const cod = parseInt(document.getElementById('txt-codigo-buscar-del').value);
-    if (isNaN(cod) || cod <= 0) {
-        mostrarNotificacion("Ingresa un código válido", "error");
-        return;
-    }
-
-    const nino = bancoAlumnosCompleto.find(x => x.id === cod);
-    if (!nino) {
-        mostrarNotificacion("Código no encontrado", "error");
-        return;
-    }
-
-    if (!confirm(`¿Eliminar permanentemente a "${nino.nombre_completo}"? Esta acción no se puede deshacer.`)) return;
-
-    try {
-        const result = await eliminarAlumnoEnSupabase(cod);
-        if (result !== null) {
-            mostrarNotificacion("Alumno eliminado del sistema", "success");
-            cerrarModalEliminar();
-            await cargarAlumnosSegunRol();
-            
-            await guardarLogEnSupabase({
-                usuario: usuarioSesion.nombre,
-                accion: `Eliminó a ${nino.nombre_completo}`,
-                fecha: new Date().toISOString()
-            });
-        }
-    } catch (err) {
-        mostrarNotificacion("Error al eliminar", "error");
-    }
-};
-
-// ============ ENVIAR ASISTENCIA ============
-window.enviarAsistenciaSupabase = async function() {
-    const checkboxes = document.querySelectorAll('.asistencia-checkbox:checked');
-    if (checkboxes.length === 0) {
-        mostrarNotificacion("Selecciona al menos un alumno presente", "error");
-        return;
-    }
-
-    const seccion = document.getElementById('asistencia-seccion-actual').textContent;
-    const maestro = document.getElementById('chk-asistencia-maestro-firmado');
-
-    if (!maestro.checked && usuarioSesion.rol !== "admin" && usuarioSesion.rol !== "pastor") {
-        mostrarNotificacion("Por favor, marca tu asistencia como maestro", "warning");
-        return;
-    }
-
-    const fechaHoy = new Date().toISOString().split('T')[0];
-    const alumnosPresentes = [];
-    const idsActualizar = [];
-
-    document.querySelectorAll('.asistencia-checkbox:checked').forEach(cb => {
-        const id = parseInt(cb.dataset.id);
-        const alumno = bancoAlumnosCompleto.find(a => a.id === id);
-        if (alumno) {
-            alumnosPresentes.push({
-                alumno_id: id,
-                nombre: alumno.nombre_completo
-            });
-            idsActualizar.push(id);
-        }
+function filtrarBiblioteca(termino) {
+    const tarjetas = document.querySelectorAll('.tarjeta-biblioteca');
+    const busqueda = termino.toLowerCase().trim();
+    tarjetas.forEach(tarjeta => {
+        const texto = tarjeta.textContent.toLowerCase();
+        tarjeta.style.display = texto.includes(busqueda) ? 'block' : 'none';
     });
+}
 
-    try {
-        // Guardar asistencia y actualizar clases_totales
-        for (const alumno of alumnosPresentes) {
-            // Guardar registro de asistencia
-            await guardarAsistenciaEnSupabase({
-                alumno_id: alumno.alumno_id,
-                fecha: fechaHoy,
-                presente: true,
-                seccion: seccion,
-                maestro: usuarioSesion.nombre
-            });
-
-            // Incrementar clases_totales
-            const nino = bancoAlumnosCompleto.find(a => a.id === alumno.alumno_id);
-            if (nino) {
-                const nuevasClases = (nino.clases_totales || 0) + 1;
-                await actualizarClasesTotales(alumno.alumno_id, nuevasClases);
-            }
+function filtrarBibliotecaSeccion(seccion) {
+    const tarjetas = document.querySelectorAll('.tarjeta-biblioteca');
+    tarjetas.forEach(tarjeta => {
+        if (seccion === 'todas') {
+            tarjeta.style.display = 'block';
+            return;
         }
+        const texto = tarjeta.textContent.toLowerCase();
+        tarjeta.style.display = texto.includes(seccion) ? 'block' : 'none';
+    });
+}
 
-        // Recargar datos actualizados
-        await cargarAlumnosSegunRol();
-
-        mostrarNotificacion(`Asistencia reportada: ${alumnosPresentes.length} alumnos presentes en ${seccion}`, "success");
-
-        await guardarLogEnSupabase({
-            usuario: usuarioSesion.nombre,
-            accion: `Reportó asistencia - ${alumnosPresentes.length} alumnos en ${seccion}`,
-            fecha: new Date().toISOString()
-        });
-
-        // Cambiar botón a "Solicitar Edición"
-        const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
-        btnGuardar.disabled = false;
-        btnGuardar.style.background = '#e67e22';
-        btnGuardar.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Solicitar Edición';
-        btnGuardar.onclick = function() {
-            document.getElementById('modal-solicitar-edicion').classList.add('activo');
-        };
+async function verLeccion(id) {
+    try {
+        const lecciones = await llamarSupabase('lecciones?id=eq.' + id);
+        if (!lecciones || lecciones.length === 0) {
+            mostrarNotificacion("Lección no encontrada", "error");
+            return;
+        }
+        const l = lecciones[0];
+        leccionSeleccionada = l;
         
-        const txtEstado = document.getElementById('txt-estado-horario-asistencia');
-        txtEstado.innerHTML = '<i class="fa-solid fa-check-circle" style="color:#2ecc71;"></i> Asistencia ya reportada';
-
-    } catch (err) {
-        mostrarNotificacion("Error al reportar asistencia", "error");
-    }
-};
-
-// ============ SOLICITAR EDICIÓN ============
-window.enviarSolicitudEdicion = async function() {
-    const justificacion = document.getElementById('txt-justificacion-edicion').value.trim();
-
-    if (!justificacion) {
-        mostrarNotificacion("Por favor, escribe una justificación válida", "error");
-        return;
-    }
-
-    if (justificacion.length < 10) {
-        mostrarNotificacion("La justificación debe tener al menos 10 caracteres", "error");
-        return;
-    }
-
-    try {
-        await guardarLogEnSupabase({
-            usuario: usuarioSesion.nombre,
-            accion: `Solicitó edición de asistencia: ${justificacion.substring(0, 50)}...`,
-            fecha: new Date().toISOString()
+        await llamarSupabase('lecciones?id=eq.' + id, {
+            method: "PATCH",
+            body: JSON.stringify({ lecturas: (l.lecturas || 0) + 1 })
         });
+        
+        const tituloEl = document.getElementById('ver-leccion-titulo');
+        if (tituloEl) tituloEl.textContent = l.titulo;
+        const autorEl = document.getElementById('ver-leccion-autor');
+        if (autorEl) autorEl.textContent = l.autor + ' - ' + new Date(l.fecha_domingo).toLocaleDateString();
 
-        mostrarNotificacion("Solicitud enviada al administrador", "success");
-        document.getElementById('modal-solicitar-edicion').classList.remove('activo');
-        document.getElementById('txt-justificacion-edicion').value = '';
+        const nombresSeccion = { 'infancia': 'Primera Infancia (1-3 años)', 'medianos': 'Medianos (4-8 años)', 'grandes': 'Grandes (9-12 años)' };
 
-        if (usuarioSesion.rol !== "admin" && usuarioSesion.rol !== "pastor") {
-            enviarNotificacionPush('Solicitud de Edición', `${usuarioSesion.nombre} solicita editar asistencia`);
-        }
-    } catch (err) {
-        mostrarNotificacion("Error al enviar la solicitud", "error");
-    }
-};
-
-// ============ REGISTRAR CARGA DE CLASE ============
-window.registrarCargaClase = function(archivo) {
-    if (!archivo) {
-        mostrarNotificacion("Selecciona un archivo primero", "error");
-        return;
-    }
-
-    const nombreArchivo = archivo.name;
-    const fecha = new Date().toLocaleDateString();
-    const ext = nombreArchivo.split('.').pop().toLowerCase();
-
-    const archivoData = {
-        nombre: nombreArchivo,
-        fecha: fecha,
-        maestro: usuarioSesion.nombre,
-        tipo: ext,
-        tamano: archivo.size,
-        data: archivo
-    };
-    archivosSubidos.push(archivoData);
-
-    const tabla = document.getElementById('tabla-archivos-storage-cuerpo');
-    if (tabla) {
-        const iconos = {
-            'pdf': 'fa-file-pdf', 'doc': 'fa-file-word', 'docx': 'fa-file-word',
-            'xls': 'fa-file-excel', 'xlsx': 'fa-file-excel',
-            'ppt': 'fa-file-powerpoint', 'pptx': 'fa-file-powerpoint',
-            'jpg': 'fa-file-image', 'jpeg': 'fa-file-image', 'png': 'fa-file-image', 'gif': 'fa-file-image'
-        };
-        const icono = iconos[ext] || 'fa-file';
-        const color = iconos[ext] ? '#2575fc' : '#95a5a6';
-
-        const fila = document.createElement('tr');
-        fila.innerHTML = `
-            <td>${fecha}</td>
-            <td>${usuarioSesion.nombre}</td>
-            <td>${nombreArchivo}</td>
-            <td style="text-align:center;">
-                <i class="fa-solid ${icono}" style="font-size:28px; color:${color}; cursor:pointer;" 
-                   onclick="verVistaPrevia('${nombreArchivo}')" title="Ver vista previa"></i>
-            </td>
-            <td style="text-align:center;">
-                <button class="btn-admin" onclick="descargarArchivo('${nombreArchivo}')" style="font-size:12px; padding:4px 12px;">
-                    <i class="fa-solid fa-download"></i>
-                </button>
-            </td>
+        let contenido = `
+            <div style="background:#f8f9fa; padding:15px; border-radius:12px; margin-bottom:10px;">
+                <p><strong><i class="fas fa-layer-group"></i> Sección:</strong> ${nombresSeccion[l.seccion] || l.seccion}</p>
+                <p><strong><i class="fas fa-bible"></i> Texto memorizado:</strong> ${l.texto_memorizado}</p>
+                ${l.descripcion ? '<p><strong><i class="fas fa-comment"></i> Descripción:</strong> ' + l.descripcion + '</p>' : ''}
+                ${l.resumen_admin ? '<p><strong><i class="fas fa-file-lines"></i> Resumen del Admin:</strong> ' + l.resumen_admin + '</p>' : ''}
+                ${l.uso_visuales ? '<p><strong><i class="fas fa-image"></i> Visuales:</strong> Sí</p>' : ''}
+                ${l.realizo_actividad ? '<p><strong><i class="fas fa-gamepad"></i> Actividad:</strong> ' + l.descripcion_actividad + '</p>' : ''}
+                <div style="margin-top:10px; display:flex; gap:8px;">
+                    <button class="btn-admin" onclick="verBosquejo()" style="background:#2575fc;">
+                        <i class="fas fa-file-pdf"></i> Ver Bosquejo
+                    </button>
+                </div>
+            </div>
         `;
-        tabla.appendChild(fila);
+
+        const contenidoEl = document.getElementById('contenido-leccion');
+        if (contenidoEl) contenidoEl.innerHTML = contenido;
+        const modal = document.getElementById('modal-ver-leccion');
+        if (modal) modal.classList.add('activo');
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al cargar la lección", "error");
     }
+}
 
-    mostrarNotificacion("Material enviado al administrador", "success");
-
-    guardarLogEnSupabase({
-        usuario: usuarioSesion.nombre,
-        accion: `Subió material: ${nombreArchivo}`,
-        fecha: new Date().toISOString()
-    });
-
-    document.getElementById('captura-cuaderno').value = '';
-    document.getElementById('captura-camara').value = '';
-    document.getElementById('vista-previa-archivo').style.display = 'none';
-    cerrarDialogoCamara();
-};
-
-// ============ VER VISTA PREVIA ============
-window.verVistaPrevia = function(nombreArchivo) {
-    const archivo = archivosSubidos.find(a => a.nombre === nombreArchivo);
-    if (!archivo) {
-        mostrarNotificacion("Archivo no encontrado", "error");
+function verBosquejo() {
+    if (!leccionSeleccionada || !leccionSeleccionada.bosquejo) {
+        mostrarNotificacion('No hay bosquejo disponible para esta lección', 'warning');
         return;
     }
-
-    const modal = document.getElementById('modal-vista-previa');
-    const contenido = document.getElementById('contenido-vista-previa');
-    const ext = archivo.tipo;
-
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            contenido.innerHTML = `
-                <img src="${e.target.result}" style="max-width:100%; max-height:450px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                <p style="margin-top:10px; font-size:13px; color:#747d8c;">${archivo.nombre} (${(archivo.tamano / 1024).toFixed(1)} KB)</p>
-            `;
-        };
-        reader.readAsDataURL(archivo.data);
-        modal.classList.add('activo');
-        return;
-    }
-
-    if (ext === 'pdf') {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            contenido.innerHTML = `
-                <iframe src="${e.target.result}" style="width:100%; height:450px; border-radius:12px; border:1px solid #eef2f7;"></iframe>
-                <p style="margin-top:10px; font-size:13px; color:#747d8c;">${archivo.nombre} (${(archivo.tamano / 1024).toFixed(1)} KB)</p>
-            `;
-        };
-        reader.readAsDataURL(archivo.data);
-        modal.classList.add('activo');
-        return;
-    }
-
-    contenido.innerHTML = `
-        <div style="padding:40px 20px; background:#f8f9fa; border-radius:16px;">
-            <i class="fa-solid fa-file" style="font-size:72px; color:#2575fc;"></i>
-            <p style="font-size:18px; font-weight:600; margin-top:15px;">${archivo.nombre}</p>
-            <p style="color:#747d8c; font-size:14px;">${(archivo.tamano / 1024).toFixed(1)} KB - ${archivo.tipo.toUpperCase()}</p>
-            <p style="color:#95a5a6; font-size:13px; margin-top:10px;">Subido por: ${archivo.maestro} - ${archivo.fecha}</p>
-            <button class="btn-enviar-clase" onclick="descargarArchivo('${archivo.nombre}')" style="margin-top:15px; padding:10px 30px;">
-                <i class="fa-solid fa-download"></i> Descargar
-            </button>
-        </div>
+    const ventana = window.open('', '_blank');
+    ventana.document.documentElement.innerHTML = `
+        <head><title>Bosquejo - ${leccionSeleccionada.titulo}</title></head>
+        <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+                <h1>${leccionSeleccionada.titulo}</h1>
+                <p><strong>Autor:</strong> ${leccionSeleccionada.autor}</p>
+                <hr>
+                <div style="margin-top: 20px;">
+                    ${leccionSeleccionada.bosquejo.startsWith('data:') 
+                        ? `<iframe src="${leccionSeleccionada.bosquejo}" style="width:100%; height:600px; border:none;"></iframe>`
+                        : `<p>${leccionSeleccionada.bosquejo}</p>`
+                    }
+                </div>
+        </body>
     `;
+}
 
-    modal.classList.add('activo');
-};
+function modoLectura() {
+    pausarInactividad();
+    mostrarNotificacion('Modo Lectura activado - Inactividad pausada', 'info');
+    const modal = document.getElementById('modal-ver-leccion');
+    if (modal) modal.classList.remove('activo');
+}
 
-// ============ DESCARGAR ARCHIVO ============
-window.descargarArchivo = function(nombreArchivo) {
-    const archivo = archivosSubidos.find(a => a.nombre === nombreArchivo);
-    if (!archivo) {
-        mostrarNotificacion("Archivo no encontrado", "error");
+function modoEstudio() {
+    pausarInactividad();
+    const modal = document.getElementById('modal-ver-leccion');
+    if (modal) modal.classList.remove('activo');
+    iniciarEstudio();
+}
+
+function iniciarEstudio() {
+    if (!leccionSeleccionada) { mostrarNotificacion('No hay lección seleccionada', 'error'); return; }
+    const leccion = leccionSeleccionada;
+    const tituloEl = document.getElementById('estudio-titulo');
+    if (tituloEl) tituloEl.textContent = leccion.titulo;
+    const contenidoEl = document.getElementById('estudio-contenido-lectura');
+    if (contenidoEl) {
+        contenidoEl.innerHTML = `
+            <div style="background:#f8f9fa; padding:20px; border-radius:12px; margin-bottom:15px;">
+                <p><strong>Texto Memorizado:</strong> ${leccion.texto_memorizado}</p>
+                ${leccion.descripcion ? '<p>' + leccion.descripcion + '</p>' : ''}
+                ${leccion.resumen_admin ? '<p><strong>Resumen:</strong> ' + leccion.resumen_admin + '</p>' : ''}
+                ${leccion.bosquejo ? '<p><strong>Bosquejo:</strong> <a href="#" onclick="verBosquejoEstudio()">Ver bosquejo completo</a></p>' : ''}
+            </div>
+            <div style="text-align:center; margin-top:15px;">
+                <button class="btn-enviar-clase" onclick="iniciarQuiz()">
+                    <i class="fas fa-question-circle"></i> Iniciar Quiz
+                </button>
+            </div>
+        `;
+    }
+    const modal = document.getElementById('modal-estudio');
+    if (modal) modal.classList.add('activo');
+    const lecturaEl = document.getElementById('estudio-lectura');
+    if (lecturaEl) lecturaEl.style.display = 'block';
+    const quizEl = document.getElementById('estudio-quiz');
+    if (quizEl) quizEl.style.display = 'none';
+}
+
+function verBosquejoEstudio() {
+    verBosquejo();
+}
+
+function iniciarQuiz() {
+    if (!leccionSeleccionada) { mostrarNotificacion('No hay lección seleccionada', 'error'); return; }
+    const leccion = leccionSeleccionada;
+    
+    preguntasEstudio = [
+        { pregunta: '¿Cuál es el texto memorizado de esta lección?', opciones: [leccion.texto_memorizado, 'Juan 3:16', 'Proverbios 3:5', 'Salmo 23:1'], correcta: 0 },
+        { pregunta: '¿Qué sección es esta lección?', opciones: ['Primera Infancia', 'Medianos', 'Grandes', 'Todas'], correcta: ['infancia', 'medianos', 'grandes'].indexOf(leccion.seccion) },
+        { pregunta: '¿Quién es el autor de esta lección?', opciones: [leccion.autor, 'Admin', 'Pastor', 'Desconocido'], correcta: 0 },
+        { pregunta: '¿Esta lección utilizó visuales?', opciones: ['Sí', 'No'], correcta: leccion.uso_visuales ? 0 : 1 },
+        { pregunta: '¿Esta lección incluyó una actividad?', opciones: ['Sí', 'No'], correcta: leccion.realizo_actividad ? 0 : 1 },
+    ];
+    
+    preguntaActual = 0;
+    respuestasCorrectas = 0;
+    const lecturaEl = document.getElementById('estudio-lectura');
+    if (lecturaEl) lecturaEl.style.display = 'none';
+    const quizEl = document.getElementById('estudio-quiz');
+    if (quizEl) quizEl.style.display = 'block';
+    mostrarPreguntaQuiz();
+}
+
+function mostrarPreguntaQuiz() {
+    if (preguntaActual >= preguntasEstudio.length) {
+        finalizarEstudio();
         return;
     }
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(archivo.data);
-    link.download = archivo.nombre;
-    link.click();
-    URL.revokeObjectURL(link.href);
-
-    mostrarNotificacion("Descargando archivo...", "success");
-};
-
-// ============ EXPORTAR REPORTE ============
-window.descargarReporte = function() {
-    if (archivosSubidos.length === 0) {
-        mostrarNotificacion("No hay archivos para exportar", "warning");
-        return;
+    const p = preguntasEstudio[preguntaActual];
+    const numeroEl = document.getElementById('estudio-pregunta-numero');
+    if (numeroEl) numeroEl.textContent = 'Pregunta ' + (preguntaActual + 1) + ' de ' + preguntasEstudio.length;
+    const contenedor = document.getElementById('estudio-contenido-quiz');
+    if (contenedor) {
+        contenedor.innerHTML = `
+            <div style="background:#f8f9fa; padding:20px; border-radius:12px;">
+                <p style="font-weight:bold; font-size:16px; margin-bottom:15px;">${p.pregunta}</p>
+                ${p.opciones.map((op, i) => `
+                    <div style="margin:8px 0;">
+                        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 12px; background:white; border-radius:8px; border:1px solid #dfe4ea; transition:0.3s;">
+                            <input type="radio" name="respuesta" value="${i}" style="width:18px; height:18px;">
+                            <span>${op}</span>
+                        </label>
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
+    const btnSiguiente = document.getElementById('btn-siguiente-pregunta');
+    if (btnSiguiente) {
+        btnSiguiente.textContent = preguntaActual === preguntasEstudio.length - 1 ? 'Finalizar' : 'Siguiente';
+    }
+}
 
-    let contenido = "Fecha,Maestro,Documento,Tipo,Tamaño\n";
-    archivosSubidos.forEach(a => {
-        contenido += `${a.fecha},${a.maestro},${a.nombre},${a.tipo},${(a.tamano / 1024).toFixed(1)} KB\n`;
-    });
+function siguientePreguntaQuiz() {
+    const selected = document.querySelector('input[name="respuesta"]:checked');
+    if (!selected) { mostrarNotificacion('Selecciona una respuesta', 'warning'); return; }
+    const respuesta = parseInt(selected.value);
+    if (respuesta === preguntasEstudio[preguntaActual].correcta) { respuestasCorrectas++; }
+    preguntaActual++;
+    mostrarPreguntaQuiz();
+}
 
-    const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Reporte_Materiales_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+function finalizarEstudio() {
+    const modal = document.getElementById('modal-estudio');
+    if (modal) modal.classList.remove('activo');
+    reanudarInactividad();
+    const total = preguntasEstudio.length;
+    const porcentaje = Math.round((respuestasCorrectas / total) * 100);
+    if (porcentaje >= 70) {
+        mostrarNotificacion('Estudio completado! ' + respuestasCorrectas + '/' + total + ' correctas (' + porcentaje + '%)', 'success');
+    } else {
+        mostrarNotificacion('Estudio completado. ' + respuestasCorrectas + '/' + total + ' correctas (' + porcentaje + '%). Revisa la lección nuevamente.', 'warning');
+    }
+}
 
-    mostrarNotificacion("Reporte exportado con éxito", "success");
-};
+function cerrarEstudio() {
+    const modal = document.getElementById('modal-estudio');
+    if (modal) modal.classList.remove('activo');
+    reanudarInactividad();
+    mostrarNotificacion('Estudio finalizado', 'info');
+}
 
-// ============ HISTORIAL ============
-async function cargarHistorialAuditoria() {
-    const tabla = document.getElementById('tabla-logs-cuerpo');
-    if (!tabla) return;
-
+async function eliminarLeccion(id) {
+    if (!(await confirmarAccion('¿Eliminar esta lección permanentemente?'))) return;
     try {
-        const logs = await llamarSupabase("logs?order=id.desc&limit=50");
-        tabla.innerHTML = "";
+        await llamarSupabase('lecciones?id=eq.' + id, { method: "DELETE" });
+        mostrarNotificacion("Lección eliminada", "success");
+        cargarBiblioteca();
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al eliminar la lección", "error");
+    }
+}
 
-        if (!logs || logs.length === 0) {
-            tabla.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#95a5a6; padding:20px;">No hay registros de actividad</td></tr>`;
-            return;
-        }
-
-        logs.forEach(log => {
-            const fila = document.createElement('tr');
-            fila.innerHTML = `
-                <td><strong>${log.usuario}</strong></td>
-                <td>${log.accion}</td>
-                <td style="color:#747d8c;">${new Date(log.fecha).toLocaleString()}</td>
-            `;
-            tabla.appendChild(fila);
+// ============ ABRIR FORMULARIO LECCIÓN ============
+function abrirFormularioLeccion() {
+    if (!seccionAsignadaMaestro || seccionAsignadaMaestro === "admin_total") {
+        mostrarNotificacion("Solo puedes crear lecciones si tienes una clase asignada", "warning");
+        return;
+    }
+    const autorEl = document.getElementById('lec-autor');
+    if (autorEl) autorEl.value = usuarioSesion.nombre;
+    const fecha = new Date();
+    const fechaFormateada = fecha.getFullYear() + '-' + String(fecha.getMonth()+1).padStart(2,'0') + '-' + String(fecha.getDate()).padStart(2,'0');
+    const fechaEl = document.getElementById('lec-fecha');
+    if (fechaEl) fechaEl.value = fechaFormateada;
+    const seccionEl = document.getElementById('lec-seccion');
+    if (seccionEl) seccionEl.value = seccionAsignadaMaestro;
+    const modal = document.getElementById('modal-nueva-leccion');
+    if (modal) modal.classList.add('activo');
+    
+    const visualesEl = document.getElementById('lec-visuales');
+    if (visualesEl) {
+        visualesEl.addEventListener('change', function() {
+            const campo = document.getElementById('lec-campo-visuales');
+            if (campo) campo.style.display = this.value === 'si' ? 'block' : 'none';
         });
-    } catch (err) {
-        // Fallback a localStorage
-        const logs = JSON.parse(localStorage.getItem('zk360_historial')) || [];
-        tabla.innerHTML = "";
-
-        if (logs.length === 0) {
-            tabla.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#95a5a6; padding:20px;">No hay registros de actividad</td></tr>`;
-            return;
-        }
-
-        logs.reverse().forEach(log => {
-            const fila = document.createElement('tr');
-            fila.innerHTML = `
-                <td><strong>${log.usuario}</strong></td>
-                <td>${log.accion}</td>
-                <td style="color:#747d8c;">${log.fecha}</td>
-            `;
-            tabla.appendChild(fila);
+    }
+    const actividadEl = document.getElementById('lec-actividad');
+    if (actividadEl) {
+        actividadEl.addEventListener('change', function() {
+            const campo = document.getElementById('lec-campo-actividad');
+            if (campo) campo.style.display = this.value === 'si' ? 'block' : 'none';
         });
     }
 }
 
-// ============ AYUDA ============
+document.getElementById('form-nueva-leccion').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const titulo = document.getElementById('lec-titulo');
+    const seccion = document.getElementById('lec-seccion');
+    const fecha = document.getElementById('lec-fecha');
+    const descripcion = document.getElementById('lec-descripcion');
+    const memorizado = document.getElementById('lec-memorizado');
+    const visuales = document.getElementById('lec-visuales');
+    const actividad = document.getElementById('lec-actividad');
+    const descActividad = document.getElementById('lec-descripcion-actividad');
+    const bosquejoFile = document.getElementById('lec-bosquejo-archivo');
+    const visualesFile = document.getElementById('lec-archivo-visuales');
+
+    if (!titulo || !seccion || !fecha || !memorizado || !bosquejoFile) {
+        mostrarNotificacion("Completa todos los campos obligatorios", "error");
+        return;
+    }
+    
+    const tituloVal = titulo.value.trim();
+    const seccionVal = seccion.value;
+    const fechaVal = fecha.value;
+    const descripcionVal = descripcion ? descripcion.value.trim() : '';
+    const memorizadoVal = memorizado.value.trim();
+    const usoVisuales = visuales ? visuales.value === 'si' : false;
+    const realizoActividad = actividad ? actividad.value === 'si' : false;
+    const descActividadVal = descActividad ? descActividad.value.trim() : '';
+    const bosquejoFileVal = bosquejoFile.files[0];
+    const visualesFileVal = visualesFile ? visualesFile.files[0] : null;
+
+    if (!tituloVal || !seccionVal || !fechaVal || !memorizadoVal) {
+        mostrarNotificacion("Completa todos los campos obligatorios", "error");
+        return;
+    }
+    if (!bosquejoFileVal) {
+        mostrarNotificacion("Sube el bosquejo de la clase", "error");
+        return;
+    }
+    if (usoVisuales && !visualesFileVal) {
+        mostrarNotificacion("Sube los visuales que usaste", "error");
+        return;
+    }
+    if (realizoActividad && !descActividadVal) {
+        mostrarNotificacion("Describe la actividad que realizaste", "error");
+        return;
+    }
+
+    try {
+        const bosquejoData = await leerArchivoBase64(bosquejoFileVal);
+        let visualesData = null;
+        if (visualesFileVal) { visualesData = await leerArchivoBase64(visualesFileVal); }
+
+        const leccion = {
+            titulo: tituloVal,
+            seccion: seccionVal,
+            fecha_domingo: fechaVal,
+            autor: usuarioSesion.nombre,
+            descripcion: descripcionVal,
+            texto_memorizado: memorizadoVal,
+            uso_visuales: usoVisuales,
+            visuales: visualesData,
+            realizo_actividad: realizoActividad,
+            descripcion_actividad: descActividadVal,
+            bosquejo: bosquejoData,
+            estado: 'pre-inscripcion',
+            veces_editado: 0,
+            lecturas: 0
+        };
+
+        await llamarSupabase("lecciones", { method: "POST", body: JSON.stringify(leccion) });
+        mostrarNotificacion("Lección enviada para revisión del administrador", "success");
+        cerrarNuevaLeccion();
+        cargarBiblioteca();
+        await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió lección "' + tituloVal + '" para ' + seccionVal, fecha: new Date().toISOString() });
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al enviar la lección", "error");
+    }
+});
+
+function cerrarNuevaLeccion() {
+    const modal = document.getElementById('modal-nueva-leccion');
+    if (modal) modal.classList.remove('activo');
+    const form = document.getElementById('form-nueva-leccion');
+    if (form) form.reset();
+    const visualesCampo = document.getElementById('lec-campo-visuales');
+    if (visualesCampo) visualesCampo.style.display = 'none';
+    const actividadCampo = document.getElementById('lec-campo-actividad');
+    if (actividadCampo) actividadCampo.style.display = 'none';
+}
+
+function leerArchivoBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// ============ GALERÍA ============
+async function cargarGaleria(filtro) {
+    const grid = document.getElementById('grid-galeria');
+    if (!grid) return;
+    
+    try {
+        let endpoint = "galeria?order=id.desc";
+        if (filtro === 'cumpleaneros') {
+            endpoint = "galeria?es_cumpleanero=eq.true&order=id.desc";
+        } else if (filtro !== 'todas') {
+            endpoint = 'galeria?seccion=eq.' + filtro + '&order=id.desc';
+        }
+        const fotos = await llamarSupabase(endpoint);
+        if (!fotos || fotos.length === 0) {
+            if (filtro === 'cumpleaneros') {
+                grid.innerHTML = `
+                    <div style="grid-column:1/-1; text-align:center; padding:40px;">
+                        <i class="fas fa-cake-candles" style="font-size:48px; color:#f39c12;"></i>
+                        <p style="color:#95a5a6; margin-top:15px;">No hay fotos de cumpleañeros publicadas</p>
+                        <button class="btn-admin" onclick="abrirSubirFoto()" style="margin-top:10px;">
+                            <i class="fas fa-camera"></i> Subir foto de cumpleañero
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            grid.innerHTML = '<p style="color:#95a5a6; text-align:center; grid-column:1/-1; padding:30px;">No hay fotos en esta sección.</p>';
+            return;
+        }
+        grid.innerHTML = fotos.map(f => `
+            <div class="tarjeta-galeria animacion-entrada">
+                <img src="${f.archivo}" alt="${f.descripcion || 'Foto de clase'}">
+                <div style="padding:10px;">
+                    <p style="font-size:12px; color:#555;">${f.descripcion || 'Foto de clase'}</p>
+                    <p style="font-size:10px; color:#95a5a6;">${new Date(f.creado_en).toLocaleDateString()} - ${f.maestro}</p>
+                    ${f.es_cumpleanero ? '<span style="font-size:10px; color:#f39c12;"><i class="fas fa-cake-candles"></i> Cumpleañero</span>' : ''}
+                    ${usuarioSesion.rol === 'admin' ? `
+                        <button class="btn-admin btn-danger" style="font-size:10px; padding:2px 8px; margin-top:5px;" onclick="eliminarFotoGaleria(${f.id})">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error("Error:", error);
+        grid.innerHTML = '<p style="color:#ff7675; text-align:center; grid-column:1/-1; padding:30px;">Error al cargar las fotos</p>';
+    }
+}
+
+function filtrarGaleria(termino) {
+    const tarjetas = document.querySelectorAll('.tarjeta-galeria');
+    const busqueda = termino.toLowerCase().trim();
+    tarjetas.forEach(tarjeta => {
+        const texto = tarjeta.textContent.toLowerCase();
+        tarjeta.style.display = texto.includes(busqueda) ? 'block' : 'none';
+    });
+}
+
+function abrirSubirFoto() {
+    const hoy = new Date();
+    if (!estaEnHorarioAsistencia(hoy)) {
+        mostrarNotificacion(`Solo puedes subir fotos durante el horario configurado (${configuracionHorario.hora_inicio_asistencia}–${configuracionHorario.hora_fin_asistencia}).`, "warning");
+        return;
+    }
+    if (!seccionAsignadaMaestro || seccionAsignadaMaestro === "admin_total") {
+        mostrarNotificacion("Solo maestros con clase asignada pueden subir fotos", "warning");
+        return;
+    }
+    const modal = document.getElementById('modal-subir-foto');
+    if (modal) modal.classList.add('activo');
+}
+
+function cerrarSubirFoto() {
+    const modal = document.getElementById('modal-subir-foto');
+    if (modal) modal.classList.remove('activo');
+    const form = document.getElementById('form-subir-foto');
+    if (form) form.reset();
+}
+
+async function subirFotoGaleria() {
+    const archivoInput = document.getElementById('foto-archivo');
+    if (!archivoInput) return;
+    const archivo = archivoInput.files[0];
+    if (!archivo) {
+        mostrarNotificacion("Selecciona una foto", "error");
+        return;
+    }
+
+    try {
+        const data = await leerArchivoBase64(archivo);
+        const fotoData = {
+            maestro: usuarioSesion.nombre,
+            seccion: seccionAsignadaMaestro,
+            fecha_domingo: calcularProximoDomingo(),
+            archivo: data,
+            tipo: 'imagen',
+            descripcion: document.getElementById('foto-descripcion') ? document.getElementById('foto-descripcion').value.trim() || 'Publicado por ' + usuarioSesion.nombre : 'Publicado por ' + usuarioSesion.nombre,
+            es_cumpleanero: false,
+            foto_subida: true
+        };
+        await llamarSupabase("galeria", { method: "POST", body: JSON.stringify(fotoData) });
+        mostrarNotificacion("Foto subida con éxito", "success");
+        cerrarSubirFoto();
+        cargarGaleria('todas');
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al subir la foto", "error");
+    }
+}
+
+async function eliminarFotoGaleria(id) {
+    if (!(await confirmarAccion('¿Eliminar esta foto permanentemente?'))) return;
+    try {
+        await llamarSupabase('galeria?id=eq.' + id, { method: "DELETE" });
+        mostrarNotificacion('Foto eliminada', 'success');
+        cargarGaleria('todas');
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion('Error al eliminar la foto', 'error');
+    }
+}
+
+// ============ CHAT ============
+async function cargarChats() {
+    const lista = document.getElementById('lista-chats');
+    if (!lista) return;
+    
+    try {
+        const grupo = document.createElement('button');
+        grupo.type = 'button';
+        grupo.style.cssText = `width:100%;text-align:left;margin-bottom:10px;padding:10px;background:${chatGrupalAbierto ? '#e8f4ff' : '#f8f9fa'};border:0;border-radius:12px;cursor:pointer;`;
+        const tituloGrupo = document.createElement('strong');
+        const iconoGrupo = document.createElement('i');
+        iconoGrupo.className = 'fas fa-users';
+        tituloGrupo.append(iconoGrupo, document.createTextNode(' Grupo General'));
+        const descripcionGrupo = document.createElement('p');
+        descripcionGrupo.style.cssText = 'font-size:12px;color:#747d8c;margin:0;';
+        descripcionGrupo.textContent = 'Todos los usuarios';
+        grupo.append(tituloGrupo, descripcionGrupo);
+        grupo.addEventListener('click', abrirChatGrupal);
+        const elementos = [grupo];
+        const contactosGuardados = JSON.parse(localStorage.getItem('zk360_contactos_' + usuarioSesion.email) || '[]');
+        const contactos = Array.isArray(contactosGuardados) ? contactosGuardados.slice(0, 100) : [];
+        if (contactos.length > 0) {
+            const bloqueContactos = document.createElement('div');
+            bloqueContactos.style.marginTop = '10px';
+            const encabezado = document.createElement('p');
+            encabezado.style.cssText = 'font-size:12px;color:#95a5a6;margin-bottom:8px;';
+            encabezado.textContent = 'Contactos Personales';
+            bloqueContactos.appendChild(encabezado);
+            for (const email of contactos) {
+                if (typeof email !== 'string') continue;
+                const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email));
+                if (usuarios && usuarios.length > 0) {
+                    const u = usuarios[0];
+                    const esActivo = chatPersonalCon === email;
+                    const contacto = document.createElement('button');
+                    contacto.type = 'button';
+                    contacto.style.cssText = `width:100%;padding:10px;border:0;border-bottom:1px solid #eef2f7;cursor:pointer;display:flex;align-items:center;gap:10px;background:${esActivo ? '#e8f4ff' : 'transparent'};border-radius:8px;text-align:left;`;
+                    const avatar = document.createElement('span');
+                    avatar.style.cssText = 'width:35px;height:35px;flex:0 0 35px;border-radius:50%;background:#2575fc;color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;';
+                    avatar.textContent = String(u.nombre || email).charAt(0);
+                    const datos = document.createElement('span');
+                    const nombre = document.createElement('strong');
+                    nombre.textContent = u.nombre || '';
+                    const correo = document.createElement('span');
+                    correo.style.cssText = 'display:block;font-size:11px;color:#95a5a6;margin:0;';
+                    correo.textContent = email;
+                    datos.append(nombre, correo);
+                    contacto.append(avatar, datos);
+                    contacto.addEventListener('click', () => abrirChatPersonal(email));
+                    bloqueContactos.appendChild(contacto);
+                }
+            }
+            elementos.push(bloqueContactos);
+        }
+        lista.replaceChildren(...elementos);
+    } catch (error) {
+        console.error("Error:", error);
+        const aviso = document.createElement('p');
+        aviso.style.cssText = 'color:#ff7675;text-align:center;padding:20px;';
+        aviso.textContent = 'Error al cargar contactos';
+        lista.replaceChildren(aviso);
+    }
+}
+
+function buscarContactos(termino) {
+    const contactos = document.querySelectorAll('#lista-chats > *');
+    const busqueda = termino.toLowerCase().trim();
+    contactos.forEach(contacto => {
+        const texto = contacto.textContent.toLowerCase();
+        contacto.style.display = texto.includes(busqueda) ? 'block' : 'none';
+    });
+}
+
+function abrirChatGrupal() {
+    chatGrupalAbierto = true;
+    chatPersonalCon = null;
+    const conversacion = document.getElementById('chat-conversacion');
+    if (conversacion) conversacion.style.display = 'block';
+    const titulo = document.getElementById('chat-titulo-conversacion');
+    if (titulo) titulo.textContent = 'Grupo General';
+    const contexto = document.getElementById('chat-contexto');
+    if (contexto) contexto.style.display = 'block';
+    cargarMensajesGrupales();
+    cargarChats();
+}
+
+function abrirChatPersonal(email) {
+    chatGrupalAbierto = false;
+    chatPersonalCon = email;
+    const conversacion = document.getElementById('chat-conversacion');
+    if (conversacion) conversacion.style.display = 'block';
+    const titulo = document.getElementById('chat-titulo-conversacion');
+    if (titulo) titulo.textContent = email;
+    const contexto = document.getElementById('chat-contexto');
+    if (contexto) contexto.style.display = 'block';
+    llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email)).then(usuarios => {
+        if (usuarios && usuarios.length > 0 && titulo) {
+            titulo.textContent = usuarios[0].nombre;
+        }
+    });
+    cargarMensajesPersonales(email);
+    cargarChats();
+}
+
+function cerrarConversacion() {
+    const conversacion = document.getElementById('chat-conversacion');
+    if (conversacion) conversacion.style.display = 'none';
+    const contexto = document.getElementById('chat-contexto');
+    if (contexto) contexto.style.display = 'none';
+    chatGrupalAbierto = true;
+    chatPersonalCon = null;
+}
+
+async function cargarMensajesGrupales() {
+    const container = document.getElementById('chat-mensajes');
+    if (!container) return;
+    
+    try {
+        const mensajes = await llamarSupabase("mensajes?receptor=is.null&order=id.asc&limit=100");
+        if (!mensajes || mensajes.length === 0) {
+            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes en el grupo</p>';
+            return;
+        }
+        container.replaceChildren();
+        mensajes.filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
+            const esPropio = m.emisor === usuarioSesion.email;
+            const fila = document.createElement('div');
+            fila.style.cssText = `display:flex; justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
+            const burbuja = document.createElement('div');
+            burbuja.className = esPropio ? 'mensaje-propio' : 'mensaje-otro';
+            if (!esPropio) {
+                const emisor = document.createElement('strong');
+                emisor.style.fontSize = '11px';
+                emisor.textContent = m.emisor || '';
+                burbuja.append(emisor, document.createElement('br'));
+            }
+            const contenido = document.createElement('span');
+            contenido.textContent = m.mensaje || '';
+            burbuja.appendChild(contenido);
+            const hora = document.createElement('span');
+            hora.style.cssText = `font-size:9px; color:${esPropio ? 'rgba(255,255,255,0.7)' : '#95a5a6'}; display:block; text-align:right;`;
+            const fecha = new Date(m.creado_en);
+            hora.textContent = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString();
+            burbuja.appendChild(hora);
+            fila.appendChild(burbuja);
+            container.appendChild(fila);
+        });
+        container.scrollTop = container.scrollHeight;
+    } catch (error) {
+        console.error("Error:", error);
+        container.innerHTML = '<p style="color:#ff7675; text-align:center;">Error al cargar mensajes</p>';
+    }
+}
+
+async function cargarMensajesPersonales(email) {
+    const container = document.getElementById('chat-mensajes');
+    if (!container) return;
+    
+    try {
+        const mensajes = await llamarSupabase('mensajes?or=(emisor.eq.' + encodeURIComponent(usuarioSesion.email) + ',receptor.eq.' + encodeURIComponent(usuarioSesion.email) + ')&order=id.asc&limit=100');
+        if (!mensajes || mensajes.length === 0) {
+            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes con este contacto</p>';
+            return;
+        }
+        const filtrados = mensajes.filter(m => 
+            (m.emisor === usuarioSesion.email && m.receptor === email) ||
+            (m.emisor === email && m.receptor === usuarioSesion.email)
+        );
+        if (filtrados.length === 0) {
+            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes con este contacto</p>';
+            return;
+        }
+        container.replaceChildren();
+        filtrados.filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
+            const esPropio = m.emisor === usuarioSesion.email;
+            const fila = document.createElement('div');
+            fila.style.cssText = `display:flex; justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
+            const burbuja = document.createElement('div');
+            burbuja.className = esPropio ? 'mensaje-propio' : 'mensaje-otro';
+            const contenido = document.createElement('span');
+            contenido.textContent = m.mensaje || '';
+            burbuja.appendChild(contenido);
+            const hora = document.createElement('span');
+            hora.style.cssText = `font-size:9px; color:${esPropio ? 'rgba(255,255,255,0.7)' : '#95a5a6'}; display:block; text-align:right;`;
+            const fecha = new Date(m.creado_en);
+            hora.textContent = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString();
+            burbuja.appendChild(hora);
+            fila.appendChild(burbuja);
+            container.appendChild(fila);
+        });
+        container.scrollTop = container.scrollHeight;
+    } catch (error) {
+        console.error("Error:", error);
+        container.innerHTML = '<p style="color:#ff7675; text-align:center;">Error al cargar mensajes</p>';
+    }
+}
+
+async function enviarMensaje() {
+    const input = document.getElementById('chat-input-texto');
+    if (!input) return;
+    const mensaje = input.value.trim();
+    if (!mensaje) return;
+
+    try {
+        const datos = {
+            emisor: usuarioSesion.email,
+            mensaje: mensaje,
+            tipo: 'texto'
+        };
+        if (chatGrupalAbierto) {
+            datos.receptor = null;
+        } else if (chatPersonalCon) {
+            datos.receptor = chatPersonalCon;
+        } else {
+            mostrarNotificacion("Selecciona un chat primero", "warning");
+            return;
+        }
+
+        const guardado = await llamarSupabase("mensajes", { method: "POST", body: JSON.stringify(datos) });
+        if (!guardado) throw new Error('No se pudo guardar el mensaje.');
+        input.value = '';
+        if (chatGrupalAbierto) {
+            cargarMensajesGrupales();
+        } else if (chatPersonalCon) {
+            cargarMensajesPersonales(chatPersonalCon);
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al enviar mensaje", "error");
+    }
+}
+
+// ============ AGREGAR CONTACTO ============
+function abrirAgregarContacto() {
+    const modal = document.getElementById('modal-agregar-contacto');
+    if (modal) modal.classList.add('activo');
+    const input = document.getElementById('contacto-email');
+    if (input) input.focus();
+}
+
+function cerrarAgregarContacto() {
+    const modal = document.getElementById('modal-agregar-contacto');
+    if (modal) modal.classList.remove('activo');
+    const input = document.getElementById('contacto-email');
+    if (input) input.value = '';
+}
+
+async function agregarContacto() {
+    const input = document.getElementById('contacto-email');
+    if (!input) return;
+    const email = input.value.trim().toLowerCase();
+    if (!email || !email.endsWith('@iglesiazoarsv.org')) {
+        mostrarNotificacion("Ingresa un correo válido @iglesiazoarsv.org", "error");
+        return;
+    }
+    if (email === usuarioSesion.email) {
+        mostrarNotificacion("No puedes agregarte a ti mismo", "error");
+        return;
+    }
+
+    try {
+        const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email));
+        if (!usuarios || usuarios.length === 0) {
+            mostrarNotificacion("No se encontró ningún usuario con ese correo", "error");
+            return;
+        }
+        
+        const contactosUsuario = JSON.parse(localStorage.getItem('zk360_contactos_' + usuarioSesion.email) || '[]');
+        if (!contactosUsuario.includes(email)) {
+            contactosUsuario.push(email);
+            localStorage.setItem('zk360_contactos_' + usuarioSesion.email, JSON.stringify(contactosUsuario));
+        }
+        
+        const contactosDestino = JSON.parse(localStorage.getItem('zk360_contactos_' + email) || '[]');
+        if (!contactosDestino.includes(usuarioSesion.email)) {
+            contactosDestino.push(usuarioSesion.email);
+            localStorage.setItem('zk360_contactos_' + email, JSON.stringify(contactosDestino));
+        }
+        
+        mostrarNotificacion("Contacto agregado con éxito", "success");
+        cerrarAgregarContacto();
+        cargarChats();
+        abrirChatPersonal(email);
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion("Error al agregar contacto", "error");
+    }
+}
+
+// ============ SUGERENCIAS ============
 function abrirSugerencia() {
-    document.getElementById('area-mensaje-ayuda').style.display = 'block';
-    document.getElementById('txt-ayuda-mensaje').placeholder = "Escribe tu sugerencia para mejorar ZoarKids 360...";
-    document.getElementById('txt-ayuda-mensaje').focus();
-    document.getElementById('manual-uso-container').style.display = 'none';
+    const area = document.getElementById('area-mensaje-ayuda');
+    const textarea = document.getElementById('txt-ayuda-mensaje');
+    if (area) area.style.display = 'block';
+    if (textarea) {
+        textarea.placeholder = 'Escribe tu sugerencia para mejorar ZoarKids 360...';
+        textarea.focus();
+    }
+    
+    const btnSugerencia = document.querySelector('.btn-enviar-sugerencia');
+    const btnReporte = document.querySelector('.btn-reportar-error');
+    if (btnSugerencia) btnSugerencia.style.display = 'inline-flex';
+    if (btnReporte) btnReporte.style.display = 'none';
+    
+    const manual = document.getElementById('manual-uso-container');
+    if (manual) manual.style.display = 'none';
 }
 
 function abrirReporteError() {
-    document.getElementById('area-mensaje-ayuda').style.display = 'block';
-    document.getElementById('txt-ayuda-mensaje').placeholder = "Describe el error que encontraste...";
-    document.getElementById('txt-ayuda-mensaje').focus();
-    document.getElementById('manual-uso-container').style.display = 'none';
+    const area = document.getElementById('area-mensaje-ayuda');
+    const textarea = document.getElementById('txt-ayuda-mensaje');
+    if (area) area.style.display = 'block';
+    if (textarea) {
+        textarea.placeholder = 'Describe el error que encontraste...';
+        textarea.focus();
+    }
+    
+    const btnSugerencia = document.querySelector('.btn-enviar-sugerencia');
+    const btnReporte = document.querySelector('.btn-reportar-error');
+    if (btnSugerencia) btnSugerencia.style.display = 'none';
+    if (btnReporte) btnReporte.style.display = 'inline-flex';
+    
+    const manual = document.getElementById('manual-uso-container');
+    if (manual) manual.style.display = 'none';
 }
 
 function toggleManual() {
     const container = document.getElementById('manual-uso-container');
+    if (!container) return;
     if (container.style.display === 'block') {
         container.style.display = 'none';
     } else {
         container.style.display = 'block';
-        document.getElementById('area-mensaje-ayuda').style.display = 'none';
+        const area = document.getElementById('area-mensaje-ayuda');
+        if (area) area.style.display = 'none';
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 }
 
-function enviarMensajeAyuda() {
-    const mensaje = document.getElementById('txt-ayuda-mensaje').value;
-    const max = 500;
-
-    if (mensaje.length === 0) {
-        mostrarNotificacion("Escribe un mensaje antes de enviar", "error");
+async function enviarSugerencia() {
+    const textarea = document.getElementById('txt-ayuda-mensaje');
+    if (!textarea) return;
+    const mensaje = textarea.value.trim();
+    if (!mensaje || mensaje.length < 10) {
+        mostrarNotificacion('Escribe una sugerencia de al menos 10 caracteres', 'error');
         return;
     }
-
-    if (mensaje.length > max) {
-        mostrarNotificacion(`El mensaje excede el límite de ${max} caracteres. Actual: ${mensaje.length}`, "error");
+    if (mensaje.length > 500) {
+        mostrarNotificacion('El mensaje no puede exceder los 500 caracteres', 'error');
         return;
     }
-
-    if (mensaje.length < 10) {
-        mostrarNotificacion("El mensaje debe tener al menos 10 caracteres", "error");
-        return;
+    try {
+        await llamarSupabase('sugerencias', {
+            method: 'POST',
+            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'sugerencia', mensaje, fecha: new Date().toISOString() })
+        });
+        mostrarNotificacion('Sugerencia enviada al administrador', 'success');
+        const area = document.getElementById('area-mensaje-ayuda');
+        if (area) area.style.display = 'none';
+        if (textarea) textarea.value = '';
+        await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió sugerencia', fecha: new Date().toISOString() });
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarNotificacion('Error al enviar la sugerencia', 'error');
     }
-
-    mostrarNotificacion("Mensaje enviado al administrador", "success");
-    document.getElementById('txt-ayuda-mensaje').value = "";
-    document.getElementById('area-mensaje-ayuda').style.display = 'none';
-    document.getElementById('contador-caracteres').textContent = '0/500';
-
-    guardarLogEnSupabase({
-        usuario: usuarioSesion.nombre,
-        accion: `Envió mensaje de ayuda: ${mensaje.substring(0, 50)}...`,
-        fecha: new Date().toISOString()
-    });
-
-    enviarNotificacionPush('Mensaje de Ayuda', `${usuarioSesion.nombre} envió un mensaje`);
 }
 
-// ============ CERRAR SESIÓN ============
-window.cerrarSesion = function() {
+async function enviarReporteError() {
+    const textarea = document.getElementById('txt-ayuda-mensaje');
+    if (!textarea) return;
+    const mensaje = textarea.value.trim();
+    if (!mensaje || mensaje.length < 10) {
+        mostrarNotificacion('Describe el error con al menos 10 caracteres', 'error');
+        return;
+    }
+    if (mensaje.length > 500) {
+        mostrarNotificacion('El mensaje no puede exceder los 500 caracteres', 'error');
+        return;
+    }
+    try {
+        await llamarSupabase('sugerencias', {
+            method: 'POST',
+            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'reporte', mensaje, fecha: new Date().toISOString() })
+        });
+        mostrarNotificacion('Reporte enviado al administrador', 'success');
+        const area = document.getElementById('area-mensaje-ayuda');
+        if (area) area.style.display = 'none';
+        if (textarea) textarea.value = '';
+        await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió reporte de error', fecha: new Date().toISOString() });
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarNotificacion('Error al enviar el reporte', 'error');
+    }
+}
+
+// ============ HISTORIAL ============
+async function cargarHistorial() {
+    const tabla = document.getElementById('tabla-logs-cuerpo');
+    if (!tabla) return;
+    
+    try {
+        const logs = await llamarSupabase("logs?order=id.desc&limit=50");
+        if (!Array.isArray(logs)) throw new Error(ultimoErrorSupabase || 'No se pudo cargar el historial.');
+        tabla.innerHTML = "";
+        if (logs.length === 0) {
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#95a5a6; padding:20px;">No hay registros de actividad</td></tr>';
+            return;
+        }
+        logs.forEach(log => {
+            const fila = document.createElement('tr');
+            const usuario = document.createElement('td');
+            const nombre = document.createElement('strong');
+            nombre.textContent = log.usuario || '';
+            usuario.appendChild(nombre);
+            const accion = document.createElement('td');
+            accion.textContent = log.accion || '';
+            const fecha = document.createElement('td');
+            fecha.style.color = '#747d8c';
+            const fechaRegistro = new Date(log.fecha);
+            fecha.textContent = Number.isNaN(fechaRegistro.getTime()) ? '' : fechaRegistro.toLocaleString();
+            fila.append(usuario, accion, fecha);
+            tabla.appendChild(fila);
+        });
+        localStorage.setItem('zk360_historial', JSON.stringify(logs));
+    } catch (err) {
+        let logs = [];
+        try {
+            const local = JSON.parse(localStorage.getItem('zk360_historial') || '[]');
+            if (Array.isArray(local)) logs = local;
+        } catch (error) {
+            console.error('No se pudo leer el historial local:', error);
+        }
+        tabla.innerHTML = "";
+        if (logs.length === 0) {
+            tabla.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#ff7675; padding:20px;">No se pudo cargar el historial</td></tr>';
+            return;
+        }
+        [...logs].reverse().forEach(log => {
+            const fila = document.createElement('tr');
+            const usuario = document.createElement('td');
+            const nombre = document.createElement('strong');
+            nombre.textContent = log.usuario || '';
+            usuario.appendChild(nombre);
+            const accion = document.createElement('td');
+            accion.textContent = log.accion || '';
+            const fecha = document.createElement('td');
+            fecha.style.color = '#747d8c';
+            fecha.textContent = log.fecha || '';
+            fila.append(usuario, accion, fecha);
+            tabla.appendChild(fila);
+        });
+    }
+}
+
+// ============ CAMBIAR CONTRASEÑA ============
+function abrirModalCambiarClave(esTemporal = false) {
+    const modal = document.getElementById('modal-cambiar-clave');
+    if (modal) {
+        modal.classList.add('activo');
+        const titulo = document.getElementById('cambiar-clave-titulo');
+        if (titulo) {
+            titulo.textContent = esTemporal ? 'Cambiar Contraseña Temporal' : 'Cambiar Contraseña';
+        }
+        const aviso = document.getElementById('cambiar-clave-aviso');
+        if (aviso) {
+            aviso.textContent = esTemporal ? 'Debes establecer una nueva contraseña antes de continuar.' : 'Ingresa tu contraseña actual y la nueva';
+        }
+        const actual = document.getElementById('cambiar-clave-actual-panel');
+        if (actual) {
+            actual.value = '';
+            actual.placeholder = esTemporal ? 'Contraseña temporal recibida' : 'Contraseña actual';
+        }
+        const nueva = document.getElementById('cambiar-clave-nueva-panel');
+        if (nueva) nueva.value = '';
+        const confirmar = document.getElementById('cambiar-clave-confirmar-panel');
+        if (confirmar) confirmar.value = '';
+    }
+}
+
+async function cambiarContrasenaPanel() {
+    const actual = document.getElementById('cambiar-clave-actual-panel');
+    const nueva = document.getElementById('cambiar-clave-nueva-panel');
+    const confirmar = document.getElementById('cambiar-clave-confirmar-panel');
+    
+    if (!actual || !nueva || !confirmar) {
+        mostrarNotificacion("Completa todos los campos", "error");
+        return;
+    }
+    
+    const actualVal = actual.value;
+    const nuevaVal = nueva.value;
+    const confirmarVal = confirmar.value;
+
+    if (!actualVal || !nuevaVal || !confirmarVal) {
+        mostrarNotificacion("Completa todos los campos", "error");
+        return;
+    }
+    if (nuevaVal.length < 8) {
+        mostrarNotificacion("La nueva contraseña debe tener al menos 8 caracteres", "error");
+        return;
+    }
+    if (!/[A-Z]/.test(nuevaVal)) {
+        mostrarNotificacion("La nueva contraseña debe tener al menos una mayúscula", "error");
+        return;
+    }
+    if (!/[0-9]/.test(nuevaVal)) {
+        mostrarNotificacion("La nueva contraseña debe tener al menos un número", "error");
+        return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(nuevaVal)) {
+        mostrarNotificacion("La nueva contraseña debe tener al menos un signo", "error");
+        return;
+    }
+    if (/\s/.test(nuevaVal)) {
+        mostrarNotificacion("La contraseña no puede contener espacios", "error");
+        return;
+    }
+    if (nuevaVal !== confirmarVal) {
+        mostrarNotificacion("Las contraseñas no coinciden", "error");
+        return;
+    }
+
+    try {
+        const correo = usuarioSesion.email;
+        if (!correo) {
+            mostrarNotificacion("No se pudo identificar al usuario", "error");
+            return;
+        }
+        if (!window.supabase?.createClient) await window.ZK360CargarSupabaseSDK?.();
+        if (!window.supabase?.createClient || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            throw new Error('No se pudo cargar el servicio de autenticación.');
+        }
+        const authClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+        });
+        const { data: autenticacion, error: errorAutenticacion } = await authClient.auth.signInWithPassword({
+            email: correo,
+            password: actualVal
+        });
+        if (errorAutenticacion) throw new Error('La contraseña actual es incorrecta.');
+        const { error: errorActualizacion } = await authClient.auth.updateUser({ password: nuevaVal });
+        if (errorActualizacion) throw errorActualizacion;
+        if (autenticacion.session) {
+            sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
+                access_token: autenticacion.session.access_token,
+                refresh_token: autenticacion.session.refresh_token,
+                expires_at: autenticacion.session.expires_at,
+                user: autenticacion.session.user
+            }));
+        }
+        
+        mostrarNotificacion("Contraseña actualizada con éxito", "success");
+        const modal = document.getElementById('modal-cambiar-clave');
+        if (modal) modal.classList.remove('activo');
+        const form = document.getElementById('form-cambiar-clave-panel');
+        if (form) form.reset();
+        
+        if (esClaveTemporal) {
+            sessionStorage.removeItem('zk360_clave_temporal');
+            esClaveTemporal = false;
+        }
+        
+        await guardarLog({ usuario: usuarioSesion.nombre, accion: "Cambió su contraseña", fecha: new Date().toISOString() });
+    } catch (error) {
+        console.error("Error cambiando contraseña:", error);
+        mostrarNotificacion("Error al cambiar contraseña", "error");
+    }
+}
+
+// ============ FUNCIONES DE UTILIDAD ============
+function calcularProximoDomingo() {
+    const hoy = new Date();
+    const dia = hoy.getDay();
+    const diasFaltantes = dia === 0 ? 0 : 7 - dia;
+    const domingo = new Date(hoy);
+    domingo.setDate(hoy.getDate() + diasFaltantes);
+    return domingo.getDate() + '/' + (domingo.getMonth() + 1) + '/' + domingo.getFullYear();
+}
+
+function procesarCalendario() {
+    const modoPruebaActivo = sessionStorage.getItem('zk360_modo_prueba') === 'true' || usuarioSesion?.esPrueba === true;
+    if (modoPruebaActivo) {
+        const piEl = document.getElementById('docente-pi');
+        if (piEl) piEl.textContent = 'Marisol y Maribel';
+        const meEl = document.getElementById('docente-me');
+        if (meEl) meEl.textContent = 'Erik';
+        const grEl = document.getElementById('docente-gr');
+        if (grEl) grEl.textContent = 'Dina';
+        seccionAsignadaMaestro = usuarioSesion?.rol === 'admin'
+            ? 'admin_total'
+            : usuarioSesion?.seccion || null;
+        if (usuarioSesion?.rol === 'admin') modoAdminVerTodos = true;
+        return;
+    }
+    if (modoOffline) {
+        seccionAsignadaMaestro = usuarioSesion?.rol === 'maestro'
+            ? usuarioSesion.seccion || null
+            : null;
+        return;
+    }
+
+    const claveFecha = calcularProximoDomingo();
+    const turno = cronogramaOficial2026[claveFecha];
+    if (turno) {
+        const piEl = document.getElementById('docente-pi');
+        if (piEl) piEl.textContent = turno.pi;
+        const meEl = document.getElementById('docente-me');
+        if (meEl) meEl.textContent = turno.me;
+        const grEl = document.getElementById('docente-gr');
+        if (grEl) grEl.textContent = turno.gr;
+        
+        const nombreLower = (usuarioSesion.nombre || '').toLocaleLowerCase('es').trim();
+        const parejaLower = usuarioSesion.pareja
+            ? usuarioSesion.pareja.toLocaleLowerCase('es').trim()
+            : '';
+        seccionAsignadaMaestro = null;
+
+        // La pareja solo participa en el turno compartido de Primera Infancia.
+        if (turno.pi) {
+            const partesPI = turno.pi.toLocaleLowerCase('es').split(' y ').map(n => n.trim());
+            if (partesPI.includes(nombreLower) || (parejaLower && partesPI.includes(parejaLower))) {
+                seccionAsignadaMaestro = 'infancia';
+            }
+        }
+
+        // Medianos y Grandes siempre se asignan individualmente.
+        if (turno.me && turno.me.toLocaleLowerCase('es').trim() === nombreLower) {
+            seccionAsignadaMaestro = 'medianos';
+        }
+        if (turno.gr && turno.gr.toLocaleLowerCase('es').trim() === nombreLower) {
+            seccionAsignadaMaestro = 'grandes';
+        }
+    }
+    if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
+        seccionAsignadaMaestro = "admin_total";
+    }
+}
+
+function seleccionarRolPrueba(rol) {
+    const roles = {
+        'maestro_con_clase': { nombre: 'Maestro Prueba', rol: 'maestro', seccion: 'grandes', esPrueba: true },
+        'maestro_sin_clase': { nombre: 'Maestro Prueba', rol: 'maestro', seccion: null, esPrueba: true },
+        'admin': { nombre: 'Admin Prueba', rol: 'admin', seccion: 'admin_total', esPrueba: true }
+    };
+    const usuario = roles[rol];
+    if (!usuario) return;
+    sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuario));
+    sessionStorage.setItem('zk360_modo_prueba', 'true');
+    mostrarNotificacion('Cambiando a rol: ' + usuario.rol, 'info');
+    setTimeout(() => { window.location.reload(); }, 500);
+}
+
+function registrarPush() {
+    // Los avisos se muestran en la interfaz, sin prompts ni notificaciones del navegador.
+}
+
+function activarVistaPestaña(idVista, btnElemento) {
+    const esAdmin = usuarioSesion && (usuarioSesion.rol === 'admin' || usuarioSesion.rol === 'pastor');
+    if (idVista === 'historial' && !esAdmin) {
+        mostrarNotificacion('El historial está disponible solo para administración.', 'warning');
+        return;
+    }
+    if (['configuracion-horarios', 'reportes'].includes(idVista) && usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Esta sección está disponible solo para el administrador.', 'warning');
+        return;
+    }
+    if (idVista === 'bandeja-lecciones') {
+        if (usuarioSesion?.rol !== 'admin') {
+            mostrarNotificacion('Esta sección está disponible solo para el administrador.', 'warning');
+            return;
+        }
+        abrirBandejaLecciones();
+        if (window.innerWidth <= 768) document.getElementById('menu-lateral')?.classList.remove('abierto');
+        return;
+    }
+    document.querySelectorAll('.modulo-vista').forEach(v => v.classList.remove('activo'));
+    document.querySelectorAll('.menu-link[data-vista]').forEach(l => l.classList.remove('activo'));
+    const target = document.getElementById('modulo-' + idVista);
+    if (target) target.classList.add('activo');
+    const moduloHistorial = document.getElementById('modulo-historial');
+    if (moduloHistorial) moduloHistorial.hidden = !esAdmin;
+    if (btnElemento) btnElemento.classList.add('activo');
+    if (idVista === 'asistencia') { cargarAlumnosSegunRol(); }
+    if (idVista === 'dashboard') { cargarDashboard(); }
+    if (idVista === 'biblioteca') { cargarBiblioteca(); }
+    if (idVista === 'galeria') { cargarGaleria('todas'); }
+    if (idVista === 'chat') { cargarChats(); }
+    if (idVista === 'historial') { cargarHistorial(); }
+    if (idVista === 'inicio') { cargarInicio(); }
+    if (idVista === 'actividades') { cargarActividadesMensuales(); }
+    if (idVista === 'configuracion-horarios') { cargarConfiguracionHorario(true); }
+    if (idVista === 'reportes') { cargarFeedbackAdministrador(); }
+    if (window.innerWidth <= 768) { 
+        const menu = document.getElementById('menu-lateral');
+        if (menu) menu.classList.remove('abierto');
+    }
+}
+
+function cargarInicio() {
+    const fechaEl = document.getElementById('fecha-proximo-domingo');
+    if (fechaEl) fechaEl.textContent = calcularProximoDomingo();
+    
+    const estaEnTurno = verificarTurnoMaestro();
+    const btnNuevaLeccion = document.getElementById('btn-nueva-leccion-inicio');
+    if (btnNuevaLeccion) {
+        btnNuevaLeccion.disabled = !estaEnTurno;
+        btnNuevaLeccion.title = estaEnTurno ? 'Preinscribir lección' : 'No estás de turno para esta clase';
+    }
+}
+
+window.cerrarSesion = async function() {
+    clearTimeout(timerInactividad);
     sessionStorage.clear();
     localStorage.removeItem('zk360_usuario_persistente');
+    localStorage.removeItem('zk360_maestro_offline');
+    try {
+        await window.ZK360OfflineStore?.clearResponses();
+    } catch (error) {
+        console.error('No se pudo borrar la caché local al cerrar sesión:', error);
+    }
     window.location.replace("index.html");
 };
+
+// ============ ONBOARDING (SISTEMA) ============
+async function verificarOnboarding() {
+    try {
+        const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(usuarioSesion.email));
+        if (usuarios && usuarios.length > 0 && !usuarios[0].onboarding_completado) {
+            // Iniciar onboarding del sistema después de seleccionar tema
+            setTimeout(() => {
+                if (typeof iniciarOnboardingSistema === 'function') {
+                    iniciarOnboardingSistema();
+                }
+            }, 1500);
+        }
+    } catch (error) {
+        console.error("Error verificando onboarding:", error);
+    }
+}
+
+// ============ EXPORTAR PARA USO GLOBAL ============
+window.mostrarNotificacion = mostrarNotificacion;
+window.abrirNotificaciones = window.abrirNotificaciones;
+window.cerrarSesion = window.cerrarSesion;
+window.cambiarTemaSiguiente = cambiarTemaSiguiente;
+window.seleccionarTemaDesdeMenu = window.seleccionarTemaDesdeMenu;
+window.seleccionarTemaBienvenida = window.seleccionarTemaBienvenida;

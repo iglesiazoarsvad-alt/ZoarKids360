@@ -3,21 +3,18 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZoarKids 360</title>
-    <!-- ICONO EN PANTALLA -->
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="apple-touch-icon" href="logo.png">
-    <link rel="stylesheet" href="panel.css?v=14.0">
+    <link rel="stylesheet" href="panel.css?v=FINAL">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body,
         html {
-            touch-action: none;
-            overscroll-behavior: none;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
+            touch-action: pan-y;
+            overscroll-behavior-y: contain;
         }
 
         .contenedor-derecho {
@@ -26,14 +23,14 @@
         }
 
         .modal-overlay {
-            touch-action: none;
+            touch-action: pan-y;
         }
 
-        /* Manual de uso con scroll */
         .manual-contenido {
             max-height: 400px;
             overflow-y: auto;
             padding-right: 10px;
+            scroll-behavior: smooth;
         }
 
         .manual-contenido::-webkit-scrollbar {
@@ -50,9 +47,1160 @@
             border-radius: 10px;
         }
 
+        .manual-contenido {
+            scrollbar-width: thin;
+            scrollbar-color: #2575fc #f1f1f1;
+        }
+
         @supports (-webkit-touch-callout: none) {
             body {
                 -webkit-touch-callout: none;
+            }
+        }
+
+        .grid-biblioteca {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .tarjeta-biblioteca {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eef2f7;
+        }
+
+        .tarjeta-biblioteca:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .portada-biblioteca {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 12px 12px 0 0;
+            background: linear-gradient(135deg, #2575fc, #4DEEEA);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .grid-galeria {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .tarjeta-galeria {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eef2f7;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .tarjeta-galeria img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .tarjeta-galeria:hover img {
+            transform: scale(1.05);
+        }
+
+        .chat-container {
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 10px 0;
+        }
+
+        .mensaje-propio {
+            background: #2575fc;
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+            padding: 10px 15px;
+            margin: 5px 0;
+            max-width: 75%;
+            align-self: flex-end;
+            animation: slideInRight 0.3s ease forwards;
+        }
+
+        .mensaje-otro {
+            background: #f0f0f0;
+            color: #333;
+            border-radius: 18px 18px 18px 4px;
+            padding: 10px 15px;
+            margin: 5px 0;
+            max-width: 75%;
+            align-self: flex-start;
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+            padding: 10px 0;
+            border-top: 1px solid #eee;
+        }
+
+        .chat-input input {
+            flex: 1;
+            border-radius: 25px;
+            padding: 10px 18px;
+            border: 2px solid #dfe4ea;
+            outline: none;
+        }
+
+        .chat-input input:focus {
+            border-color: #2575fc;
+        }
+
+        .notificacion-contador {
+            background: #ff7675;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 7px;
+            font-size: 11px;
+            position: absolute;
+            top: -5px;
+            right: -10px;
+        }
+
+        .stagger-item {
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+        }
+
+        .stagger-item:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .stagger-item:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .stagger-item:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .stagger-item:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        .stagger-item:nth-child(5) {
+            animation-delay: 0.5s;
+        }
+
+        .stagger-item:nth-child(6) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .hover-scale {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .hover-scale:hover {
+            transform: scale(1.03);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .galeria-fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 100;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2575fc;
+            color: white;
+            font-size: 28px;
+            box-shadow: 0 4px 20px rgba(37, 117, 252, 0.4);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .galeria-fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(37, 117, 252, 0.6);
+        }
+
+        .dropdown-filtro {
+            padding: 8px 16px;
+            border-radius: 25px;
+            border: 2px solid #dfe4ea;
+            background: white;
+            outline: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .dropdown-filtro:focus {
+            border-color: #2575fc;
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid #eef2f7;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        .stat-card .numero {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1e3799;
+        }
+
+        .stat-card .label {
+            font-size: 13px;
+            color: #747d8c;
+            margin-top: 4px;
+        }
+
+        .stat-card .icono {
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .top-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .top-col {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .top-col h5 {
+            font-size: 13px;
+            color: #1e3799;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #eef2f7;
+            padding-bottom: 6px;
+        }
+
+        .top-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            opacity: 0;
+            animation: slideUp 0.6s ease forwards;
+        }
+
+        .top-item:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .top-item:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .top-item:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .barra-container {
+            background: #eef2f7;
+            border-radius: 8px;
+            height: 20px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+
+        .barra-progreso {
+            height: 100%;
+            border-radius: 8px;
+            width: 0%;
+            transition: width 1.5s ease;
+        }
+
+        .barra-progreso.verde {
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+        }
+
+        .barra-progreso.naranja {
+            background: linear-gradient(90deg, #f39c12, #e67e22);
+        }
+
+        .barra-progreso.rojo {
+            background: linear-gradient(90deg, #ff7675, #e74c3c);
+        }
+
+        .badge-estado {
+            font-size: 10px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-publicada {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .badge-preinscripcion {
+            background: #f39c12;
+            color: white;
+        }
+
+        .input-busqueda-reportes {
+            border-radius: 50px !important;
+            padding: 14px 20px 14px 50px !important;
+            border: 2px solid #dfe4ea !important;
+            font-size: 15px !important;
+            width: 100%;
+        }
+
+        .input-busqueda-reportes:focus {
+            border-color: #2575fc !important;
+            box-shadow: 0 0 0 4px rgba(37, 117, 252, 0.08) !important;
+        }
+
+        .buscador-wrapper-reportes {
+            position: relative;
+            margin-top: 15px;
+        }
+
+        .buscador-wrapper-reportes i {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a4b0be;
+            font-size: 18px;
+            z-index: 2;
+        }
+
+        .btn-limpiar-busqueda {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #95a5a6;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 5px;
+            display: none;
+        }
+
+        .btn-limpiar-busqueda:hover {
+            color: #ff7675;
+        }
+
+        .btn-admin {
+            background: #2575fc;
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-admin:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-admin.btn-danger {
+            background: #ff7675;
+        }
+
+        .btn-enviar-clase {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: #ffffff;
+            border: none;
+            padding: 13px 35px;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(56, 239, 125, 0.2);
+            transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-enviar-clase:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 6px 25px rgba(56, 239, 125, 0.3);
+        }
+
+        .btn-enviar-clase:disabled,
+        .btn-enviar-clase.deshabilitado {
+            background: #ced6e0 !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        .btn-cerrar-modal {
+            background: #ff7675;
+            color: #ffffff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-cerrar-modal:hover {
+            transform: scale(1.03);
+        }
+
+        .btn-cancelar {
+            background: #cbd5e1 !important;
+            color: #2c3e50 !important;
+        }
+
+        .btn-cancelar:hover {
+            background: #b0bcc9 !important;
+            transform: scale(1.02);
+        }
+
+        .modal-burbuja-mejorada {
+            border: none !important;
+            border-radius: 24px !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2) !important;
+            padding: 30px 28px !important;
+            text-align: center;
+        }
+
+        .modal-burbuja-mejorada .campo {
+            text-align: left;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .modal-burbuja-mejorada .campo label {
+            display: block;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #2c3e50;
+        }
+
+        .modal-burbuja-mejorada .campo .input-moderno {
+            width: 100%;
+        }
+
+        .input-moderno {
+            border-radius: 14px !important;
+            border: 2px solid #dfe4ea !important;
+            padding: 12px 16px !important;
+            transition: 0.3s;
+            background: #fafbfc;
+        }
+
+        .input-moderno:focus {
+            border-color: #2575fc !important;
+            box-shadow: 0 0 0 4px rgba(37, 117, 252, 0.1) !important;
+            background: #ffffff;
+        }
+
+        .filtro-biblioteca {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .filtro-biblioteca .buscar-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filtro-biblioteca .buscar-wrapper i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a4b0be;
+        }
+
+        .filtro-biblioteca .buscar-wrapper input {
+            padding-left: 45px;
+            border-radius: 50px;
+            width: 100%;
+        }
+
+        .barra-busqueda-galeria {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .barra-busqueda-galeria .buscar-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .barra-busqueda-galeria .buscar-wrapper i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a4b0be;
+        }
+
+        .barra-busqueda-galeria .buscar-wrapper input {
+            padding-left: 40px;
+            border-radius: 50px;
+            width: 100%;
+        }
+
+        .firma-maestros {
+            background: #f0fbfc;
+            padding: 14px 18px;
+            border-radius: 14px;
+            margin-bottom: 18px;
+            border: 2px solid #4DEEEA;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .firma-maestros label {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .firma-maestros input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #2575fc;
+        }
+
+        .tabla-auditoria {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+            border-radius: 14px;
+            overflow: hidden;
+            font-size: 14px;
+        }
+
+        .tabla-auditoria th {
+            background: #1e3799;
+            color: #ffffff;
+            padding: 12px 16px;
+            font-weight: 600;
+        }
+
+        .tabla-auditoria td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eef2f7;
+            vertical-align: middle;
+        }
+
+        .tabla-auditoria tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .tabla-auditoria tr:hover {
+            background-color: #f0f4f8;
+        }
+
+        .tabla-auditoria input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #2575fc;
+            cursor: pointer;
+        }
+
+        .cabecera-asistencia {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 2px dashed #eee;
+            padding-bottom: 15px;
+            margin-bottom: 18px;
+        }
+
+        .seccion-actual {
+            font-weight: 700;
+            color: #2575fc;
+            text-transform: uppercase;
+        }
+
+        .pie-asistencia {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-top: 2px dashed #eee;
+            padding-top: 18px;
+        }
+
+        .pie-asistencia span {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e67e22;
+        }
+
+        .ayuda-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .ayuda-tarjeta {
+            background: #f8f9fa;
+            padding: 25px 20px;
+            border-radius: 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .ayuda-tarjeta:hover {
+            border-color: #2575fc;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+        }
+
+        .ayuda-tarjeta i {
+            font-size: 35px;
+            color: #2575fc;
+            margin-bottom: 10px;
+        }
+
+        .ayuda-tarjeta h4 {
+            font-size: 15px;
+            color: #2c3e50;
+        }
+
+        .ayuda-tarjeta p {
+            font-size: 12px;
+            color: #747d8c;
+            margin-top: 4px;
+        }
+
+        .manual-contenido {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+            scroll-behavior: smooth;
+        }
+
+        .manual-contenido::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .manual-contenido::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        .manual-contenido::-webkit-scrollbar-thumb {
+            background: #2575fc;
+            border-radius: 10px;
+        }
+
+        .manual-contenido {
+            scrollbar-width: thin;
+            scrollbar-color: #2575fc #f1f1f1;
+        }
+
+        .manual-seccion {
+            background: #f8f9fa;
+            padding: 18px 20px;
+            border-radius: 14px;
+            margin-bottom: 14px;
+            border-left: 4px solid #2575fc;
+        }
+
+        .manual-seccion h4 {
+            color: #1e3799;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+
+        .manual-seccion p {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .grid-salones {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-top: 22px;
+        }
+
+        .tarjeta-kids-salon {
+            padding: 20px;
+            border-radius: 20px;
+            border-left: 6px solid;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.02);
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .tarjeta-kids-salon:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .tarjeta-kids-salon.infancia {
+            background: #e8f8f5;
+            border-left-color: #2ecc71;
+            color: #27ae60;
+        }
+
+        .tarjeta-kids-salon.medianos {
+            background: #fef9e7;
+            border-left-color: #f1c40f;
+            color: #b7950b;
+        }
+
+        .tarjeta-kids-salon.grandes {
+            background: #fbeee6;
+            border-left-color: #e67e22;
+            color: #d35400;
+        }
+
+        .txt-tag {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #747d8c;
+        }
+
+        .txt-docente {
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .icono-centro {
+            font-size: 42px;
+            color: #2575fc;
+            margin-bottom: 12px;
+        }
+
+        .subtitulo-modulo {
+            font-size: 13px;
+            color: #747d8c;
+            margin-top: 2px;
+        }
+
+        .bloque-formulario {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 35px 30px;
+            box-shadow: 0 8px 30px rgba(37, 117, 252, 0.04);
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 1px solid #eef2f7;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(13, 30, 61, 0.7);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.activo {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-burbuja {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 28px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 4px solid #3498db;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-burbuja h3 {
+            text-align: center;
+            margin-bottom: 18px;
+            font-size: 20px;
+        }
+
+        .modal-burbuja .campo {
+            margin-bottom: 14px;
+        }
+
+        .modal-burbuja .campo label {
+            font-size: 13px;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .modal-burbuja .descripcion-modal {
+            font-size: 13px;
+            color: #747d8c;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        #notificacion-sistema {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9999;
+            max-width: 380px;
+            width: 100%;
+        }
+
+        .notificacion-burbuja {
+            background: #2c3e50;
+            color: #ffffff;
+            padding: 16px 20px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-left: 5px solid #2575fc;
+            animation: slideInNotif 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: opacity 0.5s;
+        }
+
+        @keyframes slideInNotif {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .top-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-biblioteca {
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            }
+
+            .grid-galeria {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+
+            .grid-salones {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            aside {
+                transform: translateX(-100%);
+                border-right: none;
+            }
+
+            aside.abierto {
+                transform: translateX(0);
+                box-shadow: 10px 0 30px rgba(0, 0, 0, 0.15);
+            }
+
+            .contenedor-derecho {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .btn-menu-movil {
+                display: block;
+            }
+
+            .dashboard-stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .top-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-biblioteca {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-galeria {
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            }
+
+            .grid-salones {
+                grid-template-columns: 1fr;
+            }
+
+            main {
+                padding: 16px;
+            }
+
+            .bloque-formulario {
+                padding: 22px 18px;
+                border-radius: 20px;
+            }
+
+            .cabecera-asistencia {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .firma-maestros {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .pie-asistencia {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+
+            .btn-enviar-clase {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .modal-burbuja {
+                padding: 22px 18px;
+                max-width: 100%;
+                margin: 10px;
+            }
+
+            .ayuda-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            #notificacion-sistema {
+                max-width: 300px;
+                bottom: 15px;
+                right: 15px;
+            }
+
+            .notificacion-burbuja {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .galeria-fab {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 22px;
+            }
+
+            .filtro-biblioteca {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .barra-busqueda-galeria {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 12px 16px;
+            }
+
+            .titulo-header h2 {
+                font-size: 15px;
+            }
+
+            .info-perfil {
+                font-size: 12px;
+            }
+
+            .info-perfil span {
+                display: none;
+            }
+
+            .avatar-circulo {
+                width: 34px;
+                height: 34px;
+                font-size: 14px;
+            }
+
+            .dashboard-stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .ayuda-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .menu-usuario-desplegable {
+                right: -10px;
+                width: 220px;
+            }
+
+            .manual-seccion {
+                padding: 14px 16px;
+            }
+
+            .modal-burbuja-mejorada {
+                padding: 20px 16px !important;
+            }
+
+            .grid-biblioteca {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-galeria {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
             }
         }
     </style>
@@ -60,8 +1208,6 @@
 
 <body class="body-panel">
 
-
-    <!-- MENÚ LATERAL -->
     <aside id="menu-lateral">
         <div class="cuerpo-superior-sidebar">
             <div class="marca-app">
@@ -69,117 +1215,231 @@
                 <h3>ZoarKids 360</h3>
             </div>
             <div class="menu-items" id="menu-principal">
-                <div class="menu-link activo" data-vista="inicio">
-                    <i class="fa-solid fa-house"></i> <span>Inicio</span>
+                <div class="menu-link activo" data-vista="dashboard"><i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard</span>
                 </div>
-                <div class="menu-link" data-vista="asistencia">
-                    <i class="fa-solid fa-list-check"></i> <span>Asistencia</span>
+                <div class="menu-link" data-vista="inicio"><i class="fa-solid fa-house"></i> <span>Inicio</span></div>
+                <div class="menu-link" data-vista="actividades"><i class="fa-solid fa-calendar-days"></i>
+                    <span>Actividades</span>
                 </div>
-                <div class="menu-link" data-vista="registros" id="menu-registros" style="display:none;">
-                    <i class="fa-solid fa-folder-open"></i> <span>Registros</span>
+                <div class="menu-link" data-vista="asistencia"><i class="fa-solid fa-list-check"></i>
+                    <span>Asistencia</span>
                 </div>
-                <div class="menu-link" data-vista="reportes" id="menu-reportes" style="display:none;">
-                    <i class="fa-solid fa-chart-pie"></i> <span>Reportes</span>
+                <div class="menu-link" data-vista="biblioteca"><i class="fa-solid fa-book-open"></i>
+                    <span>Biblioteca</span>
+                </div>
+                <div class="menu-link" data-vista="galeria"><i class="fa-solid fa-images"></i> <span>Galería</span>
+                </div>
+                <div class="menu-link" data-vista="chat"><i class="fa-solid fa-comments"></i> <span>Chat</span></div>
+                <div class="menu-link" data-vista="historial"><i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Historial</span>
+                </div>
+                <div class="menu-link" data-vista="configuracion-horarios" id="menu-configuracion-horarios"
+                    style="display:none;"><i class="fa-solid fa-sliders"></i>
+                    <span>Horarios</span>
+                </div>
+                <div class="menu-link" data-vista="bandeja-lecciones" id="menu-bandeja-lecciones"
+                    style="display:none;"><i class="fa-solid fa-inbox"></i>
+                    <span>Bandeja de lecciones</span>
+                </div>
+                <div class="menu-link" data-vista="reportes" id="menu-reportes-feedback"
+                    style="display:none;"><i class="fa-solid fa-inbox"></i>
+                    <span>Sugerencias y errores</span>
+                    <span id="badge-feedback-admin" class="contador-menu" style="display:none;">0</span>
                 </div>
                 <div class="menu-link" data-vista="ayuda"
-                    style="border-top:1px solid rgba(255,255,255,0.1); margin-top:10px;">
-                    <i class="fa-solid fa-circle-question"></i> <span>Ayuda y Sugerencias</span>
-                </div>
+                    style="border-top:1px solid rgba(255,255,255,0.1); margin-top:10px;"><i
+                        class="fa-solid fa-circle-question"></i> <span>Ayuda</span></div>
             </div>
+
         </div>
         <div class="pie-sidebar">
-            <div class="menu-link" style="color: #ffeaa7;" id="trigger-info-app">
-                <i class="fa-solid fa-circle-info"></i> <span>Acerca de</span>
+            <div class="menu-link" style="color: #ffeaa7;" id="trigger-info-app"><i class="fa-solid fa-circle-info"></i>
+                <span>Acerca de la App</span>
             </div>
-            <div class="menu-link" style="color:#ff7675; font-weight:bold;" id="btn-logout-click">
-                <i class="fa-solid fa-power-off"></i> <span>Cerrar Sesión</span>
-            </div>
+            <div class="menu-link" style="color:#ff7675; font-weight:bold;" id="btn-logout-click"><i
+                    class="fa-solid fa-power-off"></i> <span>Cerrar Sesión</span></div>
             <p style="padding-left: 18px; font-size:11px; color:#cbd5e1;">© 2026 Iglesia Zoar</p>
         </div>
     </aside>
 
-    <!-- CONTENEDOR PRINCIPAL -->
     <div class="contenedor-derecho" id="contenedor-principal">
         <header>
             <button class="btn-menu-movil" id="trigger-menu"><i class="fa-solid fa-bars"></i></button>
             <div class="titulo-header">
                 <h2><i class="fa-solid fa-church"></i> ZoarKids 360</h2>
             </div>
-            <div class="perfil-wrapper" id="wrapper-perfil-click">
-                <div class="info-perfil">
-                    <span id="txt-nombre-usuario">Cargando...</span>
-                    <div class="avatar-circulo" id="avatar-inicial">U</div>
-                </div>
-                <div class="menu-usuario-desplegable" id="desplegable-usuario">
-                    <h4><i class="fa-regular fa-id-card"></i> Mi Perfil</h4>
-                    <p><strong>Nombre:</strong> <span id="perf-nombre">---</span></p>
-                    <p><strong>Correo:</strong> <span id="perf-correo">---</span></p>
-                    <p><strong>Rol:</strong> <span id="perf-rol">---</span></p>
-                    <p><strong>Sección asignada:</strong> <span id="perf-seccion">---</span></p>
-                    <hr style="margin:8px 0; border-color:#eee;">
-                    <p style="font-size:12px; color:#747d8c; text-align:center; cursor:pointer;" id="btn-pedir-ayuda">
-                        <i class="fa-regular fa-message"></i> ¿Necesitas ayuda?
-                    </p>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <button id="btn-notificaciones" type="button" class="btn-campana" aria-label="Abrir notificaciones" title="Notificaciones">
+                    <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                    <span id="notificacion-contador" class="notificacion-contador" style="display:none;">0</span>
+                </button>
+
+                <button id="btn-cambiar-tema"
+                    style="background:none; border:none; color:white; font-size:20px; cursor:pointer; position:relative; padding:8px; border-radius:50%; transition:0.3s;"
+                    aria-label="Cambiar tema" title="Cambiar tema (clic: siguiente, mantener: menú)">
+                    <i class="fas fa-palette" aria-hidden="true"></i>
+                    <span class="btn-cambiar-tema-texto">Tema</span>
+                </button>
+
+                <div class="perfil-wrapper" id="wrapper-perfil-click">
+                    <div class="info-perfil">
+                        <span id="txt-nombre-usuario">Cargando...</span>
+                        <div class="avatar-circulo" id="avatar-inicial">U</div>
+                    </div>
+                    <div class="menu-usuario-desplegable" id="desplegable-usuario">
+                        <h4><i class="fa-regular fa-id-card"></i> Mi Perfil</h4>
+                        <p><strong>Nombre:</strong> <span id="perf-nombre">---</span></p>
+                        <p><strong>Correo:</strong> <span id="perf-correo">---</span></p>
+                        <p><strong>Rol:</strong> <span id="perf-rol">---</span></p>
+                        <p><strong>Sección asignada:</strong> <span id="perf-seccion">---</span></p>
+                        <hr style="margin:8px 0; border-color:#eee;">
+                        <p style="font-size:12px; color:#2575fc; text-align:center; cursor:pointer; display:none;"
+                            id="btn-cambiar-clave-perfil"
+                            onclick="document.getElementById('modal-cambiar-clave').classList.add('activo')">
+                            <i class="fa-solid fa-key"></i> Cambiar contraseña
+                        </p>
+                        <hr style="margin:8px 0; border-color:#eee;" id="separador-cambiar-clave" style="display:none;">
+                        <p style="font-size:12px; color:#6c5ce7; text-align:center; cursor:pointer; display:none;"
+                            id="btn-revertir-prueba" onclick="revertirRolPrueba()">
+                            <i class="fa-solid fa-rotate"></i> Revertir rol
+                        </p>
+                        <p style="font-size:11px; color:#f39c12; text-align:center; display:none;"
+                            id="modo-prueba-label">🧪 Modo Prueba</p>
+                        <hr style="margin:8px 0; border-color:#eee;">
+                        <p style="font-size:12px; color:#747d8c; text-align:center; cursor:pointer;"
+                            id="btn-pedir-ayuda">
+                            <i class="fa-regular fa-message"></i> ¿Necesitas ayuda?
+                        </p>
+                    </div>
                 </div>
             </div>
         </header>
 
         <main>
-            <!-- ========== MÓDULO INICIO ========== -->
-            <div id="modulo-inicio" class="modulo-vista activo">
+            <!-- MÓDULO DASHBOARD -->
+            <div id="modulo-dashboard" class="modulo-vista activo">
+                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
+                    <h3><i class="fa-solid fa-chart-pie"></i> Dashboard</h3>
+                    <p class="subtitulo-modulo">Resumen general de la escuela dominical</p>
+
+                    <div class="dashboard-stats">
+                        <div class="stat-card stagger-item">
+                            <span class="icono"><i class="fa-solid fa-graduation-cap" style="color:#2575fc;"></i></span>
+                            <div class="numero" id="stat-alumnos">0</div>
+                            <div class="label">Alumnos</div>
+                        </div>
+                        <div class="stat-card stagger-item">
+                            <span class="icono"><i class="fa-solid fa-chart-line" style="color:#2ecc71;"></i></span>
+                            <div class="numero" id="stat-asistencia">0%</div>
+                            <div class="label">Asistencia promedio</div>
+                        </div>
+                        <div class="stat-card stagger-item">
+                            <span class="icono"><i class="fa-solid fa-calendar-check" style="color:#f39c12;"></i></span>
+                            <div class="numero" id="stat-clases">0</div>
+                            <div class="label">Clases este mes</div>
+                        </div>
+                        <div class="stat-card stagger-item">
+                            <span class="icono"><i class="fa-solid fa-users" style="color:#6c5ce7;"></i></span>
+                            <div class="numero" id="stat-maestros">0</div>
+                            <div class="label">Maestros activos</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px;">
+                        <h4 style="font-size:15px; color:#1e3799; margin-bottom:10px;"><i
+                                class="fa-solid fa-chart-bar"></i> Asistencia por Sección</h4>
+                        <div id="barras-asistencia"></div>
+                    </div>
+
+                    <div style="margin-top:25px;">
+                        <h4 style="font-size:15px; color:#1e3799; margin-bottom:10px;"><i
+                                class="fa-solid fa-trophy"></i> Top 3 Asistencia por Sección</h4>
+                        <div class="top-grid" id="top-asistencia-container"></div>
+                    </div>
+
+                    <div style="margin-top:25px;">
+                        <h4 style="font-size:15px; color:#1e3799; margin-bottom:10px;"><i
+                                class="fa-solid fa-calendar"></i> Calendario Mensual</h4>
+                        <div id="calendario-mensual" style="background:#f8f9fa; border-radius:12px; padding:15px;">
+                        </div>
+                    </div>
+
+                    <div style="margin-top:25px;">
+                        <h4 style="font-size:15px; color:#1e3799; margin-bottom:10px;"><i
+                                class="fa-solid fa-file-lines"></i> Reporte de Maestros</h4>
+                        <div id="reporte-maestros"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO INICIO -->
+            <div id="modulo-inicio" class="modulo-vista">
                 <div class="bloque-formulario">
                     <div class="icono-centro"><i class="fa-solid fa-calendar-check"></i></div>
                     <h2>Cronograma de Turnos</h2>
                     <p class="subtitulo-modulo">Asignación calculada automáticamente para el próximo domingo</p>
 
                     <div class="grid-salones">
-                        <div class="tarjeta-kids-salon infancia">
+                        <div class="tarjeta-kids-salon infancia" onclick="verLeccionDesdeCronograma('infancia')">
                             <div class="txt-tag"><i class="fa-solid fa-baby"></i> Primera Infancia (1-3 años)</div>
                             <div class="txt-docente" id="docente-pi">Cargando...</div>
                         </div>
-                        <div class="tarjeta-kids-salon medianos">
+                        <div class="tarjeta-kids-salon medianos" onclick="verLeccionDesdeCronograma('medianos')">
                             <div class="txt-tag"><i class="fa-solid fa-child"></i> Medianos (4-8 años)</div>
                             <div class="txt-docente" id="docente-me">Cargando...</div>
                         </div>
-                        <div class="tarjeta-kids-salon grandes">
+                        <div class="tarjeta-kids-salon grandes" onclick="verLeccionDesdeCronograma('grandes')">
                             <div class="txt-tag"><i class="fa-solid fa-child-reaching"></i> Grandes (9-12 años)</div>
                             <div class="txt-docente" id="docente-gr">Cargando...</div>
                         </div>
                     </div>
 
                     <div class="zona-carga-cuaderno">
-                        <h4><i class="fa-regular fa-file-lines"></i> Carga de Material Didáctico</h4>
+                        <h4><i class="fa-regular fa-file-lines"></i> Carga de Lección</h4>
+                        <p style="font-size:13px; color:#747d8c; margin-bottom:12px;">Completa el formulario para subir
+                            tu lección</p>
                         <div class="wrapper-acciones-carga">
-                            <button class="label-camara" id="btn-subir-archivo">
-                                <i class="fa-solid fa-camera"></i> <span>Seleccionar Archivo</span>
-                            </button>
-                            <input type="file" id="captura-cuaderno"
-                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none;">
-                            <input type="file" id="captura-camara" accept="image/*" capture="environment"
-                                style="display:none;">
-                            <div id="vista-previa-archivo"
-                                style="margin-top:10px; display:none; padding:10px; background:#f8f9fa; border-radius:12px; width:100%; max-width:300px;">
-                                <i class="fa-solid fa-file" id="icono-previa"></i>
-                                <span id="nombre-previa"
-                                    style="font-size:13px; font-weight:600; margin-left:8px;"></span>
-                                <span id="tamano-previa" style="font-size:11px; color:#95a5a6; margin-left:8px;"></span>
-                            </div>
-                            <button class="btn-enviar-clase" id="btn-confirmar-envio">
-                                <i class="fa-solid fa-cloud-arrow-up"></i> Enviar Material
+                            <button class="btn-enviar-clase" onclick="abrirFormularioLeccion()"
+                                id="btn-nueva-leccion-inicio">
+                                <i class="fa-solid fa-plus"></i> Nueva Lección
                             </button>
                         </div>
                         <div id="msg-restriccion-fecha" class="msg-fecha"></div>
                     </div>
+
+                    <div style="margin-top:20px; border-top:2px dashed #eee; padding-top:20px;">
+                        <h4><i class="fa-solid fa-user-slash"></i> No puedes dar clase</h4>
+                        <p style="font-size:13px; color:#747d8c; margin-bottom:10px;">Solicita un sustituto (Lunes y
+                            Martes)</p>
+                        <button class="btn-enviar-clase"
+                            style="background:#e67e22; box-shadow:0 4px 15px rgba(230,126,34,0.3);" id="btn-solicitar-sustituto">
+                            <i class="fa-solid fa-handshake"></i> Solicitar Sustituto
+                        </button>
+                        <p id="msg-sustituto" style="font-size:12px; color:#95a5a6; margin-top:6px;"></p>
+                    </div>
                 </div>
             </div>
 
-            <!-- ========== MÓDULO ASISTENCIA ========== -->
+            <!-- MÓDULO ASISTENCIA -->
             <div id="modulo-asistencia" class="modulo-vista">
                 <div id="contenedor-mensaje-no-asignado" class="bloque-formulario" style="display:none;">
-                    <div class="icono-centro" style="color:#ff7675;"><i class="fa-solid fa-bell-slash"></i></div>
+                    <div class="icono-centro" style="color:#f39c12;"><i class="fa-regular fa-face-smile"></i></div>
                     <h3>No tienes clase asignada</h3>
-                    <p style="color:#747d8c;">No posees un salón asignado para este domingo.<br>Disfruta del servicio.
+                    <p style="color:#747d8c; font-size:15px; margin-top:10px;">
+                        No posees un salón asignado para este domingo.<br>
+                        <span style="font-weight:bold; color:#2ecc71;">Disfruta del servicio dominical</span>
                     </p>
+                    <div style="margin-top:20px; padding-top:20px; border-top:2px dashed #eee;">
+                        <button class="btn-admin" id="btn-inscribir-sin-clase"
+                            style="background:#2575fc; padding:12px 24px; font-size:14px; margin-right:8px;">
+                            <i class="fa-solid fa-user-plus"></i> Inscribir
+                        </button>
+                        <button class="btn-admin" id="btn-cumpleaneros-sin-clase"
+                            style="background:#f39c12; padding:12px 24px; font-size:14px;">
+                            <i class="fa-solid fa-cake-candles"></i> Ver Cumpleaños del Mes
+                        </button>
+                    </div>
                 </div>
 
                 <div id="contenedor-asistencia-activa" class="bloque-formulario"
@@ -204,18 +1464,14 @@
                                     class="fa-solid fa-table"></i> Ver Todos</button>
                         </div>
                         <button class="btn-admin" id="btn-cumpleaneros" style="background:#f39c12;"><i
-                                class="fa-solid fa-cake-candles"></i> Cumpleañeros del Mes</button>
+                                class="fa-solid fa-cake-candles"></i> Cumpleaños del Mes</button>
                     </div>
 
-                    <!-- Firma de Maestros -->
                     <div class="firma-maestros">
-                        <span><i class="fa-solid fa-clipboard-user"></i> Marcar asistencia como maestro:</span>
-                        <label>
-                            <input type="checkbox" id="chk-asistencia-maestro-firmado"> <span>Presente</span>
-                        </label>
+                        <span><i class="fa-solid fa-clipboard-user"></i> Marcar asistencia como maestro de turno:</span>
+                        <label><input type="checkbox" id="chk-asistencia-maestro-firmado"> <span>Presente</span></label>
                     </div>
 
-                    <!-- Tabla de Asistencia -->
                     <div class="tabla-responsive">
                         <table class="tabla-auditoria">
                             <thead>
@@ -235,65 +1491,137 @@
                         </table>
                     </div>
 
-                    <!-- Acciones de Asistencia -->
                     <div class="pie-asistencia">
-                        <span id="txt-estado-horario-asistencia">
-                            <i class="fa-regular fa-clock"></i> Ventana: Domingos 3:00 PM - 4:00 PM
-                        </span>
+                        <span id="txt-estado-horario-asistencia"><i class="fa-regular fa-clock"></i> Ventana: Domingos
+                            2:45 PM - 5:00 PM</span>
                         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                            <button class="btn-enviar-clase" id="btn-guardar-asistencia-final" disabled>
-                                <i class="fa-solid fa-square-check"></i> Reportar Asistencia
-                            </button>
+                            <button class="btn-enviar-clase" id="btn-guardar-asistencia-final" disabled><i
+                                    class="fa-solid fa-square-check"></i> Reportar Asistencia</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alumnos-prueba-locales" class="bloque-formulario" style="display:none; text-align:left; max-width:1000px; margin-top:20px;">
+                    <h3><i class="fa-solid fa-flask"></i> Alumnos inscritos localmente</h3>
+                    <p class="subtitulo-modulo">Estos alumnos solo están guardados en este navegador; no se enviaron a la base de datos.</p>
+                    <div id="lista-alumnos-prueba-locales"></div>
+                </div>
+            </div>
+
+            <!-- MÓDULO BIBLIOTECA -->
+            <div id="modulo-biblioteca" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
+                    <h3><i class="fa-solid fa-book-open"></i> Biblioteca</h3>
+                    <p class="subtitulo-modulo">Lecciones publicadas por los maestros y administradores</p>
+
+                    <div class="filtro-biblioteca">
+                        <div class="buscar-wrapper">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="filtro-biblioteca" class="input-txt input-busqueda-reportes"
+                                placeholder="Buscar por título o autor...">
+                        </div>
+                        <select id="filtro-biblioteca-seccion" class="dropdown-filtro"
+                            onchange="filtrarBibliotecaSeccion(this.value)">
+                            <option value="todas">Todas las secciones</option>
+                            <option value="infancia">Primera Infancia</option>
+                            <option value="medianos">Medianos</option>
+                            <option value="grandes">Grandes</option>
+                        </select>
+                    </div>
+
+                    <div id="grid-biblioteca" class="grid-biblioteca">
+                        <p style="color:#95a5a6; text-align:center; grid-column:1/-1; padding:30px;">Cargando
+                            lecciones...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO GALERÍA -->
+            <div id="modulo-galeria" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
+                    <h3><i class="fa-solid fa-images"></i> Galería</h3>
+                    <p class="subtitulo-modulo">Fotos y recuerdos de las clases</p>
+
+                    <div class="barra-busqueda-galeria">
+                        <select id="galeria-filtro" class="dropdown-filtro" onchange="cargarGaleria(this.value)">
+                            <option value="todas">Todas</option>
+                            <option value="infancia">Primera Infancia</option>
+                            <option value="medianos">Medianos</option>
+                            <option value="grandes">Grandes</option>
+                            <option value="cumpleaneros">Cumpleaños</option>
+                        </select>
+                        <div class="buscar-wrapper">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="galeria-buscar" class="input-txt"
+                                placeholder="Buscar por maestro o mes..." oninput="filtrarGaleria(this.value)">
+                        </div>
+                    </div>
+
+                    <div id="grid-galeria" class="grid-galeria">
+                        <p style="color:#95a5a6; text-align:center; grid-column:1/-1; padding:30px;">Cargando fotos...
+                        </p>
+                    </div>
+                </div>
+                <button class="galeria-fab" onclick="abrirSubirFoto()" title="Subir foto"><i
+                        class="fa-solid fa-plus"></i></button>
+            </div>
+
+            <!-- MÓDULO CHAT -->
+            <div id="modulo-chat" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:1000px;">
+                    <h3><i class="fa-solid fa-comments"></i> Chat</h3>
+                    <p class="subtitulo-modulo">Comunicación con otros maestros</p>
+
+                    <div style="display:flex; gap:10px; margin-bottom:15px; align-items:center; flex-wrap:wrap;">
+                        <div class="buscar-wrapper" style="flex:1; min-width:200px; position:relative;">
+                            <i class="fa-solid fa-search"
+                                style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#a4b0be;"></i>
+                            <input type="text" id="chat-buscar" class="input-txt" placeholder="Buscar contacto..."
+                                style="padding-left:40px; border-radius:50px; width:100%;">
+                        </div>
+                        <button class="btn-admin" onclick="abrirAgregarContacto()"
+                            style="background:#2575fc; padding:10px 18px;"><i class="fa-solid fa-user-plus"></i>
+                            Agregar</button>
+                    </div>
+
+                    <div id="lista-chats">
+                        <p style="color:#95a5a6; text-align:center; padding:20px;">Cargando contactos...</p>
+                    </div>
+
+                    <div id="chat-conversacion"
+                        style="display:none; border-top:2px dashed #eee; margin-top:15px; padding-top:15px;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px;">
+                            <h4 id="chat-titulo-conversacion">Contacto</h4>
+                            <button class="btn-cerrar-modal" onclick="cerrarConversacion()"
+                                style="padding:5px 15px; font-size:12px;">Cerrar</button>
+                        </div>
+                        <div id="chat-mensajes" class="chat-container">
+                            <p style="color:#95a5a6; text-align:center;">No hay mensajes</p>
+                        </div>
+                        <div class="chat-input">
+                            <input type="text" id="chat-input-texto" placeholder="Escribe un mensaje...">
+                            <button class="btn-enviar-clase" onclick="enviarMensaje()" style="padding:8px 20px;"><i
+                                    class="fa-solid fa-paper-plane"></i></button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- ========== MÓDULO REGISTROS ========== -->
-            <div id="modulo-registros" class="modulo-vista">
+            <!-- MÓDULO HISTORIAL -->
+            <div id="modulo-historial" class="modulo-vista">
                 <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
-                    <div
-                        style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                        <h3><i class="fa-solid fa-folder-open"></i> Archivo de Material</h3>
-                        <button class="btn-enviar-clase" style="padding:10px 20px; font-size:13px;"
-                            onclick="descargarReporte()">
-                            <i class="fa-solid fa-file-export"></i> Exportar
-                        </button>
-                    </div>
-                    <p class="subtitulo-modulo">Documentos subidos por los maestros con vista previa</p>
-                    <div class="tabla-responsive">
-                        <table class="tabla-auditoria">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Maestro</th>
-                                    <th>Documento</th>
-                                    <th style="text-align:center;">Vista Previa</th>
-                                    <th style="text-align:center;">Descargar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-archivos-storage-cuerpo"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== MÓDULO REPORTES ========== -->
-            <div id="modulo-reportes" class="modulo-vista">
-                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
-                    <h3><i class="fa-solid fa-shield-halved"></i> Auditoría de Seguridad</h3>
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Historial</h3>
                     <p class="subtitulo-modulo">Registro de todas las acciones realizadas en el sistema</p>
-
                     <div class="buscador-wrapper-reportes">
                         <i class="fa-solid fa-search"></i>
-                        <input type="text" id="input-filtro-reportes" class="input-txt input-busqueda-reportes"
-                            placeholder="Buscar por usuario, acción o fecha...">
-                        <button class="btn-limpiar-busqueda" id="btn-limpiar-busqueda" style="display:none;">
-                            <i class="fa-solid fa-times"></i>
-                        </button>
+                        <input type="text" id="input-filtro-historial" class="input-txt input-busqueda-reportes"
+                            placeholder="Buscar por usuario, acción o fecha..."
+                            style="border-radius:50px; padding-left:45px; width:100%;">
+                        <button class="btn-limpiar-busqueda" id="btn-limpiar-historial" style="display:none;"><i
+                                class="fa-solid fa-times"></i></button>
                     </div>
-                    <div id="resultados-busqueda-reportes" style="margin-top:15px;"></div>
-
+                    <div id="resultados-historial" style="margin-top:15px;"></div>
                     <div class="tabla-responsive" style="margin-top:15px;">
                         <table class="tabla-auditoria">
                             <thead>
@@ -309,29 +1637,89 @@
                 </div>
             </div>
 
-            <!-- ========== MÓDULO AYUDA ========== -->
+            <!-- ============ ACTIVIDADES Y CONFIGURACIÓN COMPARTIDAS ============ -->
+            <div id="modulo-actividades" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
+                    <div class="cabecera-asistencia">
+                        <div>
+                            <h3><i class="fa-solid fa-calendar-days"></i> Cumpleaños y actividades del mes</h3>
+                            <p class="subtitulo-modulo">Fechas especiales y actividades para toda la congregación</p>
+                        </div>
+                        <button class="btn-admin" id="btn-agregar-actividad" style="display:none;">
+                            <i class="fa-solid fa-plus"></i> Agregar actividad
+                        </button>
+                    </div>
+                    <div id="actividades-mensuales" class="lista-actividades-mensuales" aria-live="polite"></div>
+                </div>
+            </div>
+
+            <div id="modulo-configuracion-horarios" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:850px;">
+                    <h3><i class="fa-solid fa-sliders"></i> Configuración de horarios</h3>
+                    <p class="subtitulo-modulo">Los cambios se comparten con los usuarios del sistema. Indica el motivo de cada ajuste.</p>
+                    <form id="form-configuracion-horarios">
+                        <div class="campo">
+                            <label for="cfg-dia-asistencia">Día para reportar asistencia</label>
+                            <select id="cfg-dia-asistencia" class="input-txt" required>
+                                <option value="0">Domingo</option><option value="1">Lunes</option>
+                                <option value="2">Martes</option><option value="3">Miércoles</option>
+                                <option value="4">Jueves</option><option value="5">Viernes</option>
+                                <option value="6">Sábado</option>
+                            </select>
+                        </div>
+                        <div class="config-horario-rango">
+                            <div class="campo"><label for="cfg-hora-inicio">Apertura</label><input id="cfg-hora-inicio" type="time" class="input-txt" required></div>
+                            <div class="campo"><label for="cfg-hora-fin">Cierre</label><input id="cfg-hora-fin" type="time" class="input-txt" required></div>
+                        </div>
+                        <fieldset class="campo config-dias-sustitucion">
+                            <legend>Días en que se pueden solicitar sustituciones</legend>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="1"> Lunes</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="2"> Martes</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="3"> Miércoles</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="4"> Jueves</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="5"> Viernes</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="6"> Sábado</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="0"> Domingo</label>
+                        </fieldset>
+                        <div class="campo">
+                            <label for="cfg-motivo">Motivo del ajuste</label>
+                            <textarea id="cfg-motivo" class="input-txt" maxlength="300" required
+                                placeholder="Ej.: cambio temporal por actividad especial"></textarea>
+                        </div>
+                        <p id="cfg-actualizado" class="subtitulo-modulo" aria-live="polite"></p>
+                        <button class="btn-enviar-clase" type="submit"><i class="fa-solid fa-floppy-disk"></i> Guardar horarios</button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="modulo-reportes" class="modulo-vista">
+                <div class="bloque-formulario" style="text-align:left; max-width:1100px;">
+                    <h3><i class="fa-solid fa-inbox"></i> Sugerencias y errores</h3>
+                    <p class="subtitulo-modulo">Solo se muestran mensajes enviados como sugerencia o reporte de error.</p>
+                    <div id="lista-feedback-admin" class="lista-feedback-admin" aria-live="polite"></div>
+                </div>
+            </div>
+
+            <!-- MÓDULO AYUDA -->
             <div id="modulo-ayuda" class="modulo-vista">
                 <div class="bloque-formulario" style="text-align:left;">
                     <h3><i class="fa-solid fa-circle-question"></i> Centro de Ayuda</h3>
                     <div class="ayuda-grid">
-                        <div class="ayuda-tarjeta" onclick="abrirSugerencia()">
-                            <i class="fa-solid fa-lightbulb"></i>
+                        <div class="ayuda-tarjeta" onclick="abrirSugerencia()"><i class="fa-solid fa-lightbulb"></i>
                             <h4>Sugerencias</h4>
                             <p>Envía tus ideas para mejorar ZoarKids 360</p>
                         </div>
-                        <div class="ayuda-tarjeta" onclick="abrirReporteError()">
-                            <i class="fa-solid fa-bug"></i>
+                        <div class="ayuda-tarjeta" onclick="abrirReporteError()"><i class="fa-solid fa-bug"></i>
                             <h4>Reportar Error</h4>
                             <p>Notifica cualquier problema técnico</p>
                         </div>
-                        <div class="ayuda-tarjeta" onclick="toggleManual()">
-                            <i class="fa-solid fa-book"></i>
+                        <div class="ayuda-tarjeta" onclick="toggleManual()"><i class="fa-solid fa-book"></i>
                             <h4>Ver Manual de Uso</h4>
                             <p>Guía completa del sistema</p>
                         </div>
                     </div>
                     <div id="area-mensaje-ayuda" style="margin-top:20px; display:none;">
-                        <div class="campo" style="position:relative;">
+                        <div class="campo">
                             <label>Tu mensaje:</label>
                             <textarea id="txt-ayuda-mensaje" class="input-txt input-ayuda"
                                 style="height:100px; resize:vertical; padding:14px 16px; border-radius:16px; border:2px solid #dfe4ea;"
@@ -339,12 +1727,13 @@
                             <div id="contador-caracteres"
                                 style="text-align:right; font-size:12px; color:#95a5a6; margin-top:5px;">0/500</div>
                         </div>
-                        <button class="btn-enviar-clase" onclick="enviarMensajeAyuda()" style="width:100%;">
-                            <i class="fa-solid fa-paper-plane"></i> Enviar Mensaje
-                        </button>
+                        <button class="btn-enviar-clase" onclick="enviarSugerencia('sugerencia')" style="width:100%;"><i
+                                class="fa-solid fa-paper-plane"></i> Enviar Sugerencia</button>
+                        <button class="btn-enviar-clase" onclick="enviarSugerencia('reporte')"
+                            style="width:100%; margin-top:10px; background:#ff7675;"><i class="fa-solid fa-bug"></i>
+                            Reportar Error</button>
                     </div>
 
-                    <!-- MANUAL DE USO -->
                     <div id="manual-uso-container"
                         style="display:none; margin-top:30px; border-top:2px dashed #eee; padding-top:25px;">
                         <h3><i class="fa-solid fa-book" style="color:#2575fc;"></i> Manual de Uso - ZoarKids 360</h3>
@@ -355,21 +1744,28 @@
                                 </p>
                             </div>
                             <div class="manual-seccion">
-                                <h4><i class="fa-solid fa-calendar-check"></i> 2. Cronograma de Turnos</h4>
-                                <p>Verás los maestros asignados a cada sección para el próximo domingo.</p>
+                                <h4><i class="fa-solid fa-chart-simple"></i> 2. Dashboard</h4>
+                                <p>Resumen de asistencia, estadísticas y top de alumnos.</p>
                             </div>
                             <div class="manual-seccion">
-                                <h4><i class="fa-solid fa-list-check"></i> 3. Registro de Asistencia</h4>
-                                <p>Los maestros marcan asistencia <strong>SOLO los domingos 3:00 PM - 4:00 PM</strong>.
-                                    Solo se envía una vez.</p>
+                                <h4><i class="fa-solid fa-list-check"></i> 3. Asistencia</h4>
+                                <p>Domingos 2:45 PM - 5:00 PM. Reporta asistencia de tus alumnos.</p>
                             </div>
                             <div class="manual-seccion">
-                                <h4><i class="fa-solid fa-user-plus"></i> 4. Gestión de Alumnos (Admin/Pastor)</h4>
-                                <p>Inscribir, editar y eliminar alumnos. Ver todas las secciones.</p>
+                                <h4><i class="fa-solid fa-book-open"></i> 4. Biblioteca</h4>
+                                <p>Sube y comparte lecciones. Los maestros pueden editar una vez.</p>
                             </div>
                             <div class="manual-seccion">
-                                <h4><i class="fa-solid fa-cloud-arrow-up"></i> 5. Carga de Material</h4>
-                                <p>Sube fotos, PDFs o documentos desde archivo o cámara.</p>
+                                <h4><i class="fa-solid fa-images"></i> 5. Galería</h4>
+                                <p>Comparte fotos de las clases. Busca por maestro o mes.</p>
+                            </div>
+                            <div class="manual-seccion">
+                                <h4><i class="fa-solid fa-comments"></i> 6. Chat</h4>
+                                <p>Comunícate con otros maestros. Mensajes personales y grupales.</p>
+                            </div>
+                            <div class="manual-seccion">
+                                <h4><i class="fa-solid fa-clock-rotate-left"></i> 7. Historial</h4>
+                                <p>Registro de todas las acciones realizadas en el sistema.</p>
                             </div>
                             <div class="manual-seccion" style="background:#f0f8ff; border-left-color:#2575fc;">
                                 <h4><i class="fa-solid fa-people-group"></i> Asignación por Parejas</h4>
@@ -383,10 +1779,18 @@
         </main>
     </div>
 
-    <!-- ========== MODALES ========== -->
+    <!-- MODALES -->
+    <div id="modal-notificaciones" class="modal-overlay">
+        <div class="modal-burbuja" style="max-width:500px;">
+            <h3><i class="fa-regular fa-bell"></i> Notificaciones</h3>
+            <div id="lista-notificaciones" style="max-height:350px; overflow-y:auto;"></div>
+            <button class="btn-cerrar-modal"
+                onclick="document.getElementById('modal-notificaciones').classList.remove('activo')"
+                style="margin-top:15px; width:100%;">Cerrar</button>
+        </div>
+    </div>
 
-    <!-- MODAL REGISTRO NIÑO -->
-    <div class="modal-overlay" id="modal-registro-niño">
+    <div id="modal-registro-niño" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-user-plus" style="font-size:36px; color:#2ecc71;"></i>
@@ -394,24 +1798,19 @@
                 <p style="color:#747d8c; font-size:13px;">Completa todos los campos para registrar</p>
             </div>
             <form id="form-registro-alumno">
-                <div class="campo">
-                    <label><i class="fa-regular fa-user"></i> Nombre completo</label>
-                    <input type="text" id="reg-nombre" class="input-txt input-moderno" placeholder="Ej: Carlos González"
-                        required>
+                <div class="campo"><label><i class="fa-regular fa-user"></i> Nombre completo</label><input type="text"
+                        id="reg-nombre" class="input-txt input-moderno" placeholder="Ej: Carlos González" required>
                 </div>
-                <div class="campo">
-                    <label><i class="fa-regular fa-layer-group"></i> Sección</label>
-                    <select id="reg-seccion" class="input-txt input-moderno" required>
+                <div class="campo"><label><i class="fa-regular fa-layer-group"></i> Sección</label><select
+                        id="reg-seccion" class="input-txt input-moderno" required>
                         <option value="">-- Seleccionar --</option>
                         <option value="infancia">Primera Infancia</option>
                         <option value="medianos">Medianos</option>
                         <option value="grandes">Grandes</option>
-                    </select>
-                </div>
-                <div class="campo">
-                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año ≥ 2014)</label>
-                    <input type="date" id="reg-nacimiento" class="input-txt input-moderno" required max="2016-12-31">
-                </div>
+                    </select></div>
+                <div class="campo"><label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento
+                        </label><input type="date" id="reg-nacimiento" class="input-txt input-moderno"
+                        required></div>
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
                     <button type="button" class="btn-cerrar-modal btn-cancelar"
                         id="btn-cancelar-nino-modal">Cancelar</button>
@@ -421,13 +1820,12 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR NIÑO -->
-    <div class="modal-overlay" id="modal-buscar-editar">
+    <div id="modal-buscar-editar" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-user-pen" style="font-size:36px; color:#2575fc;"></i>
                 <h3 style="margin-top:8px;">Editar Alumno</h3>
-                <p style="color:#747d8c; font-size:13px;">Busca por código y modifica los datos</p>
+                <p style="color:#747d8c; font-size:13px;">Busca por código (ID de la tabla)</p>
             </div>
             <div class="campo" style="text-align:center;">
                 <label><i class="fa-solid fa-hashtag"></i> Código del alumno</label>
@@ -440,23 +1838,17 @@
             </div>
             <form id="form-edicion-campos-nino"
                 style="display:none; border-top:2px dashed #eee; padding-top:15px; margin-top:15px;">
-                <div class="campo">
-                    <label><i class="fa-regular fa-user"></i> Nombre corregido</label>
-                    <input type="text" id="edit-nombre-input" class="input-txt input-moderno" required>
-                </div>
-                <div class="campo">
-                    <label><i class="fa-regular fa-layer-group"></i> Nueva sección</label>
-                    <select id="edit-seccion-select" class="input-txt input-moderno">
+                <div class="campo"><label><i class="fa-regular fa-user"></i> Nombre corregido</label><input type="text"
+                        id="edit-nombre-input" class="input-txt input-moderno" required></div>
+                <div class="campo"><label><i class="fa-regular fa-layer-group"></i> Nueva sección</label><select
+                        id="edit-seccion-select" class="input-txt input-moderno">
                         <option value="infancia">Primera Infancia</option>
                         <option value="medianos">Medianos</option>
                         <option value="grandes">Grandes</option>
-                    </select>
-                </div>
-                <div class="campo">
-                    <label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento (año ≥ 2014)</label>
-                    <input type="date" id="edit-fecha-nacimiento" class="input-txt input-moderno" required
-                        max="2016-12-31">
-                </div>
+                    </select></div>
+                <div class="campo"><label><i class="fa-regular fa-calendar"></i> Fecha de nacimiento
+                        </label><input type="date" id="edit-fecha-nacimiento" class="input-txt input-moderno"
+                        required></div>
                 <button type="submit" class="btn-enviar-clase" style="width:100%;">Actualizar Ficha</button>
             </form>
             <button class="btn-cerrar-modal btn-cancelar" id="btn-cerrar-busq-edit"
@@ -464,8 +1856,7 @@
         </div>
     </div>
 
-    <!-- MODAL ELIMINAR NIÑO -->
-    <div class="modal-overlay" id="modal-eliminar-alumno">
+    <div id="modal-eliminar-alumno" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-user-minus" style="font-size:36px; color:#ff7675;"></i>
@@ -486,8 +1877,7 @@
         </div>
     </div>
 
-    <!-- MODAL SOLICITUD EDICIÓN -->
-    <div class="modal-overlay" id="modal-solicitar-edicion">
+    <div id="modal-solicitar-edicion" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-pen-to-square" style="font-size:36px; color:#e67e22;"></i>
@@ -508,8 +1898,7 @@
         </div>
     </div>
 
-    <!-- MODAL APROBAR EDICIÓN -->
-    <div class="modal-overlay" id="modal-aprobar-edicion">
+    <div id="modal-aprobar-edicion" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-user-check" style="font-size:36px; color:#2ecc71;"></i>
@@ -528,53 +1917,452 @@
         </div>
     </div>
 
-    <!-- MODAL CUMBLEAÑEROS -->
-    <div class="modal-overlay" id="modal-cumpleaneros">
+    <div id="modal-cumpleaneros" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-cake-candles" style="font-size:36px; color:#f39c12;"></i>
-                <h3 style="margin-top:8px;">Cumpleañeros del Mes</h3>
+                <h3 style="margin-top:8px;">Cumpleaños del Mes</h3>
             </div>
+
             <div id="lista-cumpleaneros" style="margin-top:15px; text-align:left;"></div>
             <button class="btn-cerrar-modal" onclick="cerrarModalCumpleaneros()"
                 style="margin-top:15px; width:100%;">Cerrar</button>
         </div>
     </div>
 
-    <!-- MODAL VISTA PREVIA -->
-    <div class="modal-overlay" id="modal-vista-previa">
+    <div id="modal-nueva-actividad" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada">
+            <h3><i class="fa-solid fa-calendar-plus"></i> Agregar actividad</h3>
+            <form id="form-nueva-actividad">
+                <div class="campo"><label for="act-titulo">Nombre de la actividad</label>
+                    <input id="act-titulo" class="input-txt" maxlength="120" required>
+                </div>
+                <div class="campo"><label for="act-descripcion">Descripción (opcional)</label>
+                    <textarea id="act-descripcion" class="input-txt" maxlength="500"></textarea>
+                </div>
+                <div class="campo"><label for="act-fecha">Fecha</label>
+                    <input id="act-fecha" type="date" class="input-txt" required>
+                </div>
+                <div class="campo"><label for="act-tipo">Tipo</label>
+                    <select id="act-tipo" class="input-txt" required>
+                        <option value="evento">Evento</option><option value="actividad">Actividad</option>
+                    </select>
+                </div>
+                <div class="config-horario-rango">
+                    <button class="btn-cerrar-modal btn-cancelar" type="button" id="btn-cancelar-actividad">Cancelar</button>
+                    <button class="btn-enviar-clase" type="submit">Guardar actividad</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-nueva-leccion" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:600px;">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-book-open" style="font-size:36px; color:#2575fc;"></i>
+                <h3 style="margin-top:8px;">Nueva Lección</h3>
+                <p style="color:#747d8c; font-size:13px;">Completa el formulario para subir tu lección</p>
+            </div>
+            <form id="form-nueva-leccion">
+                <div class="campo"><label><i class="fa-regular fa-user"></i> Maestro</label><input type="text"
+                        id="lec-autor" class="input-txt input-moderno" readonly style="background:#f0f0f0;"></div>
+                <div class="campo"><label><i class="fa-regular fa-calendar"></i> Fecha</label><input type="date"
+                        id="lec-fecha" class="input-txt input-moderno" readonly style="background:#f0f0f0;"></div>
+                <div class="campo"><label><i class="fa-regular fa-file-lines"></i> Título <span
+                            style="color:#ff7675;">*</span></label><input type="text" id="lec-titulo"
+                        class="input-txt input-moderno" placeholder="Ej: El amor de Dios" required></div>
+                <div class="campo"><label><i class="fa-regular fa-layer-group"></i> Sección <span
+                            style="color:#ff7675;">*</span></label><select id="lec-seccion"
+                        class="input-txt input-moderno" required>
+                        <option value="">-- Seleccionar --</option>
+                        <option value="infancia">Primera Infancia</option>
+                        <option value="medianos">Medianos</option>
+                        <option value="grandes">Grandes</option>
+                    </select></div>
+                <div class="campo"><label><i class="fa-regular fa-comment"></i> Descripción</label><textarea
+                        id="lec-descripcion" class="input-txt input-moderno"
+                        style="height:60px; resize:vertical; padding:12px 14px;"
+                        placeholder="Breve descripción..."></textarea></div>
+                <div class="campo"><label><i class="fa-solid fa-bible"></i> Texto memorizado <span
+                            style="color:#ff7675;">*</span></label><input type="text" id="lec-memorizado"
+                        class="input-txt input-moderno" placeholder="Ej: Juan 3:16" required></div>
+                <div class="campo"><label><i class="fa-solid fa-image"></i> Usaste visuales</label><select
+                        id="lec-visuales" class="input-txt input-moderno">
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                    </select></div>
+                <div class="campo" id="lec-campo-visuales" style="display:none;"><label>Subir visuales <span
+                            style="color:#ff7675;">*</span></label><input type="file" id="lec-archivo-visuales"
+                        class="input-txt input-moderno" accept="image/*,.pdf,.ppt,.pptx" style="padding:10px;"></div>
+                <div class="campo"><label><i class="fa-solid fa-gamepad"></i> Realizaste actividad o
+                        juego</label><select id="lec-actividad" class="input-txt input-moderno">
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                    </select></div>
+                <div class="campo" id="lec-campo-actividad" style="display:none;"><label>Describe la actividad <span
+                            style="color:#ff7675;">*</span></label><textarea id="lec-descripcion-actividad"
+                        class="input-txt input-moderno" style="height:60px; resize:vertical; padding:12px 14px;"
+                        placeholder="Describe las indicaciones del juego o actividad..."></textarea></div>
+                <div class="campo"><label><i class="fa-solid fa-file-pdf"></i> Subir bosquejo <span
+                            style="color:#ff7675;">*</span></label>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" class="btn-admin"
+                            onclick="document.getElementById('lec-bosquejo-camara').click()"
+                            style="background:#6c5ce7;"><i class="fa-solid fa-camera"></i> Cámara</button>
+                        <button type="button" class="btn-admin"
+                            onclick="document.getElementById('lec-bosquejo-archivo').click()"
+                            style="background:#2575fc;"><i class="fa-solid fa-folder-open"></i> Archivos</button>
+                    </div>
+                    <input type="file" id="lec-bosquejo-camara" accept="image/*" capture="environment"
+                        style="display:none;"
+                        onchange="document.getElementById('lec-bosquejo-archivo').files = this.files; this.value='';">
+                    <input type="file" id="lec-bosquejo-archivo" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                        style="padding:10px; margin-top:8px; width:100%;" required>
+                </div>
+                <div class="campo"><label><i class="fa-solid fa-file-pdf"></i> Hoja de trabajo (opcional)</label>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" class="btn-admin"
+                            onclick="document.getElementById('lec-hoja-camara').click()" style="background:#6c5ce7;"><i
+                                class="fa-solid fa-camera"></i> Cámara</button>
+                        <button type="button" class="btn-admin"
+                            onclick="document.getElementById('lec-hoja-archivo').click()" style="background:#2575fc;"><i
+                                class="fa-solid fa-folder-open"></i> Archivos</button>
+                    </div>
+                    <input type="file" id="lec-hoja-camara" accept="image/*" capture="environment" style="display:none;"
+                        onchange="document.getElementById('lec-hoja-archivo').files = this.files; this.value='';">
+                    <input type="file" id="lec-hoja-archivo" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                        style="padding:10px; margin-top:8px; width:100%;">
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar"
+                        onclick="cerrarNuevaLeccion()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase">Enviar Lección</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-completar-leccion" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:600px;">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-check-double" style="font-size:36px; color:#2ecc71;"></i>
+                <h3 style="margin-top:8px;">Completar Inscripción</h3>
+                <p style="color:#747d8c; font-size:13px;">Revisa la lección y completa la inscripción</p>
+            </div>
+            <div id="contenido-preinscripcion"
+                style="background:#f8f9fa; padding:15px; border-radius:12px; margin-bottom:15px; max-height:200px; overflow-y:auto;">
+            </div>
+            <form id="form-completar-leccion">
+                <div class="campo"><label><i class="fa-regular fa-file-lines"></i> Resumen del Admin <span
+                            style="color:#ff7675;">*</span></label><textarea id="lec-resumen-admin"
+                        class="input-txt input-moderno" style="height:80px; resize:vertical; padding:12px 14px;"
+                        placeholder="Escribe el resumen oficial..." required></textarea></div>
+                <div class="campo"><label><i class="fa-solid fa-image"></i> Subir portada</label><input type="file"
+                        id="lec-portada" class="input-txt input-moderno" accept="image/*" style="padding:10px;"></div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar"
+                        onclick="cerrarCompletarLeccion()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase" style="background:#2ecc71;">Completar
+                        Inscripción</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-ver-leccion" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:700px;">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
-                <i class="fa-solid fa-eye" style="font-size:36px; color:#2575fc;"></i>
-                <h3 style="margin-top:8px;">Vista Previa del Documento</h3>
+                <i class="fa-solid fa-book-open" style="font-size:36px; color:#2575fc;"></i>
+                <h3 style="margin-top:8px;" id="ver-leccion-titulo">Título</h3>
+                <p style="color:#747d8c; font-size:13px;" id="ver-leccion-autor">Autor - Fecha</p>
             </div>
-            <div id="contenido-vista-previa"
-                style="margin-top:15px; text-align:center; max-height:500px; overflow-y:auto;"></div>
-            <button class="btn-cerrar-modal" onclick="cerrarModalVistaPrevia()"
+            <div id="contenido-leccion" style="text-align:left; max-height:400px; overflow-y:auto;"></div>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:15px; flex-wrap:wrap;">
+                <button class="btn-enviar-clase" onclick="modoLectura()" style="background:#2575fc;"><i
+                        class="fa-solid fa-book"></i> Modo Lectura</button>
+                <button class="btn-enviar-clase" onclick="modoEstudio()" style="background:#e67e22;"><i
+                        class="fa-solid fa-graduation-cap"></i> Modo Estudio</button>
+            </div>
+            <button class="btn-cerrar-modal"
+                onclick="document.getElementById('modal-ver-leccion').classList.remove('activo')"
                 style="margin-top:15px; width:100%;">Cerrar</button>
         </div>
     </div>
 
-    <!-- MODAL ACERCA DE -->
-    <div class="modal-overlay" id="pantalla-modal-creditos">
+    <div id="modal-sustituto" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:500px;">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-handshake" style="font-size:36px; color:#e67e22;"></i>
+                <h3 style="margin-top:8px;">Solicitar Sustituto</h3>
+                <p style="color:#747d8c; font-size:13px;">Selecciona un maestro disponible para que te reemplace</p>
+            </div>
+            <div id="lista-sustitutos" style="max-height:300px; overflow-y:auto;"></div>
+            <button class="btn-cerrar-modal btn-cancelar"
+                onclick="document.getElementById('modal-sustituto').classList.remove('activo')"
+                style="margin-top:15px; width:100%;">Cancelar</button>
+        </div>
+    </div>
+
+    <div id="modal-cambiar-clave" class="modal-overlay">
+        <div class="modal-burbuja">
+            <h3><i class="fa-solid fa-lock" style="color:#2575fc;"></i> Cambiar Contraseña</h3>
+            <p class="descripcion-modal">Ingresa tu contraseña actual y la nueva</p>
+            <form id="form-cambiar-clave-panel">
+                <div class="campo"><label>Contraseña actual</label><input type="password"
+                        id="cambiar-clave-actual-panel" class="input-txt" placeholder="••••••••" required></div>
+                <div class="campo"><label>Nueva contraseña (mínimo 8 caracteres)</label><input type="password"
+                        id="cambiar-clave-nueva-panel" class="input-txt" placeholder="••••••••" required></div>
+                <div class="campo"><label>Confirmar nueva contraseña</label><input type="password"
+                        id="cambiar-clave-confirmar-panel" class="input-txt" placeholder="••••••••" required></div>
+                <div class="acciones-modal">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar"
+                        onclick="document.getElementById('modal-cambiar-clave').classList.remove('activo')">Cancelar</button>
+                    <button type="button" class="btn-enviar-clase" onclick="cambiarContrasenaPanel()">Cambiar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-subir-foto" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:500px;">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-camera" style="font-size:36px; color:#6c5ce7;"></i>
+                <h3 style="margin-top:8px;">Subir Foto a Galería</h3>
+                <p style="color:#747d8c; font-size:13px;">Comparte momentos de tu clase</p>
+            </div>
+            <form id="form-subir-foto">
+                <div class="campo"><label><i class="fa-regular fa-image"></i> Seleccionar foto</label>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" class="btn-admin" onclick="document.getElementById('foto-camara').click()"
+                            style="background:#6c5ce7;"><i class="fa-solid fa-camera"></i> Tomar foto</button>
+                        <button type="button" class="btn-admin"
+                            onclick="document.getElementById('foto-archivo').click()" style="background:#2575fc;"><i
+                                class="fa-solid fa-folder-open"></i> Subir archivo</button>
+                    </div>
+                    <input type="file" id="foto-camara" accept="image/*" capture="environment" style="display:none;"
+                        onchange="document.getElementById('foto-archivo').files = this.files; this.value='';">
+                    <input type="file" id="foto-archivo" accept="image/*"
+                        style="padding:10px; margin-top:8px; width:100%;" required>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar"
+                        onclick="cerrarSubirFoto()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase">Subir Foto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-agregar-contacto" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada" style="max-width:450px;">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-user-plus" style="font-size:36px; color:#2575fc;"></i>
+                <h3 style="margin-top:8px;">Agregar Contacto</h3>
+                <p style="color:#747d8c; font-size:13px;">Ingresa el correo del maestro</p>
+            </div>
+            <div class="campo"><label><i class="fa-regular fa-envelope"></i> Correo del contacto</label><input
+                    type="email" id="contacto-email" class="input-txt input-moderno"
+                    placeholder="nombre@iglesiazoarsv.org" required></div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                <button type="button" class="btn-cerrar-modal btn-cancelar"
+                    onclick="cerrarAgregarContacto()">Cancelar</button>
+                <button class="btn-enviar-clase" onclick="agregarContacto()">Agregar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-tema-clase" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
-                <i class="fa-solid fa-circle-check" style="font-size:45px; color:#2575fc;"></i>
+                <i class="fa-solid fa-book-bible" style="font-size:36px; color:#2575fc;"></i>
+                <h3 style="margin-top:8px;">Tema de la Semana</h3>
+                <p style="color:#747d8c; font-size:13px;" id="tema-seccion-label">Primera Infancia</p>
+            </div>
+            <div id="contenido-tema" style="text-align:left;">
+                <p style="color:#95a5a6; text-align:center;">Cargando tema...</p>
+            </div>
+            <button class="btn-cerrar-modal"
+                onclick="document.getElementById('modal-tema-clase').classList.remove('activo')"
+                style="margin-top:15px; width:100%;">Cerrar</button>
+        </div>
+    </div>
+
+    <div id="modal-editar-tema" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-pen-to-square" style="font-size:36px; color:#2575fc;"></i>
+                <h3 style="margin-top:8px;">Editar Tema de Clase</h3>
+            </div>
+            <form id="form-tema-clase">
+                <div class="campo"><label><i class="fa-regular fa-layer-group"></i> Sección</label><select
+                        id="tema-seccion" class="input-txt input-moderno" required>
+                        <option value="infancia">Primera Infancia</option>
+                        <option value="medianos">Medianos</option>
+                        <option value="grandes">Grandes</option>
+                    </select></div>
+                <div class="campo"><label><i class="fa-regular fa-file-lines"></i> Título</label><input type="text"
+                        id="tema-titulo" class="input-txt input-moderno" placeholder="Ej: El amor de Dios" required>
+                </div>
+                <div class="campo"><label><i class="fa-regular fa-comment"></i> Resumen</label><textarea
+                        id="tema-resumen" class="input-txt input-moderno"
+                        style="height:80px; resize:vertical; padding:12px 14px;"
+                        placeholder="Breve descripción del tema..."></textarea></div>
+                <div class="campo"><label><i class="fa-solid fa-bible"></i> Versículo clave</label><input type="text"
+                        id="tema-versiculo" class="input-txt input-moderno" placeholder="Ej: Juan 3:16"></div>
+                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar"
+                        onclick="cerrarModalTema()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase">Guardar Tema</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-cambio-clave-persistente" class="modal-overlay" style="z-index:9999;">
+        <div class="modal-burbuja" style="max-width:450px;">
+            <h3><i class="fa-solid fa-key" style="color:#2575fc;"></i> Cambiar Contraseña Temporal</h3>
+            <p class="descripcion-modal">Debes cambiar tu contraseña antes de continuar</p>
+            <form id="form-cambio-clave-persistente-panel">
+                <div class="campo">
+                    <label>Nueva contraseña (mínimo 8 caracteres)</label>
+                    <input type="password" id="cambio-clave-nueva-panel" class="input-txt" placeholder="••••••••"
+                        required>
+                    <div id="barra-seguridad-panel"
+                        style="height:6px; border-radius:6px; margin-top:8px; background:#dfe4ea; overflow:hidden; transition:all 0.3s;">
+                        <div id="barra-seguridad-progreso-panel"
+                            style="height:100%; width:0%; border-radius:6px; transition:width 0.3s ease; background:#ff7675;">
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:4px;">
+                        <span id="seguridad-texto-panel" style="color:#ff7675;">Débil</span>
+                        <span id="seguridad-criterios-panel">0/5</span>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; font-size:10px;">
+                        <span id="cri-8-panel" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> 8+ car</span>
+                        <span id="cri-may-panel" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i>
+                            Mayúscula</span>
+                        <span id="cri-num-panel" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i>
+                            Número</span>
+                        <span id="cri-sig-panel" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i>
+                            Signo</span>
+                        <span id="cri-esp-panel" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> Sin
+                            espacios</span>
+                    </div>
+                </div>
+                <div class="campo">
+                    <label>Confirmar contraseña</label>
+                    <input type="password" id="cambio-clave-confirmar-panel" class="input-txt" placeholder="••••••••"
+                        required>
+                </div>
+                <button type="submit" class="btn-enviar-clase" style="width:100%;">Cambiar Contraseña</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-estudio" class="modal-overlay" style="z-index:9998;">
+        <div class="modal-burbuja" style="max-width:600px;">
+            <h3><i class="fa-solid fa-graduation-cap" style="color:#e67e22;"></i> Modo Estudio</h3>
+            <p class="descripcion-modal" id="estudio-pregunta">Responde las siguientes preguntas</p>
+            <div id="estudio-contenido" style="margin-top:15px; max-height:400px; overflow-y:auto;"></div>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:15px; flex-wrap:wrap;">
+                <button class="btn-cerrar-modal" onclick="cerrarEstudio()" style="background:#ff7675;">Salir</button>
+                <button class="btn-enviar-clase" onclick="siguientePregunta()" id="btn-siguiente-pregunta"
+                    style="background:#2575fc;">Siguiente</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pantalla-modal-creditos" class="modal-overlay">
+        <div class="modal-burbuja modal-burbuja-mejorada">
+            <div class="modal-header" style="text-align:center; margin-bottom:20px;">
+                <i class="fa-solid fa-church" style="font-size:45px; color:#2575fc;"></i>
                 <h3 style="margin-top:8px;">ZoarKids 360</h3>
             </div>
-            <p><strong>Versión:</strong> 13.0.0</p>
-            <p style="text-align:justify;">Sistema de gestión para la Escuela Dominical de la Iglesia Evangélica Zoar.
+            <p><strong>Versión:</strong> 20.0.0</p>
+            <p style="text-align:justify; font-size:14px; color:#555; line-height:1.6;">
+                ZoarKids 360 es un sistema de gestión integral para la Escuela Dominical de la Iglesia Evangélica Zoar.
+                Diseñado para optimizar el control de asistencia, la gestión de material didáctico, la comunicación
+                entre maestros
+                y la administración de lecciones bíblicas. Nuestra misión es facilitar el trabajo de los maestros y
+                ,
+                permitiendo un enfoque más efectivo en la enseñanza y el crecimiento espiritual de los niños.
             </p>
             <p style="margin-top:10px; font-weight:bold; color:#1e3799;">Iglesia Zoar - El Salvador, 2026</p>
+            <p style="font-size:12px; color:#95a5a6;">"Formando discípulos para la gloria de Dios"</p>
             <button class="btn-cerrar-modal" id="btn-cerrar-modal-click"
                 style="margin-top:15px; width:100%;">Entendido</button>
         </div>
     </div>
 
-    <!-- NOTIFICACIONES -->
     <div id="notificacion-sistema"></div>
 
-    <script src="panel.js?v=13.0"></script>
+    <script src="config.js"></script>
+    <script src="config.local.js"></script>
+    <script src="offline-store.js"></script>
+    <script src="panel.js?v=FINAL"></script>
+    <script>
+        // Exponer globalmente la función usada por los onclick del cronograma.
+        window.verLeccionDesdeCronograma = function (seccion) {
+            const filtro = document.getElementById('filtro-biblioteca-seccion');
+            const seccionesValidas = ['infancia', 'medianos', 'grandes'];
+            const seleccion = seccionesValidas.includes(seccion) ? seccion : 'todas';
+
+            document.querySelector('#menu-principal [data-vista="biblioteca"]')?.click();
+            if (!filtro) return;
+
+            filtro.value = seleccion;
+            if (typeof window.filtrarBibliotecaSeccion === 'function') {
+                window.filtrarBibliotecaSeccion(seleccion);
+            } else {
+                filtro.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        };
+
+        // Si estamos en modo prueba, cargar prueba.js
+        if (sessionStorage.getItem('zk360_modo_prueba') === 'true') {
+            const claveAlumnosPrueba = CLAVE_ALUMNOS_MODO_PRUEBA;
+            const listaAlumnosPrueba = document.getElementById('lista-alumnos-prueba-locales');
+            const panelAlumnosPrueba = document.getElementById('alumnos-prueba-locales');
+
+            function renderizarAlumnosPrueba() {
+                let alumnos = [];
+                try {
+                    alumnos = JSON.parse(localStorage.getItem(claveAlumnosPrueba) || '[]');
+                } catch (error) {
+                    alumnos = [];
+                }
+
+                if (!listaAlumnosPrueba || !panelAlumnosPrueba) return;
+                listaAlumnosPrueba.replaceChildren();
+                panelAlumnosPrueba.style.display = alumnos.length ? 'block' : 'none';
+                alumnos.forEach(alumno => {
+                    const fila = document.createElement('div');
+                    fila.style.cssText = 'padding:10px 12px; border-bottom:1px solid #eef2f7;';
+                    const nombre = document.createElement('strong');
+                    nombre.textContent = alumno.nombre_completo || alumno.nombre || '';
+                    const detalle = document.createElement('span');
+                    detalle.style.cssText = 'display:block; color:#747d8c; font-size:12px; margin-top:3px;';
+                    detalle.textContent = `${alumno.seccion || ''} · ${alumno.fecha_nacimiento || alumno.nacimiento || ''}`;
+                    fila.append(nombre, detalle);
+                    listaAlumnosPrueba.appendChild(fila);
+                });
+            }
+
+            renderizarAlumnosPrueba();
+
+            document.getElementById('form-registro-alumno')?.addEventListener('submit', () => {
+                window.setTimeout(renderizarAlumnosPrueba, 0);
+            });
+
+            const script = document.createElement('script');
+            script.src = 'prueba.js?v=FINAL';
+            document.head.appendChild(script);
+            console.log(' Modo Prueba: script cargado');
+        }
+    </script>
+
+    <div id="zk360-network-status" class="network-status" role="status" aria-live="polite" hidden></div>
+    <script src="pwa.js" defer></script>
 </body>
 
 </html>

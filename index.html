@@ -1,58 +1,67 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZoarKids 360 </title>
-    <!-- ICONO EN PANTALLA -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZoarKids 360</title>
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="apple-touch-icon" href="logo.png">
-    <link rel="stylesheet" href="style.css?v=14.0">
+    <link rel="stylesheet" href="style.css?v=FINAL">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-
 <body class="body-login">
 
-    <!-- SPLASH SCREEN -->
     <div id="splash-screen">
         <img src="logo.png" alt="ZoarKids 360" class="splash-logo-grande" onerror="this.style.display='none'">
         <h2 class="splash-titulo">ZoarKids 360</h2>
-        <p class="splash-subtitulo">Sistema de Gestión Infantil</p>
+        <p class="splash-subtitulo">Sistema de Gesti&oacute;n Infantil</p>
         <div class="spinner-carga"></div>
     </div>
 
-    <!-- TARJETA DE LOGIN -->
     <div class="tarjeta-login" id="tarjeta-login">
-        <img src="logo.png" alt="ZoarKids" class="logo-login-grande"
-            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 80%22%3E%3Crect fill=%22%232575fc%22 width=%22200%22 height=%2280%22 rx=%2210%22/%3E%3Ctext x=%2250%22 y=%2250%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2230%22 font-weight=%22bold%22 font-family=%22sans-serif%22%3EZK 360%3C/text%3E%3C/svg%3E'">
+        <img src="logo.png" alt="ZoarKids" class="logo-login-grande" id="logo-login" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 80%22%3E%3Crect fill=%22%232575fc%22 width=%22200%22 height=%2280%22 rx=%2210%22/%3E%3Ctext x=%2250%22 y=%2250%22 text-anchor=%22middle%22 fill=%22white%22 font-size=%2230%22 font-weight=%22bold%22 font-family=%22sans-serif%22%3EZK 360%3C/text%3E%3C/svg%3E'">
 
         <h1>ZoarKids 360</h1>
         <p class="sub">Acceso seguro al sistema</p>
 
         <form id="form-login">
             <div class="campo">
-                <label><i class="fa-regular fa-envelope"></i> Correo electrónico</label>
+                <label>Correo electr&oacute;nico</label>
                 <div class="wrapper-input">
                     <i class="fa-regular fa-envelope"></i>
-                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required
-                        autocomplete="email">
+                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required autocomplete="email">
                 </div>
             </div>
             <div class="campo">
-                <label><i class="fa-solid fa-lock"></i> Contraseña</label>
+                <label></i> Contrase&ntilde;a</label>
                 <div class="wrapper-input">
                     <i class="fa-solid fa-lock"></i>
-                    <input type="password" id="clave" class="input-txt" placeholder="••••••••" required
-                        autocomplete="current-password">
+                    <input type="password" id="clave" class="input-txt" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" required autocomplete="current-password">
                 </div>
             </div>
             <button type="submit" class="btn-ingresar">
                 <i class="fa-solid fa-arrow-right-to-bracket"></i> Ingresar
             </button>
         </form>
+        <div id="login-error" class="error-message" role="alert" aria-live="assertive" hidden></div>
+        <button type="button" id="btn-ingresar-offline" class="btn-ingresar" style="display:none; margin-top:12px;">
+            <i class="fa-solid fa-wifi"></i> Entrar como maestro asignado (sin conexión)
+        </button>
+        <p id="aviso-ingreso-offline" style="display:none; font-size:12px; color:#747d8c; margin-top:8px;" role="status">
+            Se usará el acceso de maestro guardado en este dispositivo. Los cambios se sincronizarán al recuperar internet.
+        </p>
 
-        <!-- CAPA DE BLOQUEO -->
+        <div class="enlaces-login">
+            <a href="#" onclick="abrirSolicitarCodigo()">
+                <i class="fa-regular fa-user-plus"></i> Registrarme
+            </a>
+            <span class="separador">|</span>
+            <a href="#" onclick="document.getElementById('modal-recuperar-clave').classList.add('activo')">
+                <i class="fa-regular fa-key"></i> Olvid&eacute; mi contrase&ntilde;a
+            </a>
+        </div>
+
         <div class="bloqueo-overlay" id="capa-bloqueo">
             <i class="fa-solid fa-lock"></i>
             <h3>Demasiados intentos</h3>
@@ -63,7 +72,242 @@
     <div class="globo-fondo gf-1"></div>
     <div class="globo-fondo gf-2"></div>
 
-    <script src="logica.js?v=7.0"></script>
-</body>
+    <!-- MODAL SOLICITAR CÓDIGO -->
+    <div class="modal-overlay" id="modal-solicitar-codigo">
+        <div class="modal-burbuja">
+            <h3><i class="fa-solid fa-ticket" style="color:#f39c12;"></i> Solicitar C&oacute;digo de Invitaci&oacute;n</h3>
+            <p class="descripcion-modal">Completa el formulario para recibir tu c&oacute;digo de invitaci&oacute;n</p>
+            <form id="form-solicitar-codigo">
+                <div class="campo">
+                    <label><i class="fa-regular fa-user"></i> Nombre completo</label>
+                    <input type="text" id="sol-nombre" class="input-txt" placeholder="Ej: Carlos González" required>
+                    <span id="sol-nombre-error" style="font-size:11px; color:#ff7675; display:none;"></span>
+                </div>
+                <div class="campo">
+                    <label><i class="fa-regular fa-comment"></i> Motivo</label>
+                    <textarea id="sol-motivo" class="input-txt" style="height:80px; resize:none; padding:12px 14px;" placeholder="Escribe tu motivaci&oacute;n..." required></textarea>
+                    <span id="sol-motivo-error" style="font-size:11px; color:#ff7675; display:none;"></span>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar" onclick="cerrarSolicitarCodigo()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase">Solicitar C&oacute;digo</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
+    <!-- MODAL MOSTRAR CÓDIGO -->
+    <div class="modal-overlay" id="modal-mostrar-codigo">
+        <div class="modal-burbuja" style="text-align:center;">
+            <i class="fa-solid fa-check-circle" style="font-size:45px; color:#2ecc71;"></i>
+            <h3 style="margin-top:10px;">C&oacute;digo de Invitaci&oacute;n Generado</h3>
+            <p style="color:#747d8c; font-size:13px;">Usa este c&oacute;digo para completar tu registro</p>
+            <div style="background:#f8f9fa; padding:20px; border-radius:16px; margin:15px 0; border:2px dashed #2575fc;">
+                <span id="codigo-generado" style="font-size:28px; font-weight:700; color:#1e3799; letter-spacing:3px;">ZK-XXXX-2026</span>
+            </div>
+            <div style="display:flex; justify-content:center; gap:15px; margin-bottom:15px;">
+                <button onclick="copiarCodigo()" class="btn-enviar-clase" style="padding:8px 20px; font-size:13px;">
+                    <i class="fa-regular fa-copy"></i> Copiar
+                </button>
+                <button onclick="irARegistroConCodigo()" class="btn-enviar-clase" style="padding:8px 20px; font-size:13px; background:#2575fc;">
+                    <i class="fa-solid fa-arrow-right"></i> Registrarse
+                </button>
+            </div>
+            <p style="font-size:13px; color:#f39c12;">
+                <i class="fa-regular fa-clock"></i> V&aacute;lido por <span id="codigo-contador">05:00</span>
+            </p>
+            <p style="font-size:12px; color:#95a5a6; margin-top:5px;">
+                Si cierras esta ventana, el c&oacute;digo se invalidar&aacute;
+            </p>
+            <button class="btn-cerrar-modal btn-cancelar" onclick="cerrarMostrarCodigo()" style="margin-top:15px; width:100%;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL REGISTRO CON CÓDIGO -->
+    <div class="modal-overlay" id="modal-registro-codigo">
+        <div class="modal-burbuja">
+            <h3><i class="fa-solid fa-user-plus" style="color:#2ecc71;"></i> Registrar con C&oacute;digo</h3>
+            <p class="descripcion-modal">Ingresa el c&oacute;digo que recibiste y completa tus datos</p>
+            <form id="form-registro-codigo">
+                <div class="campo">
+                    <label><i class="fa-solid fa-ticket"></i> C&oacute;digo de invitaci&oacute;n</label>
+                    <input type="text" id="reg-codigo" class="input-txt" placeholder="ZK-XXXX-2026" required>
+                </div>
+                <div class="campo">
+                    <label><i class="fa-regular fa-envelope"></i> Correo</label>
+                    <input type="email" id="reg-email" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
+                    <span id="reg-email-error" style="font-size:11px; color:#ff7675; display:none;"></span>
+                </div>
+                <div class="campo">
+                    <label><i class="fa-solid fa-lock"></i> Contrase&ntilde;a</label>
+                    <input type="password" id="reg-clave-codigo" class="input-txt" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" required>
+                    <div id="barra-seguridad-registro" style="height:6px; border-radius:6px; margin-top:8px; background:#dfe4ea; overflow:hidden; transition:all 0.3s;">
+                        <div id="barra-seguridad-progreso-registro" style="height:100%; width:0%; border-radius:6px; transition:width 0.3s ease; background:#ff7675;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:4px;">
+                        <span id="seguridad-texto-registro" style="color:#ff7675;">D&eacute;bil</span>
+                        <span id="seguridad-criterios-registro">0/5</span>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; font-size:10px;">
+                        <span id="cri-8-registro" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> 8+ car</span>
+                        <span id="cri-may-registro" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> May&uacute;scula</span>
+                        <span id="cri-num-registro" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> N&uacute;mero</span>
+                        <span id="cri-sig-registro" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> Signo</span>
+                        <span id="cri-esp-registro" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> Sin espacios</span>
+                    </div>
+                    <span id="reg-clave-error" style="font-size:11px; color:#ff7675; display:none;"></span>
+                </div>
+                <div class="campo">
+                    <label><i class="fa-solid fa-lock"></i> Confirmar contrase&ntilde;a</label>
+                    <input type="password" id="reg-clave-confirmar-codigo" class="input-txt" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" required>
+                </div>
+                <div class="campo">
+                    <label><i class="fa-solid fa-question-circle"></i> Pregunta de seguridad</label>
+                    <select id="reg-pregunta" class="input-txt" required>
+                        <option value="">-- Seleccionar --</option>
+                        <option value="mascota">¿Cuál es el nombre de tu mascota?</option>
+                        <option value="primer_maestro">¿Cómo se llamaba tu primer maestro?</option>
+                        <option value="comida">¿Cuál es tu comida favorita?</option>
+                        <option value="ciudad">¿En qué ciudad naciste?</option>
+                        <option value="personal">Escribe tu propia pregunta</option>
+                    </select>
+                </div>
+                <div class="campo" id="campo-pregunta-personal" style="display:none;">
+                    <label>Escribe tu pregunta</label>
+                    <input type="text" id="reg-pregunta-personal" class="input-txt" placeholder="Escribe tu pregunta de seguridad...">
+                </div>
+                <div class="campo">
+                    <label>Respuesta a la pregunta de seguridad</label>
+                    <input type="text" id="reg-respuesta" class="input-txt" placeholder="Tu respuesta..." required>
+                </div>
+                <div class="campo" style="display:flex; align-items:flex-start; gap:10px;">
+                    <input type="checkbox" id="reg-acepto-politicas" required style="margin-top:4px; width:18px; height:18px;">
+                    <label for="reg-acepto-politicas" style="font-size:13px; font-weight:normal; margin:0;">
+                        Acepto las <a href="#" onclick="abrirPoliticas(); return false;" style="color:#2575fc; text-decoration:underline;">Políticas de Privacidad y Condiciones de Uso</a> de ZoarKids 360
+                    </label>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                    <button type="button" class="btn-cerrar-modal btn-cancelar" onclick="cerrarRegistroCodigo()">Cancelar</button>
+                    <button type="submit" class="btn-enviar-clase">Registrarse</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL POLÍTICAS -->
+    <div class="modal-overlay" id="modal-politicas">
+        <div class="modal-burbuja" style="max-width:600px;">
+            <h3><i class="fa-solid fa-shield-halved" style="color:#2575fc;"></i> Políticas de Privacidad y Condiciones de Uso</h3>
+            <div style="max-height:350px; overflow-y:auto; text-align:left; padding:10px; background:#f8f9fa; border-radius:12px; margin:15px 0;">
+                <p style="font-weight:bold; color:#1e3799;">1. PROTECCIÓN DE DATOS</p>
+                <p style="font-size:13px; color:#555;">ZoarKids 360 cumple con la normativa de protección de datos. Toda la información personal se almacena de forma segura en Supabase.</p>
+                <br>
+                <p style="font-weight:bold; color:#1e3799;">2. USO DE LA INFORMACIÓN</p>
+                <p style="font-size:13px; color:#555;">Los datos serán utilizados exclusivamente para: Gestión de asistencia, comunicación, biblioteca y notificaciones.</p>
+                <br>
+                <p style="font-weight:bold; color:#1e3799;">3. RESPONSABILIDADES DEL USUARIO</p>
+                <p style="font-size:13px; color:#555;">El usuario es responsable de la veracidad de los datos, el uso adecuado, la custodia de sus credenciales y no compartir su contraseña.</p>
+                <br>
+                <p style="font-weight:bold; color:#1e3799;">4. LENGUAJE Y CONDUCTA</p>
+                <p style="font-size:13px; color:#555;">No se tolerará lenguaje ofensivo, acoso o contenido inapropiado. El incumplimiento puede resultar en bloqueo de cuenta.</p>
+                <br>
+                <p style="font-weight:bold; color:#1e3799;">5. NOTIFICACIONES</p>
+                <p style="font-size:13px; color:#555;">Al registrarte, aceptas recibir notificaciones push relacionadas con turnos, mensajes y eventos.</p>
+                <br>
+                <p style="font-weight:bold; color:#1e3799;">6. ELIMINACIÓN DE CUENTA</p>
+                <p style="font-size:13px; color:#555;">Puedes solicitar la eliminación de tu cuenta contactando al administrador. El sistema nunca eliminará tu cuenta automáticamente.</p>
+                <br>
+                <p style="font-size:11px; color:#95a5a6; text-align:center;">Última actualización: Agosto 2026 | Iglesia Evangélica Zoar</p>
+            </div>
+            <button class="btn-cerrar-modal" onclick="document.getElementById('modal-politicas').classList.remove('activo')" style="margin-top:10px; width:100%;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL RECUPERAR CONTRASEÑA -->
+    <div class="modal-overlay" id="modal-recuperar-clave">
+        <div class="modal-burbuja">
+            <h3><i class="fa-solid fa-key" style="color:#f39c12;"></i> Recuperar Contrase&ntilde;a</h3>
+            <div id="paso-recuperar-1">
+                <p class="descripcion-modal">Ingresa tu correo para verificar tu identidad</p>
+                <div class="campo">
+                    <label>Correo electr&oacute;nico</label>
+                    <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
+                </div>
+                <button class="btn-enviar-clase" onclick="verificarPreguntaSeguridad()" style="width:100%;">
+                    Verificar identidad
+                </button>
+            </div>
+            <div id="paso-recuperar-2" style="display:none;">
+                <p class="descripcion-modal" id="pregunta-mostrada">¿Cuál es el nombre de tu mascota?</p>
+                <div class="campo">
+                    <label>Tu respuesta</label>
+                    <input type="text" id="recuperar-respuesta" class="input-txt" placeholder="Escribe tu respuesta..." required>
+                </div>
+                <button class="btn-enviar-clase" onclick="validarRespuestaSeguridad()" style="width:100%;">
+                    Validar respuesta
+                </button>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
+                <button class="btn-cerrar-modal btn-cancelar" onclick="cerrarRecuperarClave()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MODO PRUEBA -->
+    <div class="modal-overlay" id="modal-modo-prueba">
+        <div class="modal-burbuja">
+            <h3><i class="fa-solid fa-flask" style="color:#6c5ce7;"></i> Modo Prueba</h3>
+            <p class="descripcion-modal">Selecciona el rol que deseas simular</p>
+            <div style="display:flex; flex-direction:column; gap:10px; margin:15px 0;">
+                <button onclick="seleccionarRolPrueba('maestro_con_clase')" class="btn-enviar-clase" style="width:100%; background:#2ecc71;">
+                    <i class="fa-solid fa-user-graduate"></i> Maestro con clase asignada
+                </button>
+                <button onclick="seleccionarRolPrueba('maestro_sin_clase')" class="btn-enviar-clase" style="width:100%; background:#f39c12;">
+                    <i class="fa-solid fa-user"></i> Maestro sin clase asignada
+                </button>
+            <button class="btn-cerrar-modal btn-cancelar" onclick="document.getElementById('modal-modo-prueba').classList.remove('activo')" style="width:100%;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- MODAL CAMBIO DE CONTRASEÑA PERSISTENTE -->
+    <div class="modal-overlay" id="modal-cambio-clave-persistente" style="z-index:9999;">
+        <div class="modal-burbuja" style="max-width:450px;">
+            <h3><i class="fa-solid fa-key" style="color:#2575fc;"></i> Cambiar Contrase&ntilde;a</h3>
+            <p class="descripcion-modal">Debes cambiar tu contrase&ntilde;a antes de continuar</p>
+            <form id="form-cambio-clave-persistente">
+                <div class="campo">
+                    <label>Nueva contrase&ntilde;a (m&iacute;nimo 8 caracteres)</label>
+                    <input type="password" id="cambio-clave-nueva" class="input-txt" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" required>
+                    <div id="barra-seguridad" style="height:6px; border-radius:6px; margin-top:8px; background:#dfe4ea; overflow:hidden; transition:all 0.3s;">
+                        <div id="barra-seguridad-progreso" style="height:100%; width:0%; border-radius:6px; transition:width 0.3s ease; background:#ff7675;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:4px;">
+                        <span id="seguridad-texto" style="color:#ff7675;">D&eacute;bil</span>
+                        <span id="seguridad-criterios">0/5</span>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; font-size:10px;">
+                        <span id="cri-8" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> 8+ car</span>
+                        <span id="cri-may" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> May&uacute;scula</span>
+                        <span id="cri-num" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> N&uacute;mero</span>
+                        <span id="cri-sig" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> Signo</span>
+                        <span id="cri-esp" style="color:#95a5a6;"><i class="fa-regular fa-circle"></i> Sin espacios</span>
+                    </div>
+                </div>
+                <div class="campo">
+                    <label>Confirmar contrase&ntilde;a</label>
+                    <input type="password" id="cambio-clave-confirmar" class="input-txt" placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;" required>
+                </div>
+                <button type="submit" class="btn-enviar-clase" style="width:100%;">Cambiar Contrase&ntilde;a</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="notificacion-sistema"></div>
+    <div id="zk360-network-status" class="network-status" role="status" aria-live="polite" hidden></div>
+
+    <script src="config.js"></script>
+    <script src="config.local.js"></script>
+    <script src="logica.js?v=FINAL"></script>
+    <script src="pwa.js" defer></script>
+</body>
 </html>

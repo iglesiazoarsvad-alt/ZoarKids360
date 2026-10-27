@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Manual de Usuario para Maestros - ZoarKids 360</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: #2c3e50;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+        }
+
+        /* PORTADA */
+        .portada {
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            page-break-after: always;
+            border: 2px solid #eef2f7;
+            border-radius: 20px;
+            padding: 40px;
+            box-sizing: border-box;
+            background: linear-gradient(135deg, #ffffff 0%, #f4f7f6 100%);
+        }
+
+        .portada h1 {
+            font-size: 38px;
+            color: #1e3799;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .portada h2 {
+            font-size: 22px;
+            color: #2575fc;
+            font-weight: 400;
+            margin-top: 0;
+            margin-bottom: 40px;
+        }
+
+        .portada .badge-sistema {
+            background: #2575fc;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 60px;
+        }
+
+        .portada .autor {
+            margin-top: auto;
+            font-size: 16px;
+            color: #747d8c;
+            border-top: 1px solid #dfe4ea;
+            padding-top: 20px;
+            width: 80%;
+        }
+
+        .portada .autor strong {
+            color: #2c3e50;
+        }
+
+        /* CONTENIDO GENERAL */
+        h2.titulo-seccion {
+            color: #1e3799;
+            border-bottom: 2px solid #2575fc;
+            padding-bottom: 6px;
+            margin-top: 30px;
+            font-size: 20px;
+        }
+
+        h3 {
+            color: #2575fc;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
+        p, li {
+            font-size: 13px;
+            color: #4a5568;
+        }
+
+        ul, ol {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .caja-nota {
+            background-color: #ebf8ff;
+            border-left: 4px solid #3182ce;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+
+        .caja-advertencia {
+            background-color: #fffaf0;
+            border-left: 4px solid #dd6b20;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+
+        .tabla-resumen {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+
+        .tabla-resumen th, .tabla-resumen td {
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .tabla-resumen th {
+            background-color: #f7fafc;
+            color: #2d3748;
+        }
+
+        .salto-pagina {
+            page-break-after: always;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PORTADA -->
+    <div class="portada">
+        <span class="badge-sistema">Plataforma de Gestión Educativa</span>
+        <h1>ZoarKids 360</h1>
+        <h2>Manual de Usuario para Maestros</h2>
+        
+        <div class="autor">
+            <p>Documentación Oficial del Sistema</p>
+            <p><strong>by Jonathan Aguirre</strong></p>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 1: INTRODUCCIÓN Y ACCESO -->
+    <h2 class="titulo-seccion">1. Introducción al Sistema</h2>
+    <p>Bienvenido a <strong>ZoarKids 360</strong>, la plataforma integral orientada al control de asistencia, seguimiento pedagógico y gestión de clases de la Escuela Dominical de la Iglesia Zoar. Este documento detalla las funciones disponibles para el rol de <strong>Maestro</strong>.</p>
+
+    <h3>1.1 Inicio de Sesión</h3>
+    <ol>
+        <li>Ingrese la dirección web oficial del sistema en su navegador.</li>
+        <li>Introduzca su correo electrónico institucional registrado y su contraseña.</li>
+        <li>Haga clic en el botón <strong>Iniciar Sesión</strong>.</li>
+    </ol>
+    <div class="caja-nota">
+        <strong>Nota:</strong> Si olvida sus credenciales o se le ha asignado una clave temporal, comuníquese con el administrador del sistema para la gestión correspondiente.
+    </div>
+
+    <!-- SECCIÓN 2: CONTROL DE ASISTENCIA E INSCRIPCIÓN -->
+    <h2 class="titulo-seccion">2. Módulo de Asistencia</h2>
+    <p>En el módulo de asistencia, como maestro podrá gestionar los registros de los niños pertenecientes a su sección asignada.</p>
+
+    <h3>2.1 Toma de Asistencia Dominical</h3>
+    <ol>
+        <li>Acceda a la pestaña <strong>Asistencia</strong> en el menú lateral.</li>
+        <li>El sistema desplegará automáticamente el listado de alumnos pertenecientes a su clase asignada.</li>
+        <li>Marque la casilla de verificación (checkbox) junto al nombre de cada alumno presente.</li>
+        <li>Al finalizar la revisión, presione el botón <strong>Reportar Asistencia</strong> para consolidar los datos en el sistema.</li>
+    </ol>
+
+    <h3>2.2 Inscripción de Alumnos</h3>
+    <p>Los maestros tienen la facultad de inscribir nuevos niños al banco general de datos directamente desde el menú de asistencia:</p>
+    <ol>
+        <li>Haga clic en el botón <strong>Inscribir</strong> ubicado en la parte superior del módulo de asistencia.</li>
+        <li>Complete la información requerida en el formulario emergente:
+            <ul>
+                <li>Nombre completo del alumno.</li>
+                <li>Sección o clase correspondiente (Primera Infancia, Medianos o Grandes).</li>
+                <li>Fecha de nacimiento (Edad máxima permitida: 12 años).</li>
+            </ul>
+        </li>
+        <li>Presione el botón <strong>Guardar Alumno</strong>. El sistema verificará automáticamente que el registro no exista previamente antes de confirmarlo.</li>
+    </ol>
+
+    <div class="caja-advertencia">
+        <strong>Restricción importante:</strong> Los maestros tienen acceso exclusivo para la inscripción de nuevos niños. Las funciones de modificar o eliminar datos de alumnos están reservadas únicamente para la administración.
+    </div>
+
+    <div class="salto-pagina"></div>
+
+    <!-- SECCIÓN 3: REEMPLAZOS Y SOLICITUD DE SUSTITUTOS -->
+    <h2 class="titulo-seccion">3. Solicitar Sustituto (Transferencia de Clase)</h2>
+    <p>En caso de no poder impartir su clase en el domingo programado, el sistema permite gestionar la solicitud de un maestro sustituto para ceder la responsabilidad de la clase de esa fecha.</p>
+
+    <h3>3.1 Reglas y Requisitos para la Solicitar Sustituto</h3>
+    <table class="tabla-resumen">
+        <thead>
+            <tr>
+                <th>Condición</th>
+                <th>Regla Aplicable</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Días permitidos</strong></td>
+                <td>Las solicitudes únicamente pueden realizarse los días <strong>Lunes y Martes</strong>.</td>
+            </tr>
+            <tr>
+                <td><strong>Asignación</strong></td>
+                <td>El maestro solicitante debe figurar de turno en el cronograma oficial del domingo entrante.</td>
+            </tr>
+            <tr>
+                <td><strong>Transferencia</strong></td>
+                <td>Al completarse la transferencia, la sección pasará temporalmente al control del maestro sustituto seleccionado.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>3.2 Pasos para Realizar la Solicitud</h3>
+    <ol>
+        <li>Haga clic en el botón <strong>Solicitar Sustituto</strong>.</li>
+        <li>El sistema abrirá una lista con los maestros disponibles para recibir la clase.</li>
+        <li>Seleccione al docente de su elección y confirme la acción. El sistema notificará al maestro correspondiente y actualizará la programación oficial.</li>
+    </ol>
+
+    <!-- SECCIÓN 4: RECURSOS PEDAGÓGICOS Y MULTIMEDIA -->
+    <h2 class="titulo-seccion">4. Biblioteca y Galería</h2>
+
+    <h3>4.1 Biblioteca de Lecciones</h3>
+    <p>Sección dedicada a la consulta y preinscripción de clases pedagógicas según la planificación académica. Los maestros de turno pueden explorar las lecciones creadas para su sección.</p>
+
+    <h3>4.2 Galería de Fotos</h3>
+    <p>Permite subir evidencias fotográficas de las actividades desarrolladas en las clases dominicales:</p>
+    <ul>
+        <li>Haga clic en <strong>Subir Foto</strong>.</li>
+        <li>Seleccione la imagen desde su dispositivo y especifique la sección.</li>
+        <li>La imagen quedará registrada en el archivo general de la iglesia.</li>
+    </ul>
+
+    <!-- SECCIÓN 5: CENTRO DE AYUDA Y SOPORTE -->
+    <h2 class="titulo-seccion">5. Centro de Ayuda</h2>
+    <p>El módulo de soporte permite establecer comunicación directa con la administración del sistema ante cualquier consulta o eventualidad técnica.</p>
+
+    <ul>
+        <li><strong>Enviar Sugerencia:</strong> Opción para enviar propuestas de mejora sobre la plataforma.</li>
+        <li><strong>Reportar Error:</strong> Canal directo para notificar fallas de visualización o problemas técnicos.</li>
+    </ul>
+    <p>Todos los mensajes enviados a través de esta sección son recibidos directamente en el panel de control del Administrador.</p>
+
+    <br><br>
+    <hr style="border: 0; border-top: 1px solid #eef2f7;">
+    <p style="text-align: center; color: #a0aec0; font-size: 11px;">ZoarKids 360 &copy; 2026 - Todos los derechos reservados.</p>
+
+</body>
+</html>
