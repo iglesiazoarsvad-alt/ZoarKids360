@@ -45,6 +45,10 @@ let asistenciaEnviadaHoy = false;
 let modoAdminVerTodos = false;
 let leccionEditando = null;
 let timerInactividad = null;
+let timerCerrarSesionInactividad = null;
+let ultimaActividad = Date.now();
+let ultimaNotificacionKey = '';
+let ultimaNotificacionEn = 0;
 let modoPrueba = false;
 let modoOffline = false;
 let sincronizacionOfflineEnCurso = false;
@@ -62,6 +66,8 @@ let cacheTimestamp = null;
 const CACHE_TTL = 300000;
 let chatGrupalAbierto = true;
 let chatPersonalCon = null;
+let secuenciaCargaMensajes = 0;
+let intervaloActualizacionChat = null;
 let solicitudesPendientes = [];
 let parejasRechazadas = [];
 
@@ -140,14 +146,6 @@ function aplicarTema(temaId) {
         guardarTemaPreferido(usuarioSesion.email, temaId);
     }
     
-    // Mostrar notificación
-    const mensajes = {
-        'predeterminado': 'Has cambiado al tema Modo Claro (Azul Zoar)',
-        'azul-esmeralda': 'Has cambiado al tema Azul Esmeralda',
-        'dark-purpura': 'Has cambiado al tema Púrpura Deep',
-        'galaxia': 'Has cambiado al tema Galaxia Premium'
-    };
-    mostrarNotificacion(mensajes[temaId] || 'Tema cambiado', 'info');
 }
 
 function obtenerTemaActual() {
@@ -185,17 +183,6 @@ function cambiarTemaSiguiente() {
     let idx = TEMAS_ORDER.indexOf(actual);
     let siguiente = TEMAS_ORDER[(idx + 1) % TEMAS_ORDER.length];
     aplicarTema(siguiente);
-    mostrarNotificacionTema(siguiente);
-}
-
-function mostrarNotificacionTema(temaId) {
-    const mensajes = {
-        'predeterminado': 'Has cambiado al tema Modo Claro (Azul Zoar)',
-        'azul-esmeralda': 'Has cambiado al tema Azul Esmeralda',
-        'dark-purpura': 'Has cambiado al tema Púrpura Deep',
-        'galaxia': 'Has cambiado al tema Galaxia Premium'
-    };
-    mostrarNotificacion(mensajes[temaId] || 'Tema cambiado', 'info');
 }
 
 // ============ MODAL DE BIENVENIDA TEMAS ============
@@ -237,7 +224,6 @@ window.seleccionarTemaBienvenida = function(temaId) {
     if (modal) modal.remove();
     
     aplicarTema(temaId);
-    mostrarNotificacionTema(temaId);
     localStorage.setItem('zoarkids_onboarding_temas', 'true');
     
     if (usuarioSesion && usuarioSesion.email) {
@@ -366,7 +352,6 @@ window.seleccionarTemaDesdeMenu = function(temaId) {
     const menu = document.getElementById('menu-temas-flotante');
     if (menu) menu.remove();
     aplicarTema(temaId);
-    mostrarNotificacionTema(temaId);
 };
 
 // ============ FUNCIONES DE SUPABASE ============
@@ -738,24 +723,35 @@ async function guardarLog(log) {
 
 // ============ NOTIFICACIONES ============
 function mostrarNotificacion(mensaje, tipo = "info") {
-    const contenedor = document.getElementById('notificacion-sistema');
+    const textoMensaje = String(mensaje);
+    const claveNotificacion = `${tipo}:${textoMensaje.trim().toLocaleLowerCase()}`;
+    const ahora = Date.now();
+    if (claveNotificacion === ultimaNotificacionKey && ahora - ultimaNotificacionEn < 8000) return;
+    ultimaNotificacionKey = claveNotificacion;
+    ultimaNotificacionEn = ahora;
+
+    let contenedor = document.getElementById('notificacion-sistema');
     if (!contenedor) {
-        const nuevo = document.createElement('div');
-        nuevo.id = 'notificacion-sistema';
-        document.body.appendChild(nuevo);
+        contenedor = document.createElement('div');
+        contenedor.id = 'notificacion-sistema';
+        document.body.appendChild(contenedor);
     }
     
     const colores = { info: '#2575fc', success: '#2ecc71', error: '#ff7675', warning: '#f39c12' };
     const iconos = { info: 'fa-circle-info', success: 'fa-circle-check', error: 'fa-triangle-exclamation', warning: 'fa-triangle-exclamation' };
     
-    const notif = document.getElementById('notificacion-sistema');
     const burbuja = document.createElement('div');
     burbuja.className = `notificacion-burbuja ${tipo}`;
+    burbuja.setAttribute('role', tipo === 'error' ? 'alert' : 'status');
+    burbuja.setAttribute('aria-label', `Abrir detalle de notificación: ${textoMensaje}`);
+    burbuja.style.cssText = 'align-items:flex-start;max-height:65vh;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;';
     burbuja.style.borderLeftColor = colores[tipo] || '#2575fc';
     const icono = document.createElement('i');
     icono.className = `fas ${iconos[tipo] || 'fa-circle-info'}`;
+    icono.setAttribute('aria-hidden', 'true');
     const texto = document.createElement('span');
-    texto.textContent = String(mensaje);
+    texto.textContent = textoMensaje;
+    texto.style.cssText = 'flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-wrap;';
     const cerrar = document.createElement('button');
     cerrar.type = 'button';
     cerrar.setAttribute('aria-label', 'Cerrar notificación');
@@ -763,21 +759,38 @@ function mostrarNotificacion(mensaje, tipo = "info") {
     cerrar.textContent = '×';
     cerrar.addEventListener('click', () => burbuja.remove());
     burbuja.append(icono, texto, cerrar);
-    notif.replaceChildren(burbuja);
+    burbuja.title = 'Pulsa para ver el detalle';
+    burbuja.tabIndex = 0;
+    burbuja.addEventListener('click', event => {
+        if (event.target === cerrar) return;
+        abrirNotificaciones();
+        document.querySelector('#lista-notificaciones .notificacion-lista-encabezado')?.click();
+    });
+    burbuja.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            abrirNotificaciones();
+            document.querySelector('#lista-notificaciones .notificacion-lista-encabezado')?.click();
+        }
+    });
+    contenedor.appendChild(burbuja);
+    while (contenedor.children.length > 4) contenedor.firstElementChild.remove();
     
     contadorNotificaciones++;
     actualizarBadgeNotificaciones();
-    notificacionesPendientes.push({ mensaje, tipo, timestamp: new Date().toISOString() });
+    notificacionesPendientes.push({
+        mensaje: textoMensaje,
+        tipo,
+        detalle: textoMensaje,
+        timestamp: new Date().toISOString()
+    });
+    notificacionesPendientes = notificacionesPendientes.slice(-50);
     localStorage.setItem('zk360_notificaciones_pendientes', JSON.stringify(notificacionesPendientes));
     
     setTimeout(() => {
-        const notifEl = document.querySelector('.notificacion-burbuja');
-        if (notifEl) notifEl.style.opacity = '0';
-        setTimeout(() => { 
-            const cont = document.getElementById('notificacion-sistema'); 
-            if (cont) cont.replaceChildren();
-        }, 500);
-    }, 4000);
+        burbuja.style.opacity = '0';
+        setTimeout(() => burbuja.remove(), 500);
+    }, tipo === 'error' ? 12000 : 8000);
 }
 
 function confirmarAccion(mensaje) {
@@ -856,12 +869,33 @@ function cargarNotificacionesEnModal() {
     notificacionesPendientes.slice().reverse().forEach(notificacion => {
         const item = document.createElement('article');
         item.className = 'notificacion-lista-item';
-        const mensaje = document.createElement('p');
-        mensaje.textContent = String(notificacion.mensaje || '');
+        const encabezado = document.createElement('button');
+        encabezado.type = 'button';
+        encabezado.className = 'notificacion-lista-encabezado';
+        encabezado.setAttribute('aria-expanded', 'false');
+        encabezado.textContent = String(notificacion.mensaje || 'Notificación');
+        const detalle = document.createElement('div');
+        detalle.className = 'notificacion-lista-detalle';
+        detalle.hidden = true;
+        const descripcion = document.createElement('p');
+        descripcion.textContent = String(notificacion.detalle || notificacion.mensaje || '');
         const fecha = document.createElement('small');
         const instante = new Date(notificacion.timestamp);
         fecha.textContent = Number.isNaN(instante.getTime()) ? '' : instante.toLocaleString();
-        item.append(mensaje, fecha);
+        const tipo = document.createElement('small');
+        tipo.className = 'notificacion-lista-tipo';
+        tipo.textContent = ({
+            error: 'Requiere atención',
+            warning: 'Aviso',
+            success: 'Acción completada',
+            info: 'Información'
+        })[notificacion.tipo] || 'Notificación';
+        encabezado.addEventListener('click', () => {
+            detalle.hidden = !detalle.hidden;
+            encabezado.setAttribute('aria-expanded', String(!detalle.hidden));
+        });
+        detalle.append(descripcion, tipo, fecha);
+        item.append(encabezado, detalle);
         container.appendChild(item);
     });
 }
@@ -872,38 +906,50 @@ const INACTIVIDAD_TIMEOUT = 60000;
 function iniciarTimerInactividad() {
     if (inactividadPausada) return;
     clearTimeout(timerInactividad);
-    timerInactividad = setTimeout(() => {
-        if (!inactividadPausada) {
-            mostrarNotificacion('Sesión expirada por inactividad. Redirigiendo al login...', 'warning');
-            setTimeout(() => { window.cerrarSesion(); }, 2000);
+    const comprobarInactividad = () => {
+        const inactivoPor = Date.now() - ultimaActividad;
+        if (inactivoPor < INACTIVIDAD_TIMEOUT) {
+            timerInactividad = setTimeout(comprobarInactividad, INACTIVIDAD_TIMEOUT - inactivoPor);
+            return;
         }
-    }, INACTIVIDAD_TIMEOUT);
+        if (inactividadPausada) return;
+        mostrarNotificacion('Sesión expirada por inactividad. Cualquier interacción antes de salir reinicia el contador.', 'warning');
+        clearTimeout(timerCerrarSesionInactividad);
+        timerCerrarSesionInactividad = setTimeout(() => { window.cerrarSesion(); }, 2000);
+    };
+    timerInactividad = setTimeout(comprobarInactividad, Math.max(0, INACTIVIDAD_TIMEOUT - (Date.now() - ultimaActividad)));
 }
 
 function reiniciarTimerInactividad() {
-    if (inactividadPausada) {
-        inactividadPausada = false;
-        iniciarTimerInactividad();
-        return;
-    }
+    ultimaActividad = Date.now();
+    clearTimeout(timerCerrarSesionInactividad);
+    timerCerrarSesionInactividad = null;
+    if (inactividadPausada) inactividadPausada = false;
     iniciarTimerInactividad();
 }
 
 function pausarInactividad() {
     inactividadPausada = true;
     clearTimeout(timerInactividad);
+    clearTimeout(timerCerrarSesionInactividad);
+    timerCerrarSesionInactividad = null;
 }
 
 function reanudarInactividad() {
     inactividadPausada = false;
+    ultimaActividad = Date.now();
     iniciarTimerInactividad();
 }
 
 // Eventos que reinician el timer
 document.addEventListener('mousemove', reiniciarTimerInactividad);
-document.addEventListener('click', reiniciarTimerInactividad);
+document.addEventListener('pointerdown', reiniciarTimerInactividad);
 document.addEventListener('keydown', reiniciarTimerInactividad);
-document.addEventListener('touchstart', reiniciarTimerInactividad);
+document.addEventListener('input', reiniciarTimerInactividad);
+document.addEventListener('change', reiniciarTimerInactividad);
+document.addEventListener('wheel', reiniciarTimerInactividad, { passive: true });
+document.addEventListener('scroll', reiniciarTimerInactividad, { passive: true, capture: true });
+document.addEventListener('touchstart', reiniciarTimerInactividad, { passive: true });
 
 // ============ INICIALIZACIÓN ============
 window.addEventListener('DOMContentLoaded', async () => {
@@ -920,8 +966,23 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Cargar notificaciones pendientes
     const pendientes = JSON.parse(localStorage.getItem('zk360_notificaciones_pendientes') || '[]');
-    notificacionesPendientes = pendientes;
-    contadorNotificaciones = pendientes.length;
+    const notificacionesUnicas = [];
+    (Array.isArray(pendientes) ? pendientes : []).slice(-50).forEach(notificacion => {
+        if (!notificacion || typeof notificacion !== 'object') return;
+        if (String(notificacion?.mensaje || '').startsWith('Has cambiado al tema ')) return;
+        const instante = Date.parse(notificacion.timestamp);
+        const anterior = notificacionesUnicas[notificacionesUnicas.length - 1];
+        const mismaNotificacion = anterior &&
+            anterior.tipo === notificacion.tipo &&
+            anterior.mensaje === notificacion.mensaje &&
+            Number.isFinite(instante) &&
+            instante >= Date.parse(anterior.timestamp) &&
+            instante - Date.parse(anterior.timestamp) < 8000;
+        if (!mismaNotificacion) notificacionesUnicas.push(notificacion);
+    });
+    notificacionesPendientes = notificacionesUnicas;
+    localStorage.setItem('zk360_notificaciones_pendientes', JSON.stringify(notificacionesPendientes));
+    contadorNotificaciones = notificacionesPendientes.length;
     actualizarBadgeNotificaciones();
 
     // Recuperar sesión
@@ -1230,7 +1291,7 @@ function aplicarModoPruebaManual() {
     // Mostrar indicador
     mostrarIndicadorPruebaManual();
     
-    mostrarNotificacion(' Modo Prueba activado - Todas las funciones desbloqueadas', 'info');
+    mostrarNotificacion('Modo Prueba activado: puedes explorar las funciones sin modificar datos reales.', 'info');
 }
 
 // ============ INDICADOR DE PRUEBA MANUAL ============
@@ -1569,13 +1630,6 @@ function configurarNavegacion() {
     if (chatBuscar) {
         chatBuscar.addEventListener('input', function() {
             buscarContactos(this.value);
-        });
-    }
-
-    const chatInput = document.getElementById('chat-input-texto');
-    if (chatInput) {
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') { enviarMensaje(); }
         });
     }
 
@@ -4040,8 +4094,11 @@ function buscarContactos(termino) {
 }
 
 function abrirChatGrupal() {
+    secuenciaCargaMensajes++;
     chatGrupalAbierto = true;
     chatPersonalCon = null;
+    const mensajes = document.getElementById('chat-mensajes');
+    if (mensajes) mensajes.dataset.inicializado = 'false';
     const conversacion = document.getElementById('chat-conversacion');
     if (conversacion) conversacion.style.display = 'block';
     const titulo = document.getElementById('chat-titulo-conversacion');
@@ -4049,12 +4106,16 @@ function abrirChatGrupal() {
     const contexto = document.getElementById('chat-contexto');
     if (contexto) contexto.style.display = 'block';
     cargarMensajesGrupales();
+    iniciarActualizacionChat();
     cargarChats();
 }
 
 function abrirChatPersonal(email) {
+    secuenciaCargaMensajes++;
     chatGrupalAbierto = false;
     chatPersonalCon = email;
+    const mensajes = document.getElementById('chat-mensajes');
+    if (mensajes) mensajes.dataset.inicializado = 'false';
     const conversacion = document.getElementById('chat-conversacion');
     if (conversacion) conversacion.style.display = 'block';
     const titulo = document.getElementById('chat-titulo-conversacion');
@@ -4067,10 +4128,24 @@ function abrirChatPersonal(email) {
         }
     });
     cargarMensajesPersonales(email);
+    iniciarActualizacionChat();
     cargarChats();
 }
 
+function iniciarActualizacionChat() {
+    clearInterval(intervaloActualizacionChat);
+    intervaloActualizacionChat = setInterval(() => {
+        const conversacion = document.getElementById('chat-conversacion');
+        if (document.hidden || !conversacion || conversacion.style.display === 'none') return;
+        if (chatGrupalAbierto) cargarMensajesGrupales();
+        else if (chatPersonalCon) cargarMensajesPersonales(chatPersonalCon);
+    }, 15000);
+}
+
 function cerrarConversacion() {
+    secuenciaCargaMensajes++;
+    clearInterval(intervaloActualizacionChat);
+    intervaloActualizacionChat = null;
     const conversacion = document.getElementById('chat-conversacion');
     if (conversacion) conversacion.style.display = 'none';
     const contexto = document.getElementById('chat-contexto');
@@ -4082,15 +4157,23 @@ function cerrarConversacion() {
 async function cargarMensajesGrupales() {
     const container = document.getElementById('chat-mensajes');
     if (!container) return;
+    const secuencia = ++secuenciaCargaMensajes;
+    const mantenerAbajo = container.dataset.inicializado !== 'true' ||
+        container.scrollHeight - container.scrollTop - container.clientHeight < 60;
     
     try {
-        const mensajes = await llamarSupabase("mensajes?receptor=is.null&order=id.asc&limit=100");
-        if (!mensajes || mensajes.length === 0) {
-            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes en el grupo</p>';
+        const mensajes = await llamarSupabase("mensajes?receptor=is.null&order=id.desc&limit=100");
+        if (secuencia !== secuenciaCargaMensajes || !chatGrupalAbierto) return;
+        if (!Array.isArray(mensajes)) {
+            mostrarEstadoChat('No se pudieron cargar los mensajes. Revisa la conexión y los permisos del chat.', true);
+            return;
+        }
+        if (mensajes.length === 0) {
+            mostrarEstadoChat('Todavía no hay mensajes en el grupo.');
             return;
         }
         container.replaceChildren();
-        mensajes.filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
+        mensajes.slice().reverse().filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
             const esPropio = m.emisor === usuarioSesion.email;
             const fila = document.createElement('div');
             fila.style.cssText = `display:flex; justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
@@ -4113,29 +4196,41 @@ async function cargarMensajesGrupales() {
             fila.appendChild(burbuja);
             container.appendChild(fila);
         });
-        container.scrollTop = container.scrollHeight;
+        container.dataset.inicializado = 'true';
+        if (mantenerAbajo) container.scrollTop = container.scrollHeight;
     } catch (error) {
         console.error("Error:", error);
-        container.innerHTML = '<p style="color:#ff7675; text-align:center;">Error al cargar mensajes</p>';
+        if (secuencia === secuenciaCargaMensajes) mostrarEstadoChat('Ocurrió un error al cargar los mensajes.', true);
     }
 }
 
 async function cargarMensajesPersonales(email) {
     const container = document.getElementById('chat-mensajes');
     if (!container) return;
+    const secuencia = ++secuenciaCargaMensajes;
+    const mantenerAbajo = container.dataset.inicializado !== 'true' ||
+        container.scrollHeight - container.scrollTop - container.clientHeight < 60;
     
     try {
-        const mensajes = await llamarSupabase('mensajes?or=(emisor.eq.' + encodeURIComponent(usuarioSesion.email) + ',receptor.eq.' + encodeURIComponent(usuarioSesion.email) + ')&order=id.asc&limit=100');
-        if (!mensajes || mensajes.length === 0) {
-            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes con este contacto</p>';
+        const usuario = encodeURIComponent(usuarioSesion.email);
+        const contacto = encodeURIComponent(email);
+        const filtro = `or=(and(emisor.eq.${usuario},receptor.eq.${contacto}),and(emisor.eq.${contacto},receptor.eq.${usuario}))`;
+        const mensajes = await llamarSupabase(`mensajes?${filtro}&order=id.desc&limit=100`);
+        if (secuencia !== secuenciaCargaMensajes || chatGrupalAbierto || chatPersonalCon !== email) return;
+        if (!Array.isArray(mensajes)) {
+            mostrarEstadoChat('No se pudieron cargar los mensajes. Revisa la conexión y los permisos del chat.', true);
             return;
         }
-        const filtrados = mensajes.filter(m => 
+        if (mensajes.length === 0) {
+            mostrarEstadoChat('Todavía no hay mensajes con este contacto.');
+            return;
+        }
+        const filtrados = mensajes.filter(m =>
             (m.emisor === usuarioSesion.email && m.receptor === email) ||
             (m.emisor === email && m.receptor === usuarioSesion.email)
-        );
+        ).reverse();
         if (filtrados.length === 0) {
-            container.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay mensajes con este contacto</p>';
+            mostrarEstadoChat('Todavía no hay mensajes con este contacto.');
             return;
         }
         container.replaceChildren();
@@ -4156,19 +4251,33 @@ async function cargarMensajesPersonales(email) {
             fila.appendChild(burbuja);
             container.appendChild(fila);
         });
-        container.scrollTop = container.scrollHeight;
+        container.dataset.inicializado = 'true';
+        if (mantenerAbajo) container.scrollTop = container.scrollHeight;
     } catch (error) {
         console.error("Error:", error);
-        container.innerHTML = '<p style="color:#ff7675; text-align:center;">Error al cargar mensajes</p>';
+        if (secuencia === secuenciaCargaMensajes) mostrarEstadoChat('Ocurrió un error al cargar los mensajes.', true);
     }
+}
+
+function mostrarEstadoChat(mensaje, error = false) {
+    const container = document.getElementById('chat-mensajes');
+    if (!container) return;
+    const estado = document.createElement('p');
+    estado.style.cssText = `color:${error ? '#b42318' : '#747d8c'};text-align:center;padding:16px;`;
+    estado.setAttribute('role', error ? 'alert' : 'status');
+    estado.textContent = mensaje;
+    container.replaceChildren(estado);
 }
 
 async function enviarMensaje() {
     const input = document.getElementById('chat-input-texto');
     if (!input) return;
     const mensaje = input.value.trim();
-    if (!mensaje) return;
+    if (!mensaje || input.dataset.enviando === 'true') return;
 
+    input.dataset.enviando = 'true';
+    const botonEnviar = input.parentElement?.querySelector('button');
+    if (botonEnviar) botonEnviar.disabled = true;
     try {
         const datos = {
             emisor: usuarioSesion.email,
@@ -4194,7 +4303,10 @@ async function enviarMensaje() {
         }
     } catch (error) {
         console.error("Error:", error);
-        mostrarNotificacion("Error al enviar mensaje", "error");
+        mostrarNotificacion(error.message || "No se pudo enviar el mensaje. El texto sigue en el campo para que puedas reintentarlo.", "error");
+    } finally {
+        delete input.dataset.enviando;
+        if (botonEnviar) botonEnviar.disabled = false;
     }
 }
 

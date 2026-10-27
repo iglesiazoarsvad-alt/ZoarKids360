@@ -4,7 +4,6 @@
 
 const SUPABASE_URL = window.ZK360_CONFIG?.supabaseUrl || '';
 const SUPABASE_ANON_KEY = window.ZK360_CONFIG?.supabaseAnonKey || "";
-const SUPABASE_FUNCTIONS_URL = 'https://yxumadojoswvipmkxgbo.supabase.co/functions/v1/';
 
 let codigoGenerado = null;
 let intervaloContador = null;
@@ -185,7 +184,7 @@ async function llamarRecuperacionPregunta(body) {
 
 async function llamarFuncionSupabase(nombreFuncion, body) {
     const config = obtenerConfigSupabase();
-    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}${encodeURIComponent(nombreFuncion)}`, {
+    const response = await fetch(`${config.url}/functions/v1/${encodeURIComponent(nombreFuncion)}`, {
         method: 'POST',
         cache: 'no-store',
         headers: {
@@ -674,15 +673,21 @@ function initLoginEvents() {
                 mostrarNotificacion(mensaje, 'error');
             } catch (error) {
                 sessionStorage.removeItem('zk360_supabase_session');
+                const esCredencialIncorrecta = error.code === 'invalid_credentials';
                 const mensaje = /confirm/i.test(error.message)
                     ? 'Debes confirmar tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.'
                     : /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message)
                         ? 'No se pudo conectar con Supabase. Verifica tu conexión e inténtalo nuevamente.'
+                    : esCredencialIncorrecta
+                        ? error.message
                     : perfilEncontrado
                         ? 'El perfil existe, pero la contraseña no coincide en Supabase Auth. Verifica tu contraseña o contacta al administrador para habilitar la cuenta.'
-                        : 'No se pudo iniciar sesión. Verifica el correo y la contraseña, y confirma que la cuenta esté registrada en Supabase Auth.';
+                        : error.message || 'No se pudo iniciar sesión. Verifica la configuración de Supabase y el estado de la cuenta.';
                 const errorDeConexion = /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message);
                 if (errorDeConexion) {
+                    mostrarErrorLogin(mensaje);
+                    mostrarNotificacion(mensaje, 'error');
+                } else if (!esCredencialIncorrecta) {
                     mostrarErrorLogin(mensaje);
                     mostrarNotificacion(mensaje, 'error');
                 } else {
@@ -1011,7 +1016,9 @@ async function llamarSupabase(endpoint, opciones = {}) {
 
 async function autenticarConSupabase(email, password) {
     const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    if (!baseUrl) throw new Error('No se configuró la URL de Supabase.');
+    if (!baseUrl || !SUPABASE_ANON_KEY) {
+        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
+    }
 
     const response = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
         method: 'POST',
@@ -1026,7 +1033,25 @@ async function autenticarConSupabase(email, password) {
     let resultado = {};
     try { resultado = texto ? JSON.parse(texto) : {}; } catch (e) {}
     if (!response.ok) {
-        const detalle = `${resultado.msg || ''} ${resultado.message || ''} ${resultado.error_description || ''}`;
+        const detalle = [
+            resultado.msg,
+            resultado.message,
+            resultado.error_description,
+            resultado.error,
+            resultado.code
+        ].filter(Boolean).join(' ');
+        if (/invalid login credentials|invalid_credentials/i.test(detalle)) {
+            const error = new Error('El correo o la contraseña no coinciden con un usuario de Supabase Authentication. Una fila en public.usuarios, por sí sola, no crea la cuenta de acceso.');
+            error.code = 'invalid_credentials';
+            error.status = response.status;
+            throw error;
+        }
+        if (/email not confirmed|email_not_confirmed/i.test(detalle)) {
+            throw new Error('La cuenta existe, pero falta confirmar el correo desde el enlace enviado por Supabase.');
+        }
+        if (response.status === 429) {
+            throw new Error('Supabase limitó temporalmente los intentos. Espera unos minutos antes de volver a probar.');
+        }
         throw new Error(detalle || `Error de autenticación en Supabase (${response.status}).`);
     }
     return resultado;
@@ -1034,7 +1059,9 @@ async function autenticarConSupabase(email, password) {
 
 async function registrarConSupabase(email, password) {
     const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    if (!baseUrl) throw new Error('No se configuró la URL de Supabase.');
+    if (!baseUrl || !SUPABASE_ANON_KEY) {
+        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
+    }
 
     const response = await fetch(`${baseUrl}/auth/v1/signup`, {
         method: 'POST',
@@ -1091,7 +1118,9 @@ function manejarEnlaceRecuperacion() {
 
 async function solicitarRecuperacionAuth(email) {
     const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    if (!baseUrl) throw new Error('No se configuró la URL de Supabase.');
+    if (!baseUrl || !SUPABASE_ANON_KEY) {
+        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
+    }
     const redirectTo = window.location.origin + window.location.pathname;
     const response = await fetch(`${baseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
         method: 'POST',
@@ -1335,7 +1364,24 @@ function autenticarUsuario(correo, usuario) {
     setTimeout(() => { window.location.href = "panel.html"; }, 700);
 }
 
-async function verificarPreguntaSeguridad() {
+async function solicitarEnlaceRecuperacion() {
+    const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
+    if (!email || !email.endsWith('@iglesiazoarsv.org')) {
+        mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
+        return;
+    }
+
+    try {
+        await solicitarRecuperacionAuth(email);
+        cerrarRecuperarClave();
+        mostrarNotificacion('Si existe una cuenta con ese correo, Supabase enviará un enlace para restablecer la contraseña.', 'success');
+    } catch (error) {
+        console.error("Error:", error);
+        mostrarNotificacion(error.message || 'No se pudo solicitar la recuperación. Verifica tu conexión y la configuración de correo de Supabase.', 'error');
+    }
+}
+
+async function usarPreguntaSeguridad() {
     const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
     if (!email || !email.endsWith('@iglesiazoarsv.org')) {
         mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
@@ -1349,16 +1395,15 @@ async function verificarPreguntaSeguridad() {
         const paso2 = document.getElementById('paso-recuperar-2');
         const campoRespuesta = document.getElementById('recuperar-respuesta');
         if (!preguntaMostrada || !paso1 || !paso2 || !campoRespuesta) {
-            mostrarNotificacion('No se pudo abrir el formulario de recuperación.', 'error');
-            return;
+            throw new Error('No se pudo abrir la recuperación mediante pregunta de seguridad.');
         }
         preguntaMostrada.textContent = pregunta.question;
         paso1.style.display = 'none';
         paso2.style.display = 'block';
         campoRespuesta.dataset.email = email;
     } catch (error) {
-        console.error("Error:", error);
-        mostrarNotificacion('Error al verificar identidad', 'error');
+        console.error('Error al recuperar la pregunta de seguridad:', error);
+        mostrarNotificacion(error.message || 'No se pudo consultar la pregunta de seguridad.', 'error');
     }
 }
 
@@ -1456,10 +1501,14 @@ function copiarClaveTemporal() {
 function cerrarRecuperarClave() {
     const modal = document.getElementById('modal-recuperar-clave');
     if (modal) modal.classList.remove('activo');
-    document.getElementById('recuperar-respuesta').value = '';
-    document.getElementById('recuperar-correo').value = '';
-    document.getElementById('paso-recuperar-1').style.display = 'block';
-    document.getElementById('paso-recuperar-2').style.display = 'none';
+    const respuesta = document.getElementById('recuperar-respuesta');
+    const correo = document.getElementById('recuperar-correo');
+    const paso1 = document.getElementById('paso-recuperar-1');
+    const paso2 = document.getElementById('paso-recuperar-2');
+    if (respuesta) respuesta.value = '';
+    if (correo) correo.value = '';
+    if (paso1) paso1.style.display = 'block';
+    if (paso2) paso2.style.display = 'none';
 }
 
 function mostrarNotificacion(mensaje, tipo = "info") {
@@ -1487,10 +1536,11 @@ function mostrarNotificacion(mensaje, tipo = "info") {
 
     const notif = document.createElement("div");
     notif.className = `notificacion-burbuja ${tipo}`;
-    notif.textContent = mensaje;
+    notif.setAttribute('role', tipo === 'error' ? 'alert' : 'status');
     const colores = {
         error: ['#ffe5e5', '#b42318'],
         success: ['#e7f8ed', '#167a3e'],
+        warning: ['#fff4d6', '#8a5a00'],
         info: ['#e8f1ff', '#155eef']
     };
     const [fondo, color] = colores[tipo] || colores.info;
@@ -1507,27 +1557,35 @@ function mostrarNotificacion(mensaje, tipo = "info") {
         'border:1px solid ' + color,
         'box-shadow:0 6px 20px rgba(0,0,0,.2)',
         'font:600 15px/1.4 Arial,sans-serif',
-        'pointer-events:auto'
+        'pointer-events:auto',
+        'align-items:flex-start',
+        'max-height:65vh',
+        'overflow-y:auto',
+        'overflow-wrap:anywhere',
+        'white-space:pre-wrap'
     ].join(';');
+    const texto = document.createElement('span');
+    texto.textContent = String(mensaje);
+    texto.style.cssText = 'flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-wrap;';
+    const cerrar = document.createElement('button');
+    cerrar.type = 'button';
+    cerrar.setAttribute('aria-label', 'Cerrar notificación');
+    cerrar.textContent = '×';
+    cerrar.addEventListener('click', () => notif.remove());
+    notif.append(texto, cerrar);
 
     contenedor.appendChild(notif);
+    while (contenedor.children.length > 4) contenedor.firstElementChild.remove();
 
-    requestAnimationFrame(() => {
-        notif.style.visibility = 'visible';
-        notif.style.opacity = '1';
-        notif.style.transform = 'translateY(0)';
-    });
+    notif.style.visibility = 'visible';
+    notif.style.opacity = '1';
+    notif.style.transform = 'translateY(0)';
 
-    const temporizador = setTimeout(() => {
+    setTimeout(() => {
         notif.style.opacity = '0';
         notif.style.transform = 'translateY(-8px)';
         setTimeout(() => notif.remove(), 220);
-    }, 4000);
-
-    notif.addEventListener('click', () => {
-        clearTimeout(temporizador);
-        notif.remove();
-    });
+    }, tipo === 'error' ? 12000 : 8000);
 }
 
 // En modo prueba la gestión es únicamente local: no se muestran acciones que

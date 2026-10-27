@@ -54,11 +54,11 @@
 
         <div class="enlaces-login">
             <a href="#" onclick="abrirSolicitarCodigo()">
-                <i class="fa-regular fa-user-plus"></i> Registrarme
+                <i class="fa-solid fa-user-plus" aria-hidden="true"></i> Registrarme
             </a>
             <span class="separador">|</span>
             <a href="#" onclick="document.getElementById('modal-recuperar-clave').classList.add('activo')">
-                <i class="fa-regular fa-key"></i> Olvid&eacute; mi contrase&ntilde;a
+                <i class="fa-solid fa-key" aria-hidden="true"></i> Olvid&eacute; mi contrase&ntilde;a
             </a>
         </div>
 
@@ -233,8 +233,11 @@
                     <label>Correo electr&oacute;nico</label>
                     <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
                 </div>
-                <button class="btn-enviar-clase" onclick="verificarPreguntaSeguridad()" style="width:100%;">
-                    Verificar identidad
+                <button class="btn-enviar-clase" onclick="solicitarEnlaceRecuperacion()" style="width:100%;">
+                    Enviar enlace de recuperación
+                </button>
+                <button class="btn-cerrar-modal btn-cancelar" onclick="usarPreguntaSeguridad()" style="width:100%;margin-top:8px;">
+                    Usar pregunta de seguridad
                 </button>
             </div>
             <div id="paso-recuperar-2" style="display:none;">
@@ -265,6 +268,7 @@
                 <button onclick="seleccionarRolPrueba('maestro_sin_clase')" class="btn-enviar-clase" style="width:100%; background:#f39c12;">
                     <i class="fa-solid fa-user"></i> Maestro sin clase asignada
                 </button>
+            </div>
             <button class="btn-cerrar-modal btn-cancelar" onclick="document.getElementById('modal-modo-prueba').classList.remove('activo')" style="width:100%;">Cancelar</button>
         </div>
     </div>
@@ -306,8 +310,12 @@
     <div id="zk360-network-status" class="network-status" role="status" aria-live="polite" hidden></div>
 
     <script src="config.js"></script>
-    <script src="config.local.js"></script>
-    <script src="logica.js?v=FINAL"></script>
+    <script>
+        if (['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) {
+            document.write('<script src="config.local.js"><\/script>');
+        }
+    </script>
+    <script src="logica.js?v=20261027-4"></script>
     <script src="pwa.js" defer></script>
 </body>
 </html>
