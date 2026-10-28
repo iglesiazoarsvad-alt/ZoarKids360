@@ -6,33 +6,55 @@ declare const Deno: {
     serve(handler: (request: Request) => Response | Promise<Response>): void;
 };
 
-const corsHeaders = {
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Origin': Deno.env.get('SITE_ORIGIN') || 'null',
-    'Vary': 'Origin'
-};
+function normalizarOrigin(origin: string) {
+    try {
+        return new URL(origin).origin;
+    } catch {
+        return '';
+    }
+}
 
-function jsonResponse(status: number, body: Record<string, unknown>) {
+function originPermitido(origin: string | null) {
+    if (!origin) return '';
+    const permitidos = (Deno.env.get('MI_SITE_ORIGIN') || '')
+        .split(',')
+        .map(valor => normalizarOrigin(valor.trim()))
+        .filter(Boolean);
+    const recibido = normalizarOrigin(origin);
+    return permitidos.includes(recibido) ? recibido : '';
+}
+
+function corsHeaders(origin: string) {
+    return {
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Origin': origin || 'null',
+        'Vary': 'Origin'
+    };
+}
+
+function jsonResponse(status: number, body: Record<string, unknown>, origin = '') {
     return new Response(JSON.stringify(body), {
         status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
     });
 }
 
 Deno.serve(async (request: Request) => {
-    if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-    if (request.method !== 'POST') return jsonResponse(405, { error: 'Método no permitido.' });
+    const origin = originPermitido(request.headers.get('origin'));
+    if (request.method === 'OPTIONS') {
+        return origin
+            ? new Response('ok', { headers: corsHeaders(origin) })
+            : jsonResponse(403, { error: 'Origen no permitido.' });
+    }
+    if (!origin) return jsonResponse(403, { error: 'Origen no permitido.' });
+    if (request.method !== 'POST') return jsonResponse(405, { error: 'Método no permitido.' }, origin);
 
-    const origin = request.headers.get('origin');
-    const allowedOrigin = Deno.env.get('SITE_ORIGIN');
-    if (!allowedOrigin || origin !== allowedOrigin) return jsonResponse(403, { error: 'Origen no permitido.' });
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get('MI_URL');
+    const serviceRoleKey = Deno.env.get('service_role');
     if (!supabaseUrl || !serviceRoleKey) {
         console.error('Missing Supabase Edge Function secrets.');
-        return jsonResponse(500, { error: 'Servicio de registro no configurado.' });
+        return jsonResponse(500, { error: 'Servicio de registro no configurado.' }, origin);
     }
 
     try {
@@ -45,7 +67,7 @@ Deno.serve(async (request: Request) => {
             !/^sha256\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(answerHash) ||
             typeof body.codigo !== 'string' ||
             typeof body.pregunta !== 'string') {
-            return jsonResponse(400, { error: 'Datos de registro no válidos.' });
+            return jsonResponse(400, { error: 'Datos de registro no válidos.' }, origin);
         }
 
         const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -53,7 +75,7 @@ Deno.serve(async (request: Request) => {
         });
         const { data: userResult, error: errorUsuario } = await admin.auth.admin.getUserById(authUserId);
         if (errorUsuario || !userResult.user || userResult.user.email?.toLowerCase() !== email) {
-            return jsonResponse(403, { error: 'La cuenta de autenticación no coincide con el correo.' });
+            return jsonResponse(403, { error: 'La cuenta de autenticación no coincide con el correo.' }, origin);
         }
 
         const { data: nombre, error: errorPerfil } = await admin.rpc('register_teacher_profile', {
@@ -66,7 +88,14 @@ Deno.serve(async (request: Request) => {
         });
         if (errorPerfil) {
             console.error('Teacher profile registration failed:', errorPerfil.message);
-            return jsonResponse(400, { error: 'No se pudo completar el registro. Verifica el código y vuelve a intentarlo.' });
+            const mensaje = errorPerfil.message.toLocaleLowerCase();
+            if (mensaje.includes('código es inválido') || mensaje.includes('codigo es invalido')) {
+                return jsonResponse(400, { error: 'El código de invitación venció, ya fue usado o no es correcto. Solicita uno nuevo.' }, origin);
+            }
+            if (mensaje.includes('correo ya está registrado') || mensaje.includes('correo ya esta registrado')) {
+                return jsonResponse(409, { error: 'Ese correo ya tiene un perfil de ZoarKids. Inicia sesión o usa recuperación de contraseña.' }, origin);
+            }
+            return jsonResponse(400, { error: 'No se pudo completar el registro. Verifica el código y vuelve a intentarlo.' }, origin);
         }
 
         const { error: errorRol } = await admin.auth.admin.updateUserById(authUserId, {
@@ -74,11 +103,11 @@ Deno.serve(async (request: Request) => {
         });
         if (errorRol) {
             console.error('Teacher role claim update failed:', errorRol.message);
-            return jsonResponse(500, { error: 'Perfil creado; un administrador debe habilitar el acceso.' });
+            return jsonResponse(500, { error: 'Perfil creado; un administrador debe habilitar el acceso.' }, origin);
         }
-        return jsonResponse(200, { ok: true, nombre });
+        return jsonResponse(200, { ok: true, nombre }, origin);
     } catch (error) {
         console.error('Teacher profile registration failed:', error);
-        return jsonResponse(500, { error: 'No se pudo completar el registro.' });
+        return jsonResponse(500, { error: 'No se pudo completar el registro.' }, origin);
     }
 });

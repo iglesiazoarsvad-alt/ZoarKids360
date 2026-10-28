@@ -128,6 +128,7 @@
         <div class="modal-burbuja">
             <h3><i class="fa-solid fa-user-plus" style="color:#2ecc71;"></i> Registrar con C&oacute;digo</h3>
             <p class="descripcion-modal">Ingresa el c&oacute;digo que recibiste y completa tus datos</p>
+            <p class="descripcion-modal">La cuenta requiere una invitación válida y un perfil creado en ZoarKids. Si Supabase solicita confirmar el correo, revisa el buzón antes de iniciar sesión.</p>
             <form id="form-registro-codigo">
                 <div class="campo">
                     <label><i class="fa-solid fa-ticket"></i> C&oacute;digo de invitaci&oacute;n</label>
@@ -174,7 +175,7 @@
                 </div>
                 <div class="campo" id="campo-pregunta-personal" style="display:none;">
                     <label>Escribe tu pregunta</label>
-                    <input type="text" id="reg-pregunta-personal" class="input-txt" placeholder="Escribe tu pregunta de seguridad...">
+                    <input type="text" id="reg-pregunta-personal" class="input-txt" placeholder="Ej.: ¿Cuál fue el primer libro que leíste?" disabled>
                 </div>
                 <div class="campo">
                     <label>Respuesta a la pregunta de seguridad</label>
@@ -233,6 +234,7 @@
                     <label>Correo electr&oacute;nico</label>
                     <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
                 </div>
+                <p class="descripcion-modal">El enlace, si la cuenta existe, llegará al buzón de ese correo. Supabase necesita tener configurado el envío de correo; no se envía desde Google ni desde este navegador.</p>
                 <button class="btn-enviar-clase" onclick="solicitarEnlaceRecuperacion()" style="width:100%;">
                     Enviar enlace de recuperación
                 </button>
@@ -315,7 +317,7 @@
             document.write('<script src="config.local.js"><\/script>');
         }
     </script>
-    <script src="logica.js?v=20261027-4"></script>
+    <script src="logica.js?v=20261027-5"></script>
     <script src="pwa.js" defer></script>
 </body>
 </html>

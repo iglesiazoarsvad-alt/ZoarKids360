@@ -99,6 +99,24 @@ function configurarBarraSeguridad() {
             }
         });
     });
+
+    const selectorPregunta = document.getElementById('reg-pregunta');
+    const campoPreguntaPersonal = document.getElementById('campo-pregunta-personal');
+    const inputPreguntaPersonal = document.getElementById('reg-pregunta-personal');
+    if (selectorPregunta && campoPreguntaPersonal && inputPreguntaPersonal) {
+        const actualizarPreguntaPersonal = () => {
+            const visible = selectorPregunta.value === 'personal';
+            campoPreguntaPersonal.hidden = !visible;
+            campoPreguntaPersonal.style.display = visible ? 'block' : 'none';
+            inputPreguntaPersonal.disabled = !visible;
+            inputPreguntaPersonal.required = visible;
+            if (visible) inputPreguntaPersonal.focus();
+            else inputPreguntaPersonal.value = '';
+        };
+        selectorPregunta.addEventListener('change', actualizarPreguntaPersonal);
+        selectorPregunta.form?.addEventListener('reset', () => setTimeout(actualizarPreguntaPersonal, 0));
+        actualizarPreguntaPersonal();
+    }
 }
 
 function validarCriteriosContrasena(clave) {
@@ -807,12 +825,15 @@ function initLoginEvents() {
                 return;
             }
 
+            let cuentaAuthCreada = false;
+            let perfilCreado = false;
             try {
                 const registroAuth = await registrarConSupabase(email, clave);
                 const usuarioAuth = registroAuth.user || registroAuth.session?.user;
                 if (!usuarioAuth?.id) {
                     throw new Error('Supabase no devolvió una cuenta de autenticación válida.');
                 }
+                cuentaAuthCreada = true;
                 const respuestaHash = await hashRespuestaSeguridad(respuesta);
                 const resultadoRegistro = await llamarFuncionSupabase('register-teacher-profile', {
                     auth_user_id: usuarioAuth.id,
@@ -822,6 +843,7 @@ function initLoginEvents() {
                     pregunta: preguntaFinal,
                     respuesta_hash: respuestaHash
                 });
+                perfilCreado = true;
                 const nuevoUsuario = {
                     email: email,
                     nombre: resultadoRegistro.nombre || email.split('@')[0],
@@ -849,7 +871,11 @@ function initLoginEvents() {
 
             } catch (error) {
                 console.error("Error:", error);
-                mostrarNotificacion(error.message || 'Error al registrar usuario', 'error');
+                const detalle = error.message || 'Error al registrar usuario.';
+                const mensaje = cuentaAuthCreada && !perfilCreado
+                    ? `Supabase creó la cuenta, pero no completó el perfil. No intentes registrarte de nuevo con ese correo; el administrador debe revisar el código de registro, las migraciones y la función register-teacher-profile. Detalle: ${detalle}`
+                    : detalle;
+                mostrarNotificacion(mensaje, 'error');
             }
         });
     }
@@ -1041,7 +1067,7 @@ async function autenticarConSupabase(email, password) {
             resultado.code
         ].filter(Boolean).join(' ');
         if (/invalid login credentials|invalid_credentials/i.test(detalle)) {
-            const error = new Error('El correo o la contraseña no coinciden con un usuario de Supabase Authentication. Una fila en public.usuarios, por sí sola, no crea la cuenta de acceso.');
+            const error = new Error('Supabase Authentication rechazó el correo y la contraseña. Verifica que la cuenta exista y esté confirmada en Authentication y que la contraseña sea la de esa cuenta. El perfil de public.usuarios es independiente y no sustituye el acceso.');
             error.code = 'invalid_credentials';
             error.status = response.status;
             throw error;
@@ -1063,15 +1089,21 @@ async function registrarConSupabase(email, password) {
         throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
     }
 
-    const response = await fetch(`${baseUrl}/auth/v1/signup`, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-            apikey: SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-    });
+    const redirectTo = window.location.origin + window.location.pathname;
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+    } catch (error) {
+        throw new Error('No se pudo conectar con Supabase Auth. Verifica la conexión y la URL autorizada para confirmar el correo.');
+    }
     const texto = await response.text();
     let resultado = {};
     try { resultado = texto ? JSON.parse(texto) : {}; } catch (e) {}
@@ -1084,6 +1116,9 @@ async function registrarConSupabase(email, password) {
     }
     if (!resultado.user && !(resultado.session && resultado.session.user)) {
         throw new Error('Supabase no confirmó la creación de la cuenta de autenticación.');
+    }
+    if (!resultado.session && Array.isArray(resultado.user?.identities) && resultado.user.identities.length === 0) {
+        throw new Error('Ese correo ya tiene una cuenta en Supabase Authentication. Inicia sesión o usa la recuperación; si aún no tiene perfil en ZoarKids, contacta al administrador para completarlo.');
     }
     return resultado;
 }
@@ -1374,7 +1409,7 @@ async function solicitarEnlaceRecuperacion() {
     try {
         await solicitarRecuperacionAuth(email);
         cerrarRecuperarClave();
-        mostrarNotificacion('Si existe una cuenta con ese correo, Supabase enviará un enlace para restablecer la contraseña.', 'success');
+        mostrarNotificacion(`Se solicitó el envío al buzón de ${email}. Si la cuenta existe, el correo saliente de Supabase está configurado y la dirección puede recibir mensajes, llegará allí el enlace para restablecer la contraseña.`, 'success');
     } catch (error) {
         console.error("Error:", error);
         mostrarNotificacion(error.message || 'No se pudo solicitar la recuperación. Verifica tu conexión y la configuración de correo de Supabase.', 'error');
@@ -1434,6 +1469,8 @@ async function validarRespuestaSeguridad() {
         const { error: errorActualizacion } = await clienteAuth.auth.updateUser({ password: nuevaClave });
         if (errorActualizacion) throw errorActualizacion;
 
+        sessionStorage.setItem('zk360_clave_temporal', 'true');
+        localStorage.setItem(`zk360_clave_temporal_${email}`, 'true');
         mostrarClaveTemporal(nuevaClave);
         document.getElementById('modal-recuperar-clave').classList.remove('activo');
         document.getElementById('recuperar-respuesta').value = '';
@@ -1458,7 +1495,7 @@ function mostrarClaveTemporal(clave) {
         modal.innerHTML = `
             <div class="modal-burbuja">
                 <h3><i class="fa-solid fa-key"></i> Contraseña temporal</h3>
-                <p>Guarda esta clave. Se te solicitará cambiarla al iniciar sesión.</p>
+                <p>Esta clave temporal ya quedó activa. No se envía por correo: cópiala para entrar y ZoarKids te pedirá cambiarla al iniciar sesión.</p>
                 <input id="clave-temporal-valor" type="text" readonly
                     style="width:100%; text-align:center; font-size:20px; font-weight:bold; margin:12px 0;">
                 <button type="button" class="btn-enviar-clase" style="width:100%; justify-content:center;"

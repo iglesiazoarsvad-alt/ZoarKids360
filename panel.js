@@ -47,8 +47,6 @@ let leccionEditando = null;
 let timerInactividad = null;
 let timerCerrarSesionInactividad = null;
 let ultimaActividad = Date.now();
-let ultimaNotificacionKey = '';
-let ultimaNotificacionEn = 0;
 let modoPrueba = false;
 let modoOffline = false;
 let sincronizacionOfflineEnCurso = false;
@@ -59,6 +57,7 @@ let preguntaActual = 0;
 let respuestasCorrectas = 0;
 let contadorNotificaciones = 0;
 let notificacionesPendientes = [];
+let intervaloNotificacionesAdmin = null;
 let esClaveTemporal = false;
 let inactividadPausada = false;
 let cacheDashboard = null;
@@ -713,8 +712,10 @@ async function eliminarAlumno(id) {
 
 async function guardarLog(log) {
     try {
-        await llamarSupabase("logs", { method: "POST", body: JSON.stringify(log) });
+        const resultado = await llamarSupabase("logs", { method: "POST", body: JSON.stringify(log) });
+        if (resultado === null) throw new Error(ultimoErrorSupabase || 'Supabase no confirmó el registro del historial.');
     } catch (error) {
+        console.error('No se pudo guardar el evento en el historial remoto:', error);
         const logs = JSON.parse(localStorage.getItem('zk360_historial') || '[]');
         logs.push(log);
         localStorage.setItem('zk360_historial', JSON.stringify(logs));
@@ -724,11 +725,6 @@ async function guardarLog(log) {
 // ============ NOTIFICACIONES ============
 function mostrarNotificacion(mensaje, tipo = "info") {
     const textoMensaje = String(mensaje);
-    const claveNotificacion = `${tipo}:${textoMensaje.trim().toLocaleLowerCase()}`;
-    const ahora = Date.now();
-    if (claveNotificacion === ultimaNotificacionKey && ahora - ultimaNotificacionEn < 8000) return;
-    ultimaNotificacionKey = claveNotificacion;
-    ultimaNotificacionEn = ahora;
 
     let contenedor = document.getElementById('notificacion-sistema');
     if (!contenedor) {
@@ -743,7 +739,7 @@ function mostrarNotificacion(mensaje, tipo = "info") {
     const burbuja = document.createElement('div');
     burbuja.className = `notificacion-burbuja ${tipo}`;
     burbuja.setAttribute('role', tipo === 'error' ? 'alert' : 'status');
-    burbuja.setAttribute('aria-label', `Abrir detalle de notificación: ${textoMensaje}`);
+    burbuja.setAttribute('aria-label', textoMensaje);
     burbuja.style.cssText = 'align-items:flex-start;max-height:65vh;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;';
     burbuja.style.borderLeftColor = colores[tipo] || '#2575fc';
     const icono = document.createElement('i');
@@ -759,38 +755,89 @@ function mostrarNotificacion(mensaje, tipo = "info") {
     cerrar.textContent = '×';
     cerrar.addEventListener('click', () => burbuja.remove());
     burbuja.append(icono, texto, cerrar);
-    burbuja.title = 'Pulsa para ver el detalle';
-    burbuja.tabIndex = 0;
-    burbuja.addEventListener('click', event => {
-        if (event.target === cerrar) return;
-        abrirNotificaciones();
-        document.querySelector('#lista-notificaciones .notificacion-lista-encabezado')?.click();
-    });
-    burbuja.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            abrirNotificaciones();
-            document.querySelector('#lista-notificaciones .notificacion-lista-encabezado')?.click();
-        }
-    });
     contenedor.appendChild(burbuja);
     while (contenedor.children.length > 4) contenedor.firstElementChild.remove();
-    
-    contadorNotificaciones++;
-    actualizarBadgeNotificaciones();
-    notificacionesPendientes.push({
-        mensaje: textoMensaje,
-        tipo,
-        detalle: textoMensaje,
-        timestamp: new Date().toISOString()
-    });
-    notificacionesPendientes = notificacionesPendientes.slice(-50);
-    localStorage.setItem('zk360_notificaciones_pendientes', JSON.stringify(notificacionesPendientes));
-    
+
     setTimeout(() => {
         burbuja.style.opacity = '0';
         setTimeout(() => burbuja.remove(), 500);
     }, tipo === 'error' ? 12000 : 8000);
+}
+
+function claveAlmacenNotificaciones() {
+    const email = String(usuarioSesion?.email || 'sin-usuario').trim().toLowerCase();
+    return `zk360_notificaciones_eventos_${email}`;
+}
+
+function guardarNotificacionesCampana() {
+    try {
+        localStorage.setItem(claveAlmacenNotificaciones(), JSON.stringify(notificacionesPendientes.slice(-100)));
+    } catch (error) {
+        console.error('No se pudieron guardar las notificaciones importantes:', error);
+    }
+}
+
+function registrarNotificacionImportante({ id, mensaje, detalle = '', tipo = 'info' }) {
+    if (modoPrueba || modoOffline || !id || !mensaje) return false;
+    const idEvento = String(id);
+    if (notificacionesPendientes.some(item =>
+        item.id === idEvento ||
+        (item.mensaje === String(mensaje) && item.detalle === String(detalle || mensaje) &&
+            Date.now() - Date.parse(item.timestamp) < 30000)
+    )) return false;
+    notificacionesPendientes.push({
+        id: idEvento,
+        mensaje: String(mensaje),
+        detalle: String(detalle || mensaje),
+        tipo,
+        timestamp: new Date().toISOString(),
+        leida: false
+    });
+    notificacionesPendientes = notificacionesPendientes.slice(-100);
+    contadorNotificaciones = notificacionesPendientes.filter(item => !item.leida).length;
+    guardarNotificacionesCampana();
+    actualizarBadgeNotificaciones();
+    return true;
+}
+
+async function revisarEventosImportantesAdmin() {
+    if (modoPrueba || modoOffline || !usuarioSesion || usuarioSesion.rol !== 'admin') return;
+    try {
+        const logs = await llamarSupabase('logs?order=id.desc&limit=50');
+        if (!Array.isArray(logs)) return;
+        const claveCursor = `zk360_notificaciones_cursor_${usuarioSesion.email}`;
+        const cursorGuardado = localStorage.getItem(claveCursor);
+        const cursor = cursorGuardado === null ? null : Number(cursorGuardado);
+        const relevantes = logs.filter(log =>
+            /^(Envió asistencia|Subió foto|Envió lección|Solicitó sustituto)/i.test(String(log.accion || '')) &&
+            log.id !== undefined && Number.isFinite(Number(log.id))
+        );
+        if (cursor === null) {
+            const mayorId = logs.reduce((maximo, log) => Math.max(maximo, Number(log.id) || 0), 0);
+            localStorage.setItem(claveCursor, String(mayorId));
+            return;
+        }
+        const nuevos = relevantes.filter(log => Number(log.id) > cursor).sort((a, b) => Number(a.id) - Number(b.id));
+        nuevos.forEach(log => {
+            const fecha = new Date(log.fecha);
+            const textoFecha = Number.isNaN(fecha.getTime()) ? '' : ` · ${fecha.toLocaleDateString()}`;
+            const mensaje = String(log.accion);
+            const detalle = `${log.usuario || 'Un usuario'}${textoFecha}`;
+            const nuevoEvento = registrarNotificacionImportante({
+                id: `actividad-${log.id}`,
+                mensaje,
+                detalle,
+                tipo: 'info'
+            });
+            if (nuevoEvento) mostrarNotificacion(`${mensaje} · ${detalle}`, 'info');
+        });
+        if (logs.length) {
+            const mayorId = logs.reduce((maximo, log) => Math.max(maximo, Number(log.id) || 0), cursor);
+            localStorage.setItem(claveCursor, String(Math.max(cursor, mayorId)));
+        }
+    } catch (error) {
+        console.error('No se pudieron consultar las notificaciones de actividad:', error);
+    }
 }
 
 function confirmarAccion(mensaje) {
@@ -848,9 +895,9 @@ window.abrirNotificaciones = function() {
     if (modal) {
         modal.classList.add('activo');
         cargarNotificacionesEnModal();
+        notificacionesPendientes = notificacionesPendientes.map(item => ({ ...item, leida: true }));
         contadorNotificaciones = 0;
-        notificacionesPendientes = [];
-        localStorage.removeItem('zk360_notificaciones_pendientes');
+        guardarNotificacionesCampana();
         actualizarBadgeNotificaciones();
     }
 };
@@ -862,7 +909,7 @@ function cargarNotificacionesEnModal() {
     if (!notificacionesPendientes.length) {
         const vacio = document.createElement('p');
         vacio.style.cssText = 'text-align:center;padding:30px;color:#95a5a6';
-        vacio.textContent = 'No hay notificaciones pendientes';
+        vacio.textContent = 'Aquí aparecerán actualizaciones importantes: asistencia, fotos, lecciones y sustituciones.';
         container.appendChild(vacio);
         return;
     }
@@ -873,12 +920,14 @@ function cargarNotificacionesEnModal() {
         encabezado.type = 'button';
         encabezado.className = 'notificacion-lista-encabezado';
         encabezado.setAttribute('aria-expanded', 'false');
+        encabezado.classList.toggle('no-leida', !notificacion.leida);
         encabezado.textContent = String(notificacion.mensaje || 'Notificación');
         const detalle = document.createElement('div');
         detalle.className = 'notificacion-lista-detalle';
         detalle.hidden = true;
+        const detalleTexto = String(notificacion.detalle || '');
         const descripcion = document.createElement('p');
-        descripcion.textContent = String(notificacion.detalle || notificacion.mensaje || '');
+        descripcion.textContent = detalleTexto;
         const fecha = document.createElement('small');
         const instante = new Date(notificacion.timestamp);
         fecha.textContent = Number.isNaN(instante.getTime()) ? '' : instante.toLocaleString();
@@ -894,7 +943,8 @@ function cargarNotificacionesEnModal() {
             detalle.hidden = !detalle.hidden;
             encabezado.setAttribute('aria-expanded', String(!detalle.hidden));
         });
-        detalle.append(descripcion, tipo, fecha);
+        if (detalleTexto && detalleTexto !== String(notificacion.mensaje || '')) detalle.appendChild(descripcion);
+        detalle.append(tipo, fecha);
         item.append(encabezado, detalle);
         container.appendChild(item);
     });
@@ -965,25 +1015,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Cargar notificaciones pendientes
-    const pendientes = JSON.parse(localStorage.getItem('zk360_notificaciones_pendientes') || '[]');
-    const notificacionesUnicas = [];
-    (Array.isArray(pendientes) ? pendientes : []).slice(-50).forEach(notificacion => {
-        if (!notificacion || typeof notificacion !== 'object') return;
-        if (String(notificacion?.mensaje || '').startsWith('Has cambiado al tema ')) return;
-        const instante = Date.parse(notificacion.timestamp);
-        const anterior = notificacionesUnicas[notificacionesUnicas.length - 1];
-        const mismaNotificacion = anterior &&
-            anterior.tipo === notificacion.tipo &&
-            anterior.mensaje === notificacion.mensaje &&
-            Number.isFinite(instante) &&
-            instante >= Date.parse(anterior.timestamp) &&
-            instante - Date.parse(anterior.timestamp) < 8000;
-        if (!mismaNotificacion) notificacionesUnicas.push(notificacion);
-    });
-    notificacionesPendientes = notificacionesUnicas;
-    localStorage.setItem('zk360_notificaciones_pendientes', JSON.stringify(notificacionesPendientes));
-    contadorNotificaciones = notificacionesPendientes.length;
-    actualizarBadgeNotificaciones();
+    localStorage.removeItem('zk360_notificaciones_pendientes');
 
     // Recuperar sesión
     const sesionTemporal = sessionStorage.getItem('zk360_usuario_activo');
@@ -996,9 +1028,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     const perfilOfflineValido = perfilOffline?.rol === 'maestro' && perfilOffline.seccion &&
         perfilOffline.expira_en && new Date(perfilOffline.expira_en).getTime() > Date.now();
     modoOffline = sessionStorage.getItem('zk360_modo_offline') === 'true';
-    const claveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true';
-    
-    if (claveTemporal) esClaveTemporal = true;
     
     if (esPrueba) {
         modoPrueba = true;
@@ -1043,6 +1072,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!usuarioSesion) { 
         window.location.href = "index.html"; 
         return; 
+    }
+    esClaveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true' ||
+        localStorage.getItem(`zk360_clave_temporal_${String(usuarioSesion.email || '').toLowerCase()}`) === 'true';
+
+    try {
+        const notificacionesGuardadas = JSON.parse(localStorage.getItem(claveAlmacenNotificaciones()) || '[]');
+        notificacionesPendientes = Array.isArray(notificacionesGuardadas)
+            ? notificacionesGuardadas.filter(item => item && typeof item.id === 'string').slice(-100)
+            : [];
+        contadorNotificaciones = notificacionesPendientes.filter(item => !item.leida).length;
+        actualizarBadgeNotificaciones();
+    } catch (error) {
+        console.error('No se pudieron cargar las notificaciones importantes:', error);
+        notificacionesPendientes = [];
+        contadorNotificaciones = 0;
+        actualizarBadgeNotificaciones();
     }
 
     // No aceptar sesiones persistidas de usuarios que ya no están registrados.
@@ -1196,6 +1241,9 @@ if (usuarioSesion?.rol !== 'admin') {
     cargarGaleria('todas');
     cargarChats();
     cargarActividadesMensuales();
+    await revisarEventosImportantesAdmin();
+    clearInterval(intervaloNotificacionesAdmin);
+    intervaloNotificacionesAdmin = setInterval(revisarEventosImportantesAdmin, 30000);
     window.addEventListener('online', sincronizarCambiosOffline);
     window.addEventListener('online', () => {
         if (modoOffline && !sessionStorage.getItem('zk360_supabase_session')) {
@@ -1970,7 +2018,18 @@ async function seleccionarSustituto(email) {
         if (modal) modal.classList.remove('activo');
         const btn = document.getElementById('btn-solicitar-sustituto');
         if (btn) { btn.disabled = true; btn.title = 'Solicitud pendiente de respuesta'; }
-        mostrarNotificacion('Solicitud enviada. El botón se reactivará al recibir respuesta o al expirar en 5 horas.', 'success');
+        mostrarNotificacion('Solicitud de sustitución enviada. El maestro elegido recibirá la solicitud.', 'success');
+        registrarNotificacionImportante({
+            id: `sustitucion-enviada-${registro[0]?.id || registro.id || Date.now()}`,
+            mensaje: 'Solicitud de sustitución enviada',
+            detalle: `Para ${mostrarFechaLegible(fecha)} · ${seccionAsignadaMaestro}.`,
+            tipo: 'success'
+        });
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: `Solicitó sustituto para ${mostrarFechaLegible(fecha)} (${seccionAsignadaMaestro})`,
+            fecha: new Date().toISOString()
+        });
     } catch (error) {
         console.error('Error enviando solicitud:', error);
         mostrarNotificacion('No se pudo enviar la solicitud.', 'error');
@@ -2092,6 +2151,17 @@ async function confirmarSolicitudInternaPareja() {
         const btn = document.getElementById('btn-solicitar-sustituto');
         if (btn) { btn.disabled = true; btn.title = 'Esperando confirmación de tu pareja'; }
         mostrarNotificacion('Solicitud enviada a tu pareja.', 'success');
+        registrarNotificacionImportante({
+            id: `sustitucion-pareja-${resultado[0]?.id || resultado.id || Date.now()}`,
+            mensaje: 'Solicitud enviada a tu pareja',
+            detalle: `Para confirmar la cobertura del domingo ${mostrarFechaLegible(calcularProximoDomingo())}.`,
+            tipo: 'success'
+        });
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: `Solicitó sustituto con su pareja para ${mostrarFechaLegible(calcularProximoDomingo())}`,
+            fecha: new Date().toISOString()
+        });
     } catch (error) {
         console.error(error);
         mostrarNotificacion(error.message || 'No se pudo solicitar confirmación.', 'error');
@@ -2205,6 +2275,17 @@ async function enviarSolicitudDoble() {
         const modal = document.getElementById('modal-sustituto');
         if (modal) modal.classList.remove('activo');
         mostrarNotificacion('Las dos solicitudes fueron enviadas. La operación se cancelará si alguna se rechaza o expira.', 'success');
+        registrarNotificacionImportante({
+            id: `sustitucion-doble-${grupoId}`,
+            mensaje: 'Solicitudes de sustitución enviadas',
+            detalle: `Dos maestros cubrirán Primera Infancia el domingo ${mostrarFechaLegible(original.fecha_domingo)}.`,
+            tipo: 'success'
+        });
+        await guardarLog({
+            usuario: usuarioSesion.nombre,
+            accion: `Solicitó sustitutos para Primera Infancia (${mostrarFechaLegible(original.fecha_domingo)})`,
+            fecha: new Date().toISOString()
+        });
         const btn = document.getElementById('btn-solicitar-sustituto');
         if (btn) { btn.disabled = true; btn.title = 'Solicitudes de pareja pendientes'; }
     } catch (error) {
@@ -2302,6 +2383,16 @@ async function verificarBloqueoSustituto() {
             return window.responderSolicitudSustituto(id, aceptar);
         };
         const entrante = vigentes.find(r => r.receptor_email === email && ['pendiente', 'confirmacion_pareja'].includes(r.estado));
+        if (entrante) {
+            registrarNotificacionImportante({
+                id: `sustitucion-recibida-${entrante.id}`,
+                mensaje: entrante.tipo === 'confirmacion_pareja'
+                    ? 'Tu pareja solicita confirmar la cobertura'
+                    : 'Nueva solicitud de sustitución',
+                detalle: `${entrante.solicitante_nombre || 'Un maestro'} · domingo ${mostrarFechaLegible(entrante.fecha_domingo)} · ${entrante.motivo || 'Sin motivo indicado'}`,
+                tipo: 'info'
+            });
+        }
         if (entrante && !document.getElementById('aviso-sustitucion-entrante')) {
             const aviso = document.createElement('div');
             aviso.id = 'aviso-sustitucion-entrante';
@@ -3365,6 +3456,22 @@ async function confirmarEliminar(id) {
 }
 
 // ============ ENVIAR ASISTENCIA ============
+function fechaEnFormatoLocal(fecha = new Date()) {
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+}
+
+function mostrarFechaLegible(fecha) {
+    const texto = String(fecha || '');
+    const partes = texto.split('/');
+    const fechaNormalizada = partes.length === 3
+        ? new Date(Number(partes[2]), Number(partes[1]) - 1, Number(partes[0]))
+        : new Date(`${texto}T00:00:00`);
+    return Number.isNaN(fechaNormalizada.getTime()) ? texto : fechaNormalizada.toLocaleDateString();
+}
+
 async function enviarAsistenciaSupabase() {
     const checkboxes = document.querySelectorAll('.asistencia-checkbox:checked');
     if (checkboxes.length === 0) { mostrarNotificacion("Selecciona al menos un alumno presente", "error"); return; }
@@ -3375,7 +3482,7 @@ async function enviarAsistenciaSupabase() {
         mostrarNotificacion("Por favor, marca tu asistencia como maestro", "warning");
         return;
     }
-    const fechaHoy = new Date().toISOString().split('T')[0];
+    const fechaHoy = fechaEnFormatoLocal();
     const alumnosPresentes = [];
     document.querySelectorAll('.asistencia-checkbox:checked').forEach(cb => {
         const id = parseInt(cb.dataset.id);
@@ -3399,7 +3506,24 @@ async function enviarAsistenciaSupabase() {
         }
         const hoy = new Date().toDateString();
         localStorage.setItem('asistencia_' + hoy + '_' + usuarioSesion.nombre, 'true');
-        mostrarNotificacion('Asistencia reportada: ' + alumnosPresentes.length + ' alumnos', "success");
+        const fechaLegible = mostrarFechaLegible(fechaHoy);
+        const detalleAsistencia = `${alumnosPresentes.length} alumnos presentes en ${seccion || 'la clase'}.`;
+        mostrarNotificacion(`Asistencia enviada para el ${fechaLegible}.`, "success");
+        if (!modoPrueba && !modoOffline) {
+            if (usuarioSesion.rol !== 'admin') {
+                registrarNotificacionImportante({
+                    id: `asistencia-${usuarioSesion.email}-${Date.now()}`,
+                    mensaje: `Asistencia enviada · ${fechaLegible}`,
+                    detalle: detalleAsistencia,
+                    tipo: 'success'
+                });
+            }
+            await guardarLog({
+                usuario: usuarioSesion.nombre,
+                accion: `Envió asistencia a ${alumnosPresentes.length} alumnos (${seccion || 'sin sección'})`,
+                fecha: new Date().toISOString()
+            });
+        }
         cargarAlumnosSegunRol();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
         if (btnGuardar) {
@@ -3866,8 +3990,20 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
             lecturas: 0
         };
 
-        await llamarSupabase("lecciones", { method: "POST", body: JSON.stringify(leccion) });
-        mostrarNotificacion("Lección enviada para revisión del administrador", "success");
+        const resultadoLeccion = await llamarSupabase("lecciones", { method: "POST", body: JSON.stringify(leccion) });
+        if (!resultadoLeccion) throw new Error('No se pudo enviar la lección a Supabase.');
+        mostrarNotificacion("Lección enviada para revisión del administrador.", "success");
+        if (!modoPrueba && !modoOffline) {
+            const fechaLegible = mostrarFechaLegible(fechaVal);
+            if (usuarioSesion.rol !== 'admin') {
+                registrarNotificacionImportante({
+                    id: `leccion-${usuarioSesion.email}-${Date.now()}`,
+                    mensaje: `Lección enviada · ${tituloVal}`,
+                    detalle: `${seccionVal} · domingo ${fechaLegible}.`,
+                    tipo: 'success'
+                });
+            }
+        }
         cerrarNuevaLeccion();
         cargarBiblioteca();
         await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió lección "' + tituloVal + '" para ' + seccionVal, fecha: new Date().toISOString() });
@@ -3998,8 +4134,25 @@ async function subirFotoGaleria() {
             es_cumpleanero: false,
             foto_subida: true
         };
-        await llamarSupabase("galeria", { method: "POST", body: JSON.stringify(fotoData) });
-        mostrarNotificacion("Foto subida con éxito", "success");
+        const resultadoFoto = await llamarSupabase("galeria", { method: "POST", body: JSON.stringify(fotoData) });
+        if (!resultadoFoto) throw new Error('No se pudo guardar la foto.');
+        const fechaLegible = mostrarFechaLegible(fotoData.fecha_domingo);
+        mostrarNotificacion(`Foto publicada para el ${fechaLegible}.`, "success");
+        if (!modoPrueba && !modoOffline) {
+            if (usuarioSesion.rol !== 'admin') {
+                registrarNotificacionImportante({
+                    id: `foto-${usuarioSesion.email}-${Date.now()}`,
+                    mensaje: `Foto publicada · ${fechaLegible}`,
+                    detalle: fotoData.descripcion,
+                    tipo: 'success'
+                });
+            }
+            await guardarLog({
+                usuario: usuarioSesion.nombre,
+                accion: `Subió foto para ${fotoData.seccion} (${fechaLegible})`,
+                fecha: new Date().toISOString()
+            });
+        }
         cerrarSubirFoto();
         cargarGaleria('todas');
     } catch (error) {
@@ -4637,6 +4790,7 @@ async function cambiarContrasenaPanel() {
         
         if (esClaveTemporal) {
             sessionStorage.removeItem('zk360_clave_temporal');
+            localStorage.removeItem(`zk360_clave_temporal_${String(usuarioSesion.email || '').toLowerCase()}`);
             esClaveTemporal = false;
         }
         
