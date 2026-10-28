@@ -18,7 +18,7 @@ function normalizarOrigin(origin: string) {
 
 function originPermitido(origin: string | null) {
     if (!origin) return '';
-    const permitidos = (deno.env.get('SITE_ORIGIN') || '')
+    const permitidos = (deno.env.get('MI_SITE_ORIGIN') || '')
         .split(',')
         .map(valor => normalizarOrigin(valor.trim()))
         .filter(Boolean);
@@ -69,8 +69,8 @@ deno.serve(async (request: Request) => {
     if (!origin) return jsonResponse(403, { error: 'Origen no permitido.' });
     if (request.method !== 'POST') return jsonResponse(405, { error: 'Método no permitido.' }, origin);
 
-    const supabaseUrl = deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = deno.env.get('MI_URL');
+    const serviceRoleKey = deno.env.get('service_role');
     if (!supabaseUrl || !serviceRoleKey) {
         console.error('Missing Supabase Edge Function secrets.');
         return jsonResponse(500, { error: 'Servicio de recuperación no configurado.' }, origin);

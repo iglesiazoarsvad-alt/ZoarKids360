@@ -2480,3 +2480,166 @@ html[data-tema="galaxia"] .feedback-admin-card small {
         justify-self: stretch;
     }
 }
+
+.configuracion-pestanas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 18px;
+    padding: 8px;
+    border: 1px solid #dfe4ea;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.configuracion-pestana {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: #344054;
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.configuracion-pestana:hover {
+    background: rgba(37, 117, 252, 0.08);
+}
+
+.configuracion-pestana.activa {
+    background: #2575fc;
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(37, 117, 252, 0.2);
+}
+
+.configuracion-panel[hidden] {
+    display: none !important;
+}
+
+.configuracion-pestana[hidden] {
+    display: none !important;
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-pestanas,
+html[data-tema="dark-purpura"] .configuracion-pestanas,
+html[data-tema="galaxia"] .configuracion-pestanas {
+    border-color: var(--tema-borde-neon);
+    background: var(--tema-fondo-tarjeta);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-pestana,
+html[data-tema="dark-purpura"] .configuracion-pestana,
+html[data-tema="galaxia"] .configuracion-pestana {
+    color: var(--tema-texto-secundario);
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-pestana.activa,
+html[data-tema="dark-purpura"] .configuracion-pestana.activa,
+html[data-tema="galaxia"] .configuracion-pestana.activa {
+    background: var(--azul-botones);
+    color: #fff;
+}
+
+html[data-tema="azul-esmeralda"] .tabla-auditoria,
+html[data-tema="dark-purpura"] .tabla-auditoria,
+html[data-tema="galaxia"] .tabla-auditoria {
+    color: var(--tema-texto);
+    background: var(--tema-fondo-interior);
+    border-color: var(--tema-borde-neon);
+}
+
+html[data-tema="azul-esmeralda"] .tabla-auditoria th,
+html[data-tema="dark-purpura"] .tabla-auditoria th,
+html[data-tema="galaxia"] .tabla-auditoria th {
+    background: var(--tema-fondo-tarjeta);
+    color: var(--tema-texto) !important;
+    border-color: var(--tema-borde-neon);
+}
+
+html[data-tema="azul-esmeralda"] .tabla-auditoria td,
+html[data-tema="dark-purpura"] .tabla-auditoria td,
+html[data-tema="galaxia"] .tabla-auditoria td,
+html[data-tema="azul-esmeralda"] .tabla-auditoria tr,
+html[data-tema="dark-purpura"] .tabla-auditoria tr,
+html[data-tema="galaxia"] .tabla-auditoria tr {
+    background: transparent;
+    color: var(--tema-texto-secundario) !important;
+    border-color: var(--tema-borde-neon);
+}
+
+html[data-tema="azul-esmeralda"] .tabla-auditoria tr:nth-child(even),
+html[data-tema="dark-purpura"] .tabla-auditoria tr:nth-child(even),
+html[data-tema="galaxia"] .tabla-auditoria tr:nth-child(even),
+html[data-tema="azul-esmeralda"] .tabla-auditoria tr:hover,
+html[data-tema="dark-purpura"] .tabla-auditoria tr:hover,
+html[data-tema="galaxia"] .tabla-auditoria tr:hover {
+    background: var(--tema-fondo-tarjeta);
+}
+
+html[data-tema="azul-esmeralda"] .tarjeta-biblioteca p,
+html[data-tema="dark-purpura"] .tarjeta-biblioteca p,
+html[data-tema="galaxia"] .tarjeta-biblioteca p,
+html[data-tema="azul-esmeralda"] .tarjeta-biblioteca h4,
+html[data-tema="dark-purpura"] .tarjeta-biblioteca h4,
+html[data-tema="galaxia"] .tarjeta-biblioteca h4,
+html[data-tema="azul-esmeralda"] .tarjeta-galeria p,
+html[data-tema="dark-purpura"] .tarjeta-galeria p,
+html[data-tema="galaxia"] .tarjeta-galeria p,
+html[data-tema="azul-esmeralda"] .actividad-mes-fila,
+html[data-tema="dark-purpura"] .actividad-mes-fila,
+html[data-tema="galaxia"] .actividad-mes-fila {
+    color: var(--tema-texto-secundario) !important;
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-panel .campo label,
+html[data-tema="dark-purpura"] .configuracion-panel .campo label,
+html[data-tema="galaxia"] .configuracion-panel .campo label,
+html[data-tema="azul-esmeralda"] .configuracion-panel legend,
+html[data-tema="dark-purpura"] .configuracion-panel legend,
+html[data-tema="galaxia"] .configuracion-panel legend {
+    color: var(--tema-texto) !important;
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-panel input:not([type="checkbox"]),
+html[data-tema="dark-purpura"] .configuracion-panel input:not([type="checkbox"]),
+html[data-tema="galaxia"] .configuracion-panel input:not([type="checkbox"]),
+html[data-tema="azul-esmeralda"] .configuracion-panel select,
+html[data-tema="dark-purpura"] .configuracion-panel select,
+html[data-tema="galaxia"] .configuracion-panel select,
+html[data-tema="azul-esmeralda"] .configuracion-panel textarea,
+html[data-tema="dark-purpura"] .configuracion-panel textarea,
+html[data-tema="galaxia"] .configuracion-panel textarea {
+    background: var(--tema-fondo-interior) !important;
+    color: var(--tema-texto) !important;
+    border-color: var(--tema-borde-neon) !important;
+}
+
+html[data-tema="azul-esmeralda"] .configuracion-panel input::placeholder,
+html[data-tema="dark-purpura"] .configuracion-panel input::placeholder,
+html[data-tema="galaxia"] .configuracion-panel input::placeholder,
+html[data-tema="azul-esmeralda"] .configuracion-panel textarea::placeholder,
+html[data-tema="dark-purpura"] .configuracion-panel textarea::placeholder,
+html[data-tema="galaxia"] .configuracion-panel textarea::placeholder {
+    color: var(--tema-texto-secundario);
+    opacity: .8;
+}
+
+@media (max-width: 600px) {
+    .configuracion-pestanas {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .configuracion-pestana {
+        padding-inline: 8px;
+        font-size: 13px;
+    }
+}

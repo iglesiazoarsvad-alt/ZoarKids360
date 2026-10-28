@@ -67,6 +67,8 @@ let chatGrupalAbierto = true;
 let chatPersonalCon = null;
 let secuenciaCargaMensajes = 0;
 let intervaloActualizacionChat = null;
+let intervaloBadgeChat = null;
+let promesaSDKStorage = null;
 let solicitudesPendientes = [];
 let parejasRechazadas = [];
 
@@ -665,6 +667,16 @@ async function sincronizarCambiosOffline() {
             }
             await window.ZK360OfflineStore.removeMutation(cambio.id);
             sincronizados++;
+            if (cambio.endpoint.split('?')[0] === 'mensajes' &&
+                cambio.method === 'POST' &&
+                typeof cambio.body?.receptor === 'string') {
+                void enviarPushChat(
+                    cambio.body.receptor,
+                    cambio.body.tipo === 'imagen'
+                        ? `${usuarioSesion.nombre} te envió una imagen.`
+                        : `${usuarioSesion.nombre}: ${String(cambio.body.mensaje || '')}`
+                );
+            }
         }
         if (sincronizados) {
             mostrarNotificacion(`${sincronizados} cambio(s) guardado(s) offline se sincronizaron con Supabase.`, 'success');
@@ -1122,11 +1134,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
-    const menuConfiguracionHorarios = document.getElementById('menu-configuracion-horarios');
-    const menuBandejaLecciones = document.getElementById('menu-bandeja-lecciones');
+    const menuConfiguracion = document.getElementById('menu-configuracion');
     const btnAgregarActividad = document.getElementById('btn-agregar-actividad');
-    if (menuConfiguracionHorarios) menuConfiguracionHorarios.style.display = usuarioSesion.rol === 'admin' ? 'flex' : 'none';
-    if (menuBandejaLecciones) menuBandejaLecciones.style.display = usuarioSesion.rol === 'admin' ? 'flex' : 'none';
+    if (menuConfiguracion) menuConfiguracion.style.display = 'flex';
+    document.querySelectorAll('[data-admin-only]').forEach(tab => {
+        tab.hidden = usuarioSesion.rol !== 'admin';
+    });
     if (btnAgregarActividad) btnAgregarActividad.style.display = usuarioSesion.rol === 'admin' ? 'inline-flex' : 'none';
     gestionarPermisosHistorial();
 
@@ -1240,6 +1253,10 @@ if (usuarioSesion?.rol !== 'admin') {
     cargarBiblioteca();
     cargarGaleria('todas');
     cargarChats();
+    actualizarBadgeChat();
+    clearInterval(intervaloBadgeChat);
+    intervaloBadgeChat = setInterval(actualizarBadgeChat, 30000);
+    document.getElementById('chat-input-imagen')?.addEventListener('change', enviarImagenChat);
     cargarActividadesMensuales();
     await revisarEventosImportantesAdmin();
     clearInterval(intervaloNotificacionesAdmin);
@@ -1301,7 +1318,10 @@ function gestionarPermisosHistorial() {
     const opcionMenuHistorial = document.querySelector('.menu-link[data-vista="historial"]');
     const moduloHistorial = document.getElementById('modulo-historial');
 
-    if (opcionMenuHistorial) opcionMenuHistorial.hidden = !esAdmin;
+    if (opcionMenuHistorial) {
+        opcionMenuHistorial.hidden = usuarioSesion?.rol === 'maestro' || !esAdmin;
+        opcionMenuHistorial.style.display = opcionMenuHistorial.hidden ? 'none' : 'flex';
+    }
     if (moduloHistorial) moduloHistorial.hidden = !esAdmin;
 }
 
@@ -1479,6 +1499,11 @@ function configurarNavegacion() {
         link.addEventListener('click', function() {
             const vista = this.dataset.vista;
             activarVistaPestaña(vista, this);
+        });
+    });
+    document.querySelectorAll('[data-config-tab]').forEach(button => {
+        button.addEventListener('click', function() {
+            activarPestanaConfiguracion(this.dataset.configTab, this);
         });
     });
 
@@ -1770,18 +1795,6 @@ function configurarNavegacion() {
     // CAMPANA DE NOTIFICACIONES
     const btnNotificaciones = document.getElementById('btn-notificaciones');
     if (btnNotificaciones) btnNotificaciones.addEventListener('click', window.abrirNotificaciones);
-
-    // MODAL ADMIN - BANDEJA DE LECCIONES PENDIENTES
-    const btnBandeja = document.getElementById('btn-bandeja-lecciones');
-    if (btnBandeja) {
-        btnBandeja.addEventListener('click', function() {
-            if (usuarioSesion.rol !== 'admin') {
-                mostrarNotificacion('Solo el Administrador puede acceder a esta bandeja', 'error');
-                return;
-            }
-            abrirBandejaLecciones();
-        });
-    }
 
     // REVERTIR PRUEBA
     const btnRevertir = document.getElementById('btn-revertir-prueba');
@@ -2434,30 +2447,11 @@ async function verificarBloqueoSustituto() {
 
 // ============ BANDEJA DE LECCIONES PENDIENTES (ADMIN) ============
 async function abrirBandejaLecciones() {
-    let modal = document.getElementById('modal-bandeja-lecciones');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'modal-bandeja-lecciones';
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-burbuja" style="max-width:700px; max-height:80vh; overflow-y:auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h3><i class="fas fa-inbox"></i> Bandeja de Lecciones Pendientes</h3>
-                    <button onclick="document.getElementById('modal-bandeja-lecciones').classList.remove('activo')" 
-                            style="background:none; border:none; font-size:24px; cursor:pointer; color:#95a5a6;">&times;</button>
-                </div>
-                <div id="contenido-bandeja-lecciones" style="max-height:60vh; overflow-y:auto;">
-                    <p style="color:#95a5a6; text-align:center; padding:20px;">Cargando lecciones...</p>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        modal.addEventListener('click', function(e) {
-            if (e.target === this) this.classList.remove('activo');
-        });
+    if (usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Solo el administrador puede acceder a la bandeja de lecciones.', 'warning');
+        return;
     }
-    modal.classList.add('activo');
-    await cargarLeccionesPendientes();
+    activarVistaPestaña('bandeja-lecciones', document.getElementById('menu-configuracion'));
 }
 
 async function cargarLeccionesPendientes() {
@@ -2558,29 +2552,23 @@ async function publicarLeccionAdmin(id) {
         return;
     }
     
-    let portadaData = null;
+    let portadaSubida = null;
     const portadaFile = document.getElementById('admin-portada').files[0];
-    if (portadaFile) {
-        try {
-            portadaData = await leerArchivoBase64(portadaFile);
-        } catch (error) {
-            mostrarNotificacion("Error al leer la imagen", "error");
-            return;
-        }
-    }
-    
     try {
+        if (portadaFile) portadaSubida = await subirArchivoStorage('lecciones', portadaFile);
         const datosActualizar = {
             resumen_admin: resumen,
             estado: 'publicada',
             publicado_en: new Date().toISOString()
         };
-        if (portadaData) { datosActualizar.portada = portadaData; }
+        if (portadaSubida) datosActualizar.portada = portadaSubida.url;
         
-        await llamarSupabase('lecciones?id=eq.' + id, {
+        const resultado = await llamarSupabase('lecciones?id=eq.' + id, {
             method: "PATCH",
             body: JSON.stringify(datosActualizar)
         });
+        if (!resultado) throw new Error('No se pudo guardar la publicación de la lección.');
+        portadaSubida = null;
         
         mostrarNotificacion("Lección publicada exitosamente", "success");
         document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
@@ -2592,7 +2580,8 @@ async function publicarLeccionAdmin(id) {
         });
     } catch (error) {
         console.error("Error:", error);
-        mostrarNotificacion("Error al publicar la lección", "error");
+        if (portadaSubida) await eliminarArchivosStorage([portadaSubida]);
+        mostrarNotificacion(error.message || "Error al publicar la lección", "error");
     }
 }
 
@@ -3118,9 +3107,7 @@ async function actualizarBadgeFeedbackAdmin(cantidadConocida) {
                 ['sugerencia', 'reporte'].includes(registro.tipo) &&
                 !['atendida', 'resuelta', 'cerrada'].includes(registro.estado)
             ).length;
-        const enlace = document.getElementById('menu-reportes-feedback');
         const badge = document.getElementById('badge-feedback-admin');
-        if (enlace) enlace.style.display = cantidad > 0 ? 'flex' : 'none';
         if (badge) {
             badge.textContent = String(cantidad);
             badge.style.display = cantidad > 0 ? 'inline-flex' : 'none';
@@ -3701,6 +3688,20 @@ async function verLeccion(id) {
         if (autorEl) autorEl.textContent = l.autor + ' - ' + new Date(l.fecha_domingo).toLocaleDateString();
 
         const nombresSeccion = { 'infancia': 'Primera Infancia (1-3 años)', 'medianos': 'Medianos (4-8 años)', 'grandes': 'Grandes (9-12 años)' };
+        let visualesUrl = '';
+        try {
+            const url = new URL(l.visuales);
+            if (['http:', 'https:'].includes(url.protocol)) visualesUrl = url.href;
+        } catch (error) {
+            if (l.visuales) console.error('La URL de visuales de la lección no es válida:', error);
+        }
+        let hojaTrabajoUrl = '';
+        try {
+            const url = new URL(l.hoja_trabajo);
+            if (['http:', 'https:'].includes(url.protocol)) hojaTrabajoUrl = url.href;
+        } catch (error) {
+            if (l.hoja_trabajo) console.error('La URL de la hoja de trabajo no es válida:', error);
+        }
 
         let contenido = `
             <div style="background:#f8f9fa; padding:15px; border-radius:12px; margin-bottom:10px;">
@@ -3708,7 +3709,8 @@ async function verLeccion(id) {
                 <p><strong><i class="fas fa-bible"></i> Texto memorizado:</strong> ${l.texto_memorizado}</p>
                 ${l.descripcion ? '<p><strong><i class="fas fa-comment"></i> Descripción:</strong> ' + l.descripcion + '</p>' : ''}
                 ${l.resumen_admin ? '<p><strong><i class="fas fa-file-lines"></i> Resumen del Admin:</strong> ' + l.resumen_admin + '</p>' : ''}
-                ${l.uso_visuales ? '<p><strong><i class="fas fa-image"></i> Visuales:</strong> Sí</p>' : ''}
+                ${l.uso_visuales ? `<p><strong><i class="fas fa-image"></i> Visuales:</strong> ${visualesUrl ? `<a href="${visualesUrl}" target="_blank" rel="noopener noreferrer">Abrir archivo</a>` : 'Sí'}</p>` : ''}
+                ${hojaTrabajoUrl ? `<p><strong><i class="fas fa-file-lines"></i> Hoja de trabajo:</strong> <a href="${hojaTrabajoUrl}" target="_blank" rel="noopener noreferrer">Abrir archivo</a></p>` : ''}
                 ${l.realizo_actividad ? '<p><strong><i class="fas fa-gamepad"></i> Actividad:</strong> ' + l.descripcion_actividad + '</p>' : ''}
                 <div style="margin-top:10px; display:flex; gap:8px;">
                     <button class="btn-admin" onclick="verBosquejo()" style="background:#2575fc;">
@@ -3733,21 +3735,34 @@ function verBosquejo() {
         mostrarNotificacion('No hay bosquejo disponible para esta lección', 'warning');
         return;
     }
+    const bosquejo = leccionSeleccionada.bosquejo;
+    if (/^https:\/\//i.test(bosquejo)) {
+        const ventanaArchivo = window.open(bosquejo, '_blank');
+        if (!ventanaArchivo) mostrarNotificacion('Permite ventanas emergentes para abrir el bosquejo.', 'warning');
+        else ventanaArchivo.opener = null;
+        return;
+    }
+    if (!bosquejo.startsWith('data:')) {
+        mostrarNotificacion('El enlace del bosquejo no es válido.', 'error');
+        return;
+    }
+
     const ventana = window.open('', '_blank');
-    ventana.document.documentElement.innerHTML = `
-        <head><title>Bosquejo - ${leccionSeleccionada.titulo}</title></head>
-        <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
-                <h1>${leccionSeleccionada.titulo}</h1>
-                <p><strong>Autor:</strong> ${leccionSeleccionada.autor}</p>
-                <hr>
-                <div style="margin-top: 20px;">
-                    ${leccionSeleccionada.bosquejo.startsWith('data:') 
-                        ? `<iframe src="${leccionSeleccionada.bosquejo}" style="width:100%; height:600px; border:none;"></iframe>`
-                        : `<p>${leccionSeleccionada.bosquejo}</p>`
-                    }
-                </div>
-        </body>
-    `;
+    if (!ventana) {
+        mostrarNotificacion('Permite ventanas emergentes para abrir el bosquejo.', 'warning');
+        return;
+    }
+    ventana.document.title = `Bosquejo - ${leccionSeleccionada.titulo}`;
+    ventana.document.body.style.cssText = 'font-family:Arial,sans-serif;padding:20px;max-width:800px;margin:0 auto;';
+    const titulo = ventana.document.createElement('h1');
+    titulo.textContent = leccionSeleccionada.titulo;
+    const autor = ventana.document.createElement('p');
+    autor.textContent = `Autor: ${leccionSeleccionada.autor}`;
+    const documento = ventana.document.createElement('iframe');
+    documento.src = bosquejo;
+    documento.title = 'Bosquejo de la lección';
+    documento.style.cssText = 'width:100%;height:80vh;border:none;';
+    ventana.document.body.replaceChildren(titulo, autor, documento);
 }
 
 function modoLectura() {
@@ -3934,6 +3949,7 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
     const descActividad = document.getElementById('lec-descripcion-actividad');
     const bosquejoFile = document.getElementById('lec-bosquejo-archivo');
     const visualesFile = document.getElementById('lec-archivo-visuales');
+    const hojaFile = document.getElementById('lec-hoja-archivo');
 
     if (!titulo || !seccion || !fecha || !memorizado || !bosquejoFile) {
         mostrarNotificacion("Completa todos los campos obligatorios", "error");
@@ -3950,6 +3966,7 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
     const descActividadVal = descActividad ? descActividad.value.trim() : '';
     const bosquejoFileVal = bosquejoFile.files[0];
     const visualesFileVal = visualesFile ? visualesFile.files[0] : null;
+    const hojaFileVal = hojaFile ? hojaFile.files[0] : null;
 
     if (!tituloVal || !seccionVal || !fechaVal || !memorizadoVal) {
         mostrarNotificacion("Completa todos los campos obligatorios", "error");
@@ -3968,10 +3985,22 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
         return;
     }
 
+    const archivosSubidos = [];
     try {
-        const bosquejoData = await leerArchivoBase64(bosquejoFileVal);
+        const bosquejoSubido = await subirArchivoStorage('lecciones', bosquejoFileVal);
+        archivosSubidos.push(bosquejoSubido);
         let visualesData = null;
-        if (visualesFileVal) { visualesData = await leerArchivoBase64(visualesFileVal); }
+        if (visualesFileVal) {
+            const visualesSubidos = await subirArchivoStorage('lecciones', visualesFileVal);
+            archivosSubidos.push(visualesSubidos);
+            visualesData = visualesSubidos.url;
+        }
+        let hojaTrabajoData = null;
+        if (hojaFileVal) {
+            const hojaSubida = await subirArchivoStorage('lecciones', hojaFileVal);
+            archivosSubidos.push(hojaSubida);
+            hojaTrabajoData = hojaSubida.url;
+        }
 
         const leccion = {
             titulo: tituloVal,
@@ -3984,7 +4013,8 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
             visuales: visualesData,
             realizo_actividad: realizoActividad,
             descripcion_actividad: descActividadVal,
-            bosquejo: bosquejoData,
+            bosquejo: bosquejoSubido.url,
+            hoja_trabajo: hojaTrabajoData,
             estado: 'pre-inscripcion',
             veces_editado: 0,
             lecturas: 0
@@ -3992,6 +4022,7 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
 
         const resultadoLeccion = await llamarSupabase("lecciones", { method: "POST", body: JSON.stringify(leccion) });
         if (!resultadoLeccion) throw new Error('No se pudo enviar la lección a Supabase.');
+        archivosSubidos.length = 0;
         mostrarNotificacion("Lección enviada para revisión del administrador.", "success");
         if (!modoPrueba && !modoOffline) {
             const fechaLegible = mostrarFechaLegible(fechaVal);
@@ -4009,7 +4040,8 @@ document.getElementById('form-nueva-leccion').addEventListener('submit', async f
         await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió lección "' + tituloVal + '" para ' + seccionVal, fecha: new Date().toISOString() });
     } catch (error) {
         console.error("Error:", error);
-        mostrarNotificacion("Error al enviar la lección", "error");
+        await eliminarArchivosStorage(archivosSubidos);
+        mostrarNotificacion(error.message || "Error al enviar la lección", "error");
     }
 });
 
@@ -4031,6 +4063,111 @@ function leerArchivoBase64(file) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
+}
+
+async function subirArchivoStorage(bucket, archivo) {
+    if (modoPrueba) {
+        return { url: await leerArchivoBase64(archivo), bucket: null, path: null, client: null };
+    }
+    if (!navigator.onLine || modoOffline) {
+        throw new Error('Necesitas conexión a internet para subir archivos.');
+    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        throw new Error('Configura Supabase antes de subir archivos.');
+    }
+
+    if (!window.supabase?.createClient) {
+        if (window.ZK360CargarSupabaseSDK) {
+            await window.ZK360CargarSupabaseSDK();
+        } else {
+            if (!promesaSDKStorage) {
+                promesaSDKStorage = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0';
+                    script.async = true;
+                    script.onload = () => window.supabase?.createClient
+                        ? resolve()
+                        : reject(new Error('No se pudo cargar el cliente de almacenamiento de Supabase.'));
+                    script.onerror = () => reject(new Error('No se pudo cargar el cliente de almacenamiento de Supabase.'));
+                    document.head.appendChild(script);
+                }).catch(error => {
+                    promesaSDKStorage = null;
+                    throw error;
+                });
+            }
+            await promesaSDKStorage;
+        }
+    }
+    if (!window.supabase?.createClient) {
+        throw new Error('No se pudo cargar el cliente de almacenamiento de Supabase.');
+    }
+
+    let sesion;
+    try {
+        sesion = JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+    } catch (error) {
+        console.error('No se pudo leer la sesión activa de Supabase:', error);
+        throw new Error('No se pudo leer la sesión activa de Supabase.');
+    }
+    if (!sesion.access_token) throw new Error('Inicia sesión nuevamente antes de subir archivos.');
+    if (sesion.expires_at && sesion.expires_at * 1000 <= Date.now()) {
+        if (!sesion.refresh_token) throw new Error('La sesión expiró. Inicia sesión nuevamente para subir archivos.');
+        const renovacion = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            cache: 'no-store',
+            headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: sesion.refresh_token })
+        });
+        const sesionRenovada = await renovacion.json().catch(() => ({}));
+        if (!renovacion.ok || !sesionRenovada.access_token) {
+            throw new Error('La sesión expiró y no pudo renovarse. Inicia sesión nuevamente.');
+        }
+        sesion = {
+            access_token: sesionRenovada.access_token,
+            refresh_token: sesionRenovada.refresh_token,
+            expires_at: sesionRenovada.expires_at,
+            user: sesionRenovada.user
+        };
+        sessionStorage.setItem('zk360_supabase_session', JSON.stringify(sesion));
+    }
+
+    const cliente = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        },
+        global: {
+            headers: { Authorization: `Bearer ${sesion.access_token}` }
+        }
+    });
+
+    const correo = String(usuarioSesion.email || 'usuario').toLowerCase();
+    const extension = archivo.name.includes('.') ? archivo.name.split('.').pop().replace(/[^a-z0-9]/gi, '') : '';
+    const identificador = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const nombreArchivo = `${identificador}${extension ? `.${extension}` : ''}`;
+    const ruta = `${correo}/${nombreArchivo}`;
+    const { error } = await cliente.storage.from(bucket).upload(ruta, archivo, {
+        cacheControl: '3600',
+        contentType: archivo.type || 'application/octet-stream',
+        upsert: false
+    });
+    if (error) throw new Error(`No se pudo subir el archivo al bucket "${bucket}": ${error.message}`);
+
+    const { data } = cliente.storage.from(bucket).getPublicUrl(ruta);
+    if (!data?.publicUrl) {
+        await cliente.storage.from(bucket).remove([ruta]);
+        throw new Error(`Supabase no devolvió una URL pública para el bucket "${bucket}".`);
+    }
+    return { url: data.publicUrl, bucket, path: ruta, client: cliente };
+}
+
+async function eliminarArchivosStorage(archivos) {
+    for (const archivo of archivos) {
+        if (!archivo?.client || !archivo.bucket || !archivo.path) continue;
+        const { error } = await archivo.client.storage.from(archivo.bucket).remove([archivo.path]);
+        if (error) console.error(`No se pudo limpiar el archivo ${archivo.path}:`, error);
+    }
 }
 
 // ============ GALERÍA ============
@@ -4122,13 +4259,14 @@ async function subirFotoGaleria() {
         return;
     }
 
+    let archivoSubido = null;
     try {
-        const data = await leerArchivoBase64(archivo);
+        archivoSubido = await subirArchivoStorage('galeria', archivo);
         const fotoData = {
             maestro: usuarioSesion.nombre,
             seccion: seccionAsignadaMaestro,
             fecha_domingo: calcularProximoDomingo(),
-            archivo: data,
+            archivo: archivoSubido.url,
             tipo: 'imagen',
             descripcion: document.getElementById('foto-descripcion') ? document.getElementById('foto-descripcion').value.trim() || 'Publicado por ' + usuarioSesion.nombre : 'Publicado por ' + usuarioSesion.nombre,
             es_cumpleanero: false,
@@ -4136,6 +4274,7 @@ async function subirFotoGaleria() {
         };
         const resultadoFoto = await llamarSupabase("galeria", { method: "POST", body: JSON.stringify(fotoData) });
         if (!resultadoFoto) throw new Error('No se pudo guardar la foto.');
+        archivoSubido = null;
         const fechaLegible = mostrarFechaLegible(fotoData.fecha_domingo);
         mostrarNotificacion(`Foto publicada para el ${fechaLegible}.`, "success");
         if (!modoPrueba && !modoOffline) {
@@ -4157,7 +4296,8 @@ async function subirFotoGaleria() {
         cargarGaleria('todas');
     } catch (error) {
         console.error("Error:", error);
-        mostrarNotificacion("Error al subir la foto", "error");
+        if (archivoSubido) await eliminarArchivosStorage([archivoSubido]);
+        mostrarNotificacion(error.message || "Error al subir la foto", "error");
     }
 }
 
@@ -4246,6 +4386,96 @@ function buscarContactos(termino) {
     });
 }
 
+function claveUltimoChatLeido(chat) {
+    return `zk360_chat_leido_${String(usuarioSesion.email || '').toLowerCase()}_${chat}`;
+}
+
+function mensajeOcultoParaUsuario(mensaje) {
+    const usuario = String(usuarioSesion.email || '').toLowerCase();
+    return Array.isArray(mensaje.eliminado_para) &&
+        mensaje.eliminado_para.some(email => String(email).toLowerCase() === usuario);
+}
+
+function marcarChatLeido(chat, mensajes) {
+    const masReciente = (mensajes || []).reduce((maximo, mensaje) => {
+        const instante = new Date(mensaje.creado_en || 0).getTime();
+        return Number.isFinite(instante) ? Math.max(maximo, instante) : maximo;
+    }, 0);
+    if (masReciente) localStorage.setItem(claveUltimoChatLeido(chat), String(masReciente));
+}
+
+function actualizarBadgeChatConConteo(conteo) {
+    const badge = document.getElementById('badge-chat-no-leidos');
+    if (!badge) return;
+    badge.hidden = conteo <= 0;
+    badge.textContent = conteo > 99 ? '99+' : String(conteo);
+    badge.title = conteo ? `${conteo} mensaje(s) sin leer` : '';
+    badge.setAttribute('aria-label', conteo ? `${conteo} mensaje(s) sin leer` : 'Sin mensajes sin leer');
+    badge.style.cssText = 'margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;';
+}
+
+async function actualizarBadgeChat() {
+    if (!usuarioSesion?.email || !navigator.onLine && !modoPrueba) return;
+    try {
+        const contactosGuardados = JSON.parse(localStorage.getItem('zk360_contactos_' + usuarioSesion.email) || '[]');
+        const contactos = Array.isArray(contactosGuardados)
+            ? [...new Set(contactosGuardados.filter(email => typeof email === 'string').slice(0, 100))]
+            : [];
+        const correoUsuario = encodeURIComponent(usuarioSesion.email);
+        const [mensajesGrupo, mensajesDirectos] = await Promise.all([
+            llamarSupabase('mensajes?receptor=is.null&order=id.desc&limit=1000'),
+            contactos.length
+                ? llamarSupabase(`mensajes?or=(emisor.eq.${correoUsuario},receptor.eq.${correoUsuario})&receptor=not.is.null&order=id.desc&limit=1000`)
+                : Promise.resolve([])
+        ]);
+        if (!Array.isArray(mensajesGrupo) || !Array.isArray(mensajesDirectos)) return;
+        const resultados = [{ chat: 'grupo', mensajes: mensajesGrupo }];
+        for (const email of contactos) {
+            resultados.push({
+                chat: `personal_${email.toLowerCase()}`,
+                mensajes: Array.isArray(mensajesDirectos)
+                    ? mensajesDirectos.filter(mensaje =>
+                        (mensaje.emisor === usuarioSesion.email && mensaje.receptor === email) ||
+                        (mensaje.emisor === email && mensaje.receptor === usuarioSesion.email)
+                    )
+                    : null
+            });
+        }
+        let total = 0;
+        for (const resultado of resultados) {
+            if (!Array.isArray(resultado.mensajes)) continue;
+            const mensajes = resultado.mensajes.filter(mensaje =>
+                mensaje.emisor !== usuarioSesion.email &&
+                !mensajeOcultoParaUsuario(mensaje)
+            );
+            const clave = claveUltimoChatLeido(resultado.chat);
+            const marcaGuardada = localStorage.getItem(clave);
+            let ultimoLeido = marcaGuardada === null ? null : Number(marcaGuardada);
+            if (ultimoLeido === null || !Number.isFinite(ultimoLeido)) {
+                if (resultado.mensajes.length) marcarChatLeido(resultado.chat, resultado.mensajes);
+                else localStorage.setItem(clave, '0');
+                ultimoLeido = Number(localStorage.getItem(clave)) || 0;
+            }
+            const moduloVisible = document.getElementById('modulo-chat')?.classList.contains('activo');
+            const conversacionVisible = document.getElementById('chat-conversacion')?.style.display !== 'none';
+            const hiloActivo = moduloVisible && conversacionVisible &&
+                resultado.chat === (chatGrupalAbierto
+                    ? 'grupo'
+                    : `personal_${String(chatPersonalCon || '').toLowerCase()}`);
+            if (hiloActivo) {
+                marcarChatLeido(resultado.chat, resultado.mensajes);
+                continue;
+            }
+            total += mensajes.filter(mensaje =>
+                new Date(mensaje.creado_en || 0).getTime() > ultimoLeido
+            ).length;
+        }
+        actualizarBadgeChatConConteo(total);
+    } catch (error) {
+        console.error('No se pudo actualizar el contador de mensajes sin leer:', error);
+    }
+}
+
 function abrirChatGrupal() {
     secuenciaCargaMensajes++;
     chatGrupalAbierto = true;
@@ -4325,32 +4555,13 @@ async function cargarMensajesGrupales() {
             mostrarEstadoChat('Todavía no hay mensajes en el grupo.');
             return;
         }
+        marcarChatLeido('grupo', mensajes);
         container.replaceChildren();
-        mensajes.slice().reverse().filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
-            const esPropio = m.emisor === usuarioSesion.email;
-            const fila = document.createElement('div');
-            fila.style.cssText = `display:flex; justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
-            const burbuja = document.createElement('div');
-            burbuja.className = esPropio ? 'mensaje-propio' : 'mensaje-otro';
-            if (!esPropio) {
-                const emisor = document.createElement('strong');
-                emisor.style.fontSize = '11px';
-                emisor.textContent = m.emisor || '';
-                burbuja.append(emisor, document.createElement('br'));
-            }
-            const contenido = document.createElement('span');
-            contenido.textContent = m.mensaje || '';
-            burbuja.appendChild(contenido);
-            const hora = document.createElement('span');
-            hora.style.cssText = `font-size:9px; color:${esPropio ? 'rgba(255,255,255,0.7)' : '#95a5a6'}; display:block; text-align:right;`;
-            const fecha = new Date(m.creado_en);
-            hora.textContent = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString();
-            burbuja.appendChild(hora);
-            fila.appendChild(burbuja);
-            container.appendChild(fila);
-        });
+        mensajes.slice().reverse().filter(m => !mensajeOcultoParaUsuario(m))
+            .forEach(m => container.appendChild(crearElementoMensajeChat(m, true)));
         container.dataset.inicializado = 'true';
         if (mantenerAbajo) container.scrollTop = container.scrollHeight;
+        actualizarBadgeChat();
     } catch (error) {
         console.error("Error:", error);
         if (secuencia === secuenciaCargaMensajes) mostrarEstadoChat('Ocurrió un error al cargar los mensajes.', true);
@@ -4386,26 +4597,13 @@ async function cargarMensajesPersonales(email) {
             mostrarEstadoChat('Todavía no hay mensajes con este contacto.');
             return;
         }
+        marcarChatLeido(`personal_${email.toLowerCase()}`, filtrados);
         container.replaceChildren();
-        filtrados.filter(m => !m.eliminado_para || !m.eliminado_para.includes(usuarioSesion.email)).forEach(m => {
-            const esPropio = m.emisor === usuarioSesion.email;
-            const fila = document.createElement('div');
-            fila.style.cssText = `display:flex; justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
-            const burbuja = document.createElement('div');
-            burbuja.className = esPropio ? 'mensaje-propio' : 'mensaje-otro';
-            const contenido = document.createElement('span');
-            contenido.textContent = m.mensaje || '';
-            burbuja.appendChild(contenido);
-            const hora = document.createElement('span');
-            hora.style.cssText = `font-size:9px; color:${esPropio ? 'rgba(255,255,255,0.7)' : '#95a5a6'}; display:block; text-align:right;`;
-            const fecha = new Date(m.creado_en);
-            hora.textContent = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString();
-            burbuja.appendChild(hora);
-            fila.appendChild(burbuja);
-            container.appendChild(fila);
-        });
+        filtrados.filter(m => !mensajeOcultoParaUsuario(m))
+            .forEach(m => container.appendChild(crearElementoMensajeChat(m, false)));
         container.dataset.inicializado = 'true';
         if (mantenerAbajo) container.scrollTop = container.scrollHeight;
+        actualizarBadgeChat();
     } catch (error) {
         console.error("Error:", error);
         if (secuencia === secuenciaCargaMensajes) mostrarEstadoChat('Ocurrió un error al cargar los mensajes.', true);
@@ -4422,20 +4620,155 @@ function mostrarEstadoChat(mensaje, error = false) {
     container.replaceChildren(estado);
 }
 
-async function enviarMensaje() {
+function crearElementoMensajeChat(mensaje, esGrupo) {
+    const esPropio = mensaje.emisor === usuarioSesion.email;
+    const fila = document.createElement('div');
+    fila.style.cssText = `display:flex;justify-content:${esPropio ? 'flex-end' : 'flex-start'};`;
+    const burbuja = document.createElement('div');
+    burbuja.className = esPropio ? 'mensaje-propio' : 'mensaje-otro';
+    if (esGrupo && !esPropio) {
+        const emisor = document.createElement('strong');
+        emisor.style.fontSize = '11px';
+        emisor.textContent = mensaje.emisor || '';
+        burbuja.append(emisor, document.createElement('br'));
+    }
+
+    if (mensaje.tipo === 'imagen' && /^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(mensaje.mensaje || '')) {
+        const imagen = document.createElement('img');
+        imagen.src = mensaje.mensaje;
+        imagen.alt = 'Imagen compartida en el chat';
+        imagen.loading = 'lazy';
+        imagen.style.cssText = 'display:block;max-width:min(260px,65vw);max-height:260px;object-fit:contain;border-radius:8px;';
+        burbuja.appendChild(imagen);
+    } else {
+        const contenido = document.createElement('span');
+        contenido.textContent = mensaje.tipo === 'imagen' ? 'Imagen no disponible' : mensaje.mensaje || '';
+        burbuja.appendChild(contenido);
+    }
+
+    const hora = document.createElement('span');
+    hora.style.cssText = `font-size:9px;color:${esPropio ? 'rgba(255,255,255,0.7)' : '#95a5a6'};display:block;text-align:right;`;
+    const fecha = new Date(mensaje.creado_en);
+    hora.textContent = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString();
+    burbuja.appendChild(hora);
+
+    if (mensaje.id != null && (esPropio || usuarioSesion.rol === 'admin')) {
+        const eliminar = document.createElement('button');
+        eliminar.type = 'button';
+        eliminar.className = 'btn-cerrar-modal';
+        eliminar.textContent = 'Eliminar';
+        eliminar.setAttribute('aria-label', 'Eliminar mensaje');
+        eliminar.style.cssText = 'display:block;margin:4px 0 0 auto;padding:2px 6px;font-size:10px;';
+        eliminar.addEventListener('click', () => eliminarMensajeChat(mensaje));
+        burbuja.appendChild(eliminar);
+    }
+    fila.appendChild(burbuja);
+    return fila;
+}
+
+async function eliminarMensajeChat(mensaje) {
+    const esAdmin = usuarioSesion.rol === 'admin';
+    const confirmado = await confirmarAccion(esAdmin
+        ? '¿Eliminar permanentemente este mensaje?'
+        : '¿Ocultar este mensaje solo de tu chat?');
+    if (!confirmado) return;
+    try {
+        let resultado;
+        if (esAdmin) {
+            resultado = await llamarSupabase(`mensajes?id=eq.${encodeURIComponent(mensaje.id)}`, { method: 'DELETE' });
+        } else {
+            const eliminados = Array.isArray(mensaje.eliminado_para) ? mensaje.eliminado_para : [];
+            const eliminadoPara = [...new Set([...eliminados, usuarioSesion.email.toLowerCase()])];
+            resultado = await llamarSupabase(`mensajes?id=eq.${encodeURIComponent(mensaje.id)}&emisor=eq.${encodeURIComponent(usuarioSesion.email)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ eliminado_para: eliminadoPara })
+            });
+        }
+        if (resultado === null) throw new Error('No se pudo eliminar el mensaje.');
+        mostrarNotificacion(esAdmin ? 'Mensaje eliminado.' : 'Mensaje ocultado de tu chat.', 'success');
+        if (chatGrupalAbierto) await cargarMensajesGrupales();
+        else if (chatPersonalCon) await cargarMensajesPersonales(chatPersonalCon);
+    } catch (error) {
+        console.error('Error eliminando mensaje:', error);
+        mostrarNotificacion(error.message || 'No se pudo eliminar el mensaje.', 'error');
+    }
+}
+
+async function enviarPushChat(destinatario, texto) {
+    try {
+        const tokens = await llamarSupabase(
+            `push_tokens?email=eq.${encodeURIComponent(destinatario)}&select=token`
+        );
+        if (!Array.isArray(tokens) || !tokens.length) {
+            mostrarNotificacion('Mensaje enviado, pero el destinatario no tiene un dispositivo con notificaciones push registradas.', 'warning');
+            return;
+        }
+        const sesion = JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+        for (const registro of tokens) {
+            const respuesta = await fetch(`${SUPABASE_URL}/functions/v1/enviar-push`, {
+                method: 'POST',
+                headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${sesion.access_token || SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: registro.token,
+                    titulo: 'ZoarKids 360',
+                    mensaje: texto.slice(0, 180)
+                })
+            });
+            if (!respuesta.ok) {
+                const detalle = await respuesta.text();
+                throw new Error(`La función enviar-push respondió ${respuesta.status}: ${detalle.slice(0, 160)}`);
+            }
+        }
+    } catch (error) {
+        console.error('No se pudo enviar la notificación push del chat:', error);
+        mostrarNotificacion('El mensaje se envió, pero no se pudo entregar la notificación push.', 'warning');
+    }
+}
+
+async function enviarImagenChat(evento) {
+    const inputArchivo = evento.currentTarget;
+    const archivo = inputArchivo.files?.[0];
+    if (!archivo) return;
+    const tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!tiposPermitidos.includes(archivo.type) || archivo.size > 1024 * 1024) {
+        mostrarNotificacion('Selecciona una imagen PNG, JPG, WEBP o GIF de hasta 1 MB.', 'warning');
+        inputArchivo.value = '';
+        return;
+    }
+    try {
+        const imagenBase64 = await new Promise((resolve, reject) => {
+            const lector = new FileReader();
+            lector.onload = () => resolve(lector.result);
+            lector.onerror = () => reject(lector.error || new Error('No se pudo leer la imagen.'));
+            lector.readAsDataURL(archivo);
+        });
+        await enviarMensaje({ tipo: 'imagen', mensaje: imagenBase64 });
+    } catch (error) {
+        console.error('No se pudo preparar la imagen del chat:', error);
+        mostrarNotificacion('No se pudo preparar la imagen.', 'error');
+    } finally {
+        inputArchivo.value = '';
+    }
+}
+
+async function enviarMensaje(adjunto = null) {
     const input = document.getElementById('chat-input-texto');
     if (!input) return;
-    const mensaje = input.value.trim();
+    const mensaje = adjunto?.mensaje || input.value.trim();
     if (!mensaje || input.dataset.enviando === 'true') return;
 
     input.dataset.enviando = 'true';
-    const botonEnviar = input.parentElement?.querySelector('button');
+    const botonEnviar = input.parentElement?.querySelector('button[aria-label="Enviar mensaje"]');
     if (botonEnviar) botonEnviar.disabled = true;
     try {
         const datos = {
             emisor: usuarioSesion.email,
             mensaje: mensaje,
-            tipo: 'texto'
+            tipo: adjunto?.tipo || 'texto'
         };
         if (chatGrupalAbierto) {
             datos.receptor = null;
@@ -4448,11 +4781,17 @@ async function enviarMensaje() {
 
         const guardado = await llamarSupabase("mensajes", { method: "POST", body: JSON.stringify(datos) });
         if (!guardado) throw new Error('No se pudo guardar el mensaje.');
-        input.value = '';
+        if (!adjunto) input.value = '';
         if (chatGrupalAbierto) {
             cargarMensajesGrupales();
         } else if (chatPersonalCon) {
             cargarMensajesPersonales(chatPersonalCon);
+            if (!modoPrueba && !modoOffline && navigator.onLine) {
+                void enviarPushChat(
+                    chatPersonalCon,
+                    adjunto ? `${usuarioSesion.nombre} te envió una imagen.` : `${usuarioSesion.nombre}: ${mensaje}`
+                );
+            }
         }
     } catch (error) {
         console.error("Error:", error);
@@ -4888,22 +5227,55 @@ function registrarPush() {
     // Los avisos se muestran en la interfaz, sin prompts ni notificaciones del navegador.
 }
 
+function activarPestanaConfiguracion(idPestana, btnElemento) {
+    const pestañas = {
+        actividades: 'modulo-actividades',
+        horarios: 'modulo-configuracion-horarios',
+        lecciones: 'modulo-bandeja-lecciones',
+        reportes: 'modulo-reportes'
+    };
+    const destinoId = pestañas[idPestana];
+    if (!destinoId) return;
+    if (idPestana !== 'actividades' && usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Esta sección está disponible solo para el administrador.', 'warning');
+        return;
+    }
+
+    document.querySelectorAll('.configuracion-panel').forEach(panel => {
+        panel.hidden = panel.id !== destinoId;
+    });
+    document.querySelectorAll('[data-config-tab]').forEach(button => {
+        button.classList.toggle('activa', button.dataset.configTab === idPestana);
+        button.setAttribute('aria-selected', String(button.dataset.configTab === idPestana));
+    });
+    if (btnElemento) btnElemento.classList.add('activa');
+
+    if (idPestana === 'actividades') cargarActividadesMensuales();
+    if (idPestana === 'horarios') cargarConfiguracionHorario(true);
+    if (idPestana === 'lecciones') cargarLeccionesPendientes();
+    if (idPestana === 'reportes') cargarFeedbackAdministrador();
+}
+
 function activarVistaPestaña(idVista, btnElemento) {
     const esAdmin = usuarioSesion && (usuarioSesion.rol === 'admin' || usuarioSesion.rol === 'pastor');
     if (idVista === 'historial' && !esAdmin) {
         mostrarNotificacion('El historial está disponible solo para administración.', 'warning');
         return;
     }
-    if (['configuracion-horarios', 'reportes'].includes(idVista) && usuarioSesion?.rol !== 'admin') {
-        mostrarNotificacion('Esta sección está disponible solo para el administrador.', 'warning');
-        return;
-    }
-    if (idVista === 'bandeja-lecciones') {
-        if (usuarioSesion?.rol !== 'admin') {
-            mostrarNotificacion('Esta sección está disponible solo para el administrador.', 'warning');
-            return;
-        }
-        abrirBandejaLecciones();
+    const pestañaConfiguracion = {
+        'configuracion-horarios': 'horarios',
+        'bandeja-lecciones': 'lecciones',
+        reportes: 'reportes'
+    }[idVista];
+    if (idVista === 'configuracion' || pestañaConfiguracion) {
+        document.querySelectorAll('.modulo-vista').forEach(v => v.classList.remove('activo'));
+        document.querySelectorAll('.menu-link[data-vista]').forEach(link => link.classList.remove('activo'));
+        document.getElementById('modulo-configuracion')?.classList.add('activo');
+        const enlaceConfiguracion = document.getElementById('menu-configuracion');
+        if (enlaceConfiguracion) enlaceConfiguracion.classList.add('activo');
+        const moduloHistorial = document.getElementById('modulo-historial');
+        if (moduloHistorial) moduloHistorial.hidden = !esAdmin;
+        activarPestanaConfiguracion(pestañaConfiguracion || 'actividades');
         if (window.innerWidth <= 768) document.getElementById('menu-lateral')?.classList.remove('abierto');
         return;
     }
@@ -4921,9 +5293,6 @@ function activarVistaPestaña(idVista, btnElemento) {
     if (idVista === 'chat') { cargarChats(); }
     if (idVista === 'historial') { cargarHistorial(); }
     if (idVista === 'inicio') { cargarInicio(); }
-    if (idVista === 'actividades') { cargarActividadesMensuales(); }
-    if (idVista === 'configuracion-horarios') { cargarConfiguracionHorario(true); }
-    if (idVista === 'reportes') { cargarFeedbackAdministrador(); }
     if (window.innerWidth <= 768) { 
         const menu = document.getElementById('menu-lateral');
         if (menu) menu.classList.remove('abierto');
