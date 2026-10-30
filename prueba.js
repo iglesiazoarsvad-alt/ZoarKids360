@@ -87,18 +87,15 @@ function aplicarModoPruebaSinRestricciones() {
                 if (usuario && usuario.seccion) {
                     await originalCargarAlumnos();
                 } else {
-                    // Si no tiene sección, mostrar mensaje pero permitir acciones
+                    // Sin sección se mantienen Inscribir y Cumpleaños sin mostrar una tabla.
                     const panelNoAsignado = document.getElementById('contenedor-mensaje-no-asignado');
                     const panelAsistencia = document.getElementById('contenedor-asistencia-activa');
-                    if (panelNoAsignado) panelNoAsignado.style.display = 'none';
-                    if (panelAsistencia) panelAsistencia.style.display = 'block';
-                    
-                    // En esta simulación, la lista local sirve para practicar sin consultar Supabase.
+                    if (panelNoAsignado) panelNoAsignado.style.display = 'block';
+                    if (panelAsistencia) panelAsistencia.style.display = 'none';
                     try {
                         const alumnosLocales = JSON.parse(localStorage.getItem('zk360_alumnos_modo_prueba') || '[]');
                         const alumnos = Array.isArray(alumnosLocales) ? alumnosLocales : [];
                         bancoAlumnosCompleto = alumnos;
-                        renderizarTablaAsistencia(alumnos);
                     } catch (e) {
                         console.warn('Error cargando alumnos en modo prueba:', e);
                     }

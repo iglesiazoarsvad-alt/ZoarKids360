@@ -42,8 +42,13 @@ let seccionAsignadaMaestro = null;
 let bancoAlumnosCompleto = [];
 let idNinoAEditar = null;
 let asistenciaEnviadaHoy = false;
+let asistenciaModificacionActiva = false;
+let motivoModificacionAsistencia = '';
+let seccionAsistenciaActual = null;
+let asistenciaReportadaPor = null;
 let modoAdminVerTodos = false;
 let leccionEditando = null;
+let eventoEditandoId = null;
 let timerInactividad = null;
 let timerCerrarSesionInactividad = null;
 let ultimaActividad = Date.now();
@@ -98,6 +103,15 @@ const TEMAS = {
 
 const TEMAS_ORDER = ['predeterminado', 'azul-esmeralda', 'dark-purpura', 'galaxia'];
 
+function estaEnHorarioAsistencia(fecha = new Date()) {
+    const horaActual = fecha.getHours() * 60 + fecha.getMinutes();
+    const horaInicio = horaAMinutos(configuracionHorario.hora_inicio_asistencia);
+    const horaFin = horaAMinutos(configuracionHorario.hora_fin_asistencia);
+    return fecha.getDay() === Number(configuracionHorario.dia_asistencia) &&
+        horaInicio !== null && horaFin !== null &&
+        horaActual >= horaInicio && horaActual < horaFin;
+}
+
 // ============ SISTEMA DE TEMAS ============
 // ============ APLICAR TEMA - CORREGIDO ============
 function aplicarTema(temaId) {
@@ -105,15 +119,6 @@ function aplicarTema(temaId) {
     // inválida termine aplicando accidentalmente el tema predeterminado.
     if (!Object.prototype.hasOwnProperty.call(TEMAS, temaId)) {
         temaId = 'predeterminado';
-    }
-
-    function estaEnHorarioAsistencia(fecha = new Date()) {
-        const horaActual = fecha.getHours() * 60 + fecha.getMinutes();
-        const horaInicio = horaAMinutos(configuracionHorario.hora_inicio_asistencia);
-        const horaFin = horaAMinutos(configuracionHorario.hora_fin_asistencia);
-        return fecha.getDay() === Number(configuracionHorario.dia_asistencia) &&
-            horaInicio !== null && horaFin !== null &&
-            horaActual >= horaInicio && horaActual < horaFin;
     }
 
     const html = document.documentElement;
@@ -783,7 +788,7 @@ function claveAlmacenNotificaciones() {
 
 function guardarNotificacionesCampana() {
     try {
-        localStorage.setItem(claveAlmacenNotificaciones(), JSON.stringify(notificacionesPendientes.slice(-100)));
+            localStorage.setItem(claveAlmacenNotificaciones(), JSON.stringify(notificacionesPendientes));
     } catch (error) {
         console.error('No se pudieron guardar las notificaciones importantes:', error);
     }
@@ -805,7 +810,6 @@ function registrarNotificacionImportante({ id, mensaje, detalle = '', tipo = 'in
         timestamp: new Date().toISOString(),
         leida: false
     });
-    notificacionesPendientes = notificacionesPendientes.slice(-100);
     contadorNotificaciones = notificacionesPendientes.filter(item => !item.leida).length;
     guardarNotificacionesCampana();
     actualizarBadgeNotificaciones();
@@ -815,37 +819,43 @@ function registrarNotificacionImportante({ id, mensaje, detalle = '', tipo = 'in
 async function revisarEventosImportantesAdmin() {
     if (modoPrueba || modoOffline || !usuarioSesion || usuarioSesion.rol !== 'admin') return;
     try {
-        const logs = await llamarSupabase('logs?order=id.desc&limit=50');
-        if (!Array.isArray(logs)) return;
         const claveCursor = `zk360_notificaciones_cursor_${usuarioSesion.email}`;
         const cursorGuardado = localStorage.getItem(claveCursor);
-        const cursor = cursorGuardado === null ? null : Number(cursorGuardado);
-        const relevantes = logs.filter(log =>
-            /^(Envió asistencia|Subió foto|Envió lección|Solicitó sustituto)/i.test(String(log.accion || '')) &&
-            log.id !== undefined && Number.isFinite(Number(log.id))
-        );
-        if (cursor === null) {
-            const mayorId = logs.reduce((maximo, log) => Math.max(maximo, Number(log.id) || 0), 0);
+        if (cursorGuardado === null) {
+            const logsRecientes = await llamarSupabase('logs?order=id.desc&limit=50');
+            if (!Array.isArray(logsRecientes)) return;
+            const mayorId = logsRecientes.reduce((maximo, log) => Math.max(maximo, Number(log.id) || 0), 0);
             localStorage.setItem(claveCursor, String(mayorId));
             return;
         }
-        const nuevos = relevantes.filter(log => Number(log.id) > cursor).sort((a, b) => Number(a.id) - Number(b.id));
-        nuevos.forEach(log => {
-            const fecha = new Date(log.fecha);
-            const textoFecha = Number.isNaN(fecha.getTime()) ? '' : ` · ${fecha.toLocaleDateString()}`;
-            const mensaje = String(log.accion);
-            const detalle = `${log.usuario || 'Un usuario'}${textoFecha}`;
-            const nuevoEvento = registrarNotificacionImportante({
-                id: `actividad-${log.id}`,
-                mensaje,
-                detalle,
-                tipo: 'info'
+
+        let cursor = Number(cursorGuardado);
+        if (!Number.isFinite(cursor)) throw new Error('El cursor de notificaciones no es válido.');
+        while (true) {
+            const cursorAnterior = cursor;
+            const logs = await llamarSupabase(`logs?id=gt.${cursor}&order=id.asc&limit=1000`);
+            if (!Array.isArray(logs)) return;
+            logs.forEach(log => {
+                const id = Number(log.id);
+                cursor = Math.max(cursor, Number.isFinite(id) ? id : cursor);
+                if (!/^(Envió asistencia|Subió foto|Envió lección|Solicitó sustituto)/i.test(String(log.accion || ''))) return;
+                const fecha = new Date(log.fecha);
+                const textoFecha = Number.isNaN(fecha.getTime()) ? '' : ` · ${fecha.toLocaleDateString()}`;
+                const mensaje = String(log.accion);
+                const detalle = `${log.usuario || 'Un usuario'}${textoFecha}`;
+                const nuevoEvento = registrarNotificacionImportante({
+                    id: `actividad-${log.id}`,
+                    mensaje,
+                    detalle,
+                    tipo: 'info'
+                });
+                if (nuevoEvento) mostrarNotificacion(`${mensaje} · ${detalle}`, 'info');
             });
-            if (nuevoEvento) mostrarNotificacion(`${mensaje} · ${detalle}`, 'info');
-        });
-        if (logs.length) {
-            const mayorId = logs.reduce((maximo, log) => Math.max(maximo, Number(log.id) || 0), cursor);
-            localStorage.setItem(claveCursor, String(Math.max(cursor, mayorId)));
+            if (logs.length) localStorage.setItem(claveCursor, String(cursor));
+            if (logs.length === 1000 && cursor === cursorAnterior) {
+                throw new Error('No se pudo avanzar el cursor al consultar las notificaciones.');
+            }
+            if (logs.length < 1000) break;
         }
     } catch (error) {
         console.error('No se pudieron consultar las notificaciones de actividad:', error);
@@ -1091,7 +1101,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     try {
         const notificacionesGuardadas = JSON.parse(localStorage.getItem(claveAlmacenNotificaciones()) || '[]');
         notificacionesPendientes = Array.isArray(notificacionesGuardadas)
-            ? notificacionesGuardadas.filter(item => item && typeof item.id === 'string').slice(-100)
+            ? notificacionesGuardadas.filter(item => item && typeof item.id === 'string')
             : [];
         contadorNotificaciones = notificacionesPendientes.filter(item => !item.leida).length;
         actualizarBadgeNotificaciones();
@@ -1135,8 +1145,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
     const menuConfiguracion = document.getElementById('menu-configuracion');
+    const menuActividades = document.getElementById('menu-actividades');
     const btnAgregarActividad = document.getElementById('btn-agregar-actividad');
-    if (menuConfiguracion) menuConfiguracion.style.display = 'flex';
+    if (menuConfiguracion) menuConfiguracion.style.display = usuarioSesion.rol === 'maestro' ? 'none' : 'flex';
+    if (menuActividades) menuActividades.style.display = usuarioSesion.rol === 'maestro' ? 'flex' : 'none';
     document.querySelectorAll('[data-admin-only]').forEach(tab => {
         tab.hidden = usuarioSesion.rol !== 'admin';
     });
@@ -1172,6 +1184,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (perfRol) perfRol.textContent = usuarioSesion.rol;
 
     // Procesar calendario y asignación
+    await cargarTurnoProximoDomingo();
     procesarCalendario();
     const perfSeccion = document.getElementById('perf-seccion');
     if (perfSeccion) perfSeccion.textContent = seccionAsignadaMaestro || "Sin asignación";
@@ -1582,6 +1595,20 @@ function configurarNavegacion() {
             enviarAsistenciaSupabase();
         });
     }
+    document.getElementById('btn-modificar-asistencia')?.addEventListener('click', solicitarModificacionAsistencia);
+    document.getElementById('btn-cancelar-modificacion-asistencia')?.addEventListener('click', () => {
+        document.getElementById('modal-motivo-modificacion-asistencia')?.classList.remove('activo');
+    });
+    document.getElementById('btn-confirmar-modificacion-asistencia')?.addEventListener('click', () => {
+        if (usuarioSesion?.rol !== 'maestro') return;
+        const motivo = document.getElementById('motivo-modificacion-asistencia')?.value.trim() || '';
+        if (!motivo) {
+            mostrarNotificacion('Escribe el motivo de la modificación.', 'warning');
+            document.getElementById('motivo-modificacion-asistencia')?.focus();
+            return;
+        }
+        habilitarModificacionAsistencia(motivo);
+    });
 
     const btnVerTabla = document.getElementById('btn-ver-tabla-completa');
     if (btnVerTabla) {
@@ -1835,7 +1862,7 @@ function configurarNavegacion() {
 
 function validarElegibilidadSustituto() {
     const dia = new Date().getDay();
-    const diasPermitidos = configuracionHorario.dias_solicitud_sustituto;
+    const diasPermitidos = [1, 2];
     if (!diasPermitidos.includes(dia)) {
         const nombresDias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const permitidos = diasPermitidos.map(diaPermitido => nombresDias[diaPermitido]).join(' y ');
@@ -1906,12 +1933,18 @@ async function cargarMaestrosLibres() {
             lista.replaceChildren();
             const aviso = document.createElement('p');
             aviso.style.cssText = 'font-size:13px;color:#747d8c';
-            aviso.textContent = 'Se solicitará primero la confirmación de tu pareja.';
+            aviso.textContent = 'Se solicitará primero la confirmación de tu pareja. Escribe el motivo para continuar.';
+            const motivo = document.createElement('textarea');
+            motivo.id = 'motivo-sustituto';
+            motivo.rows = 3;
+            motivo.maxLength = 500;
+            motivo.placeholder = 'Motivo (mínimo 10 caracteres)';
+            motivo.style.cssText = 'width:100%;padding:9px;border:1px solid #dfe4ea;border-radius:8px;resize:none;';
             const boton = document.createElement('button');
             boton.className = 'btn-primary';
             boton.textContent = 'Solicitar confirmación a mi pareja';
             boton.addEventListener('click', confirmarSolicitudInternaPareja);
-            lista.append(aviso, boton);
+            lista.append(aviso, motivo, boton);
             return;
         }
         if (!disponibles.length) {
@@ -2027,6 +2060,13 @@ async function seleccionarSustituto(email) {
             })
         });
         if (!registro) throw new Error('No se pudo guardar la solicitud.');
+        if (!modoPrueba && !modoOffline && navigator.onLine) {
+            void enviarPushChat(
+                email,
+                `${usuarioSesion.nombre} solicita cobertura para el domingo ${mostrarFechaLegible(fecha)}. Motivo: ${motivo}`,
+                'Solicitud de sustitución'
+            );
+        }
         const modal = document.getElementById('modal-sustituto');
         if (modal) modal.classList.remove('activo');
         const btn = document.getElementById('btn-solicitar-sustituto');
@@ -2090,6 +2130,7 @@ async function transferirClase(email, turno, claveSeccion, nuevosNombres) {
             body: JSON.stringify({ [clave]: Array.isArray(nuevosNombres) ? nuevosNombres.join(' y ') : nuevosNombres })
         });
         if (actualizado === null) throw new Error('No se pudo actualizar el cronograma.');
+        cronograma[clave] = Array.isArray(nuevosNombres) ? nuevosNombres.join(' y ') : nuevosNombres;
 
         if (solicitud) {
             for (const r of receptores) {
@@ -2164,6 +2205,13 @@ async function confirmarSolicitudInternaPareja() {
         const btn = document.getElementById('btn-solicitar-sustituto');
         if (btn) { btn.disabled = true; btn.title = 'Esperando confirmación de tu pareja'; }
         mostrarNotificacion('Solicitud enviada a tu pareja.', 'success');
+        if (!modoPrueba && !modoOffline && navigator.onLine) {
+            void enviarPushChat(
+                pareja.email,
+                `${usuarioSesion.nombre} solicita tu confirmación para cubrir Primera Infancia el domingo ${mostrarFechaLegible(calcularProximoDomingo())}.`,
+                'Solicitud de sustitución'
+            );
+        }
         registrarNotificacionImportante({
             id: `sustitucion-pareja-${resultado[0]?.id || resultado.id || Date.now()}`,
             mensaje: 'Solicitud enviada a tu pareja',
@@ -2183,7 +2231,7 @@ async function confirmarSolicitudInternaPareja() {
 
 async function seleccionarModoSustitutoPareja(modo) {
     const solicitud = window.solicitudParejaSustituto;
-    if (seccionAsignadaMaestro !== 'infancia' || !solicitud || !['solo', 'ambos'].includes(modo)) return;
+    if (seccionAsignadaMaestro !== 'infancia' || !solicitud || modo !== 'ambos') return;
     window.solicitudParejaSustituto.modo = modo;
     const modal = document.getElementById('modal-sustituto');
     if (modal) modal.classList.add('activo');
@@ -2288,6 +2336,15 @@ async function enviarSolicitudDoble() {
         const modal = document.getElementById('modal-sustituto');
         if (modal) modal.classList.remove('activo');
         mostrarNotificacion('Las dos solicitudes fueron enviadas. La operación se cancelará si alguna se rechaza o expira.', 'success');
+        if (!modoPrueba && !modoOffline && navigator.onLine) {
+            await Promise.all([selectA.value, selectB.value].map(email =>
+                enviarPushChat(
+                    email,
+                    `Solicitud de cobertura de Primera Infancia para el domingo ${mostrarFechaLegible(original.fecha_domingo)}. Responde en un plazo de 5 horas.`,
+                    'Solicitud de sustitución'
+                )
+            ));
+        }
         registrarNotificacionImportante({
             id: `sustitucion-doble-${grupoId}`,
             mensaje: 'Solicitudes de sustitución enviadas',
@@ -2363,17 +2420,12 @@ async function verificarBloqueoSustituto() {
                 if (modal && lista) {
                     modal.classList.add('activo');
                     const mensaje = document.createElement('p');
-                    mensaje.textContent = 'Confirmaste la solicitud de tu pareja. Elige el modo:';
-                    const solo = document.createElement('button');
-                    solo.className = 'btn-primary';
-                    solo.textContent = 'Solo yo necesito sustituto';
-                    solo.addEventListener('click', () => seleccionarModoSustitutoPareja('solo'));
+                    mensaje.textContent = 'Confirmaste la solicitud. Seleccionen dos maestros para notificar a ambos integrantes de la pareja sustituta.';
                     const ambos = document.createElement('button');
                     ambos.className = 'btn-primary';
-                    ambos.style.marginLeft = '8px';
-                    ambos.textContent = 'Los dos necesitamos sustituto';
+                    ambos.textContent = 'Seleccionar pareja sustituta';
                     ambos.addEventListener('click', () => seleccionarModoSustitutoPareja('ambos'));
-                    lista.replaceChildren(mensaje, solo, ambos);
+                    lista.replaceChildren(mensaje, ambos);
                 }
                 return;
             }
@@ -2803,6 +2855,16 @@ async function cargarActividadesMensuales() {
             if (partes.length < 3 || !partes[2]) return 'Fecha por confirmar';
             return `${partes[2]} de ${new Date(partes[0], partes[1] - 1, partes[2]).toLocaleString('es', { month: 'long' })}`;
         };
+        const obtenerEstadoFecha = fecha => {
+            const [anio, mes, dia] = String(fecha || '').split('-').map(Number);
+            if (!anio || !mes || !dia) return null;
+            const fechaEvento = new Date(anio, mes - 1, dia);
+            const hoyLocal = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+            const diferencia = Math.round((fechaEvento - hoyLocal) / 86400000);
+            if (diferencia < 0) return { texto: 'Ya pasó', clase: 'fecha-actividad-pasada' };
+            if (diferencia === 0) return { texto: 'Es hoy', clase: 'fecha-actividad-hoy' };
+            return { texto: `Faltan ${diferencia} días`, clase: 'fecha-actividad-futura' };
+        };
 
         if (cumpleaneros.length) {
             const seccion = crearSeccion('Cumpleaños del mes', 'fa-cake-candles');
@@ -2843,6 +2905,29 @@ async function cargarActividadesMensuales() {
                 const fecha = document.createElement('time');
                 fecha.textContent = mostrarFecha(evento.fecha);
                 fila.append(contenido, fecha);
+                const estadoFecha = obtenerEstadoFecha(evento.fecha);
+                if (estadoFecha) {
+                    const indicador = document.createElement('span');
+                    indicador.className = `estado-fecha-actividad ${estadoFecha.clase}`;
+                    indicador.textContent = estadoFecha.texto;
+                    fila.appendChild(indicador);
+                }
+                if (usuarioSesion?.rol === 'admin') {
+                    const acciones = document.createElement('div');
+                    acciones.className = 'acciones-actividad-admin';
+                    const editar = document.createElement('button');
+                    editar.type = 'button';
+                    editar.className = 'btn-admin';
+                    editar.textContent = 'Editar';
+                    editar.addEventListener('click', () => abrirEdicionActividad(evento));
+                    const eliminar = document.createElement('button');
+                    eliminar.type = 'button';
+                    eliminar.className = 'btn-admin btn-danger';
+                    eliminar.textContent = 'Eliminar';
+                    eliminar.addEventListener('click', () => eliminarActividadMensual(evento.id));
+                    acciones.append(editar, eliminar);
+                    fila.appendChild(acciones);
+                }
                 seccion.appendChild(fila);
             });
             container.appendChild(seccion);
@@ -2880,27 +2965,66 @@ async function crearActividadMensual() {
         return;
     }
     
+    const estabaEditando = Boolean(eventoEditandoId);
     try {
-        const guardado = await llamarSupabase('eventos_calendario', {
-            method: 'POST',
+        const guardado = await llamarSupabase(
+            eventoEditandoId
+                ? `eventos_calendario?id=eq.${encodeURIComponent(eventoEditandoId)}`
+                : 'eventos_calendario',
+            {
+            method: eventoEditandoId ? 'PATCH' : 'POST',
             body: JSON.stringify({ titulo, descripcion, fecha, tipo, creado_por: usuarioSesion.nombre })
         });
         if (!guardado) throw new Error('No se confirmó el guardado de la actividad.');
         
-        mostrarNotificacion('Actividad creada exitosamente', 'success');
+        mostrarNotificacion(estabaEditando ? 'Actividad actualizada exitosamente' : 'Actividad creada exitosamente', 'success');
         const modal = document.getElementById('modal-nueva-actividad');
         if (modal) modal.classList.remove('activo');
         const formActividad = document.getElementById('form-nueva-actividad');
         if (formActividad) formActividad.reset();
+        eventoEditandoId = null;
+        const encabezado = modal?.querySelector('h3');
+        if (encabezado) encabezado.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> Agregar actividad';
+        const botonGuardar = formActividad?.querySelector('button[type="submit"]');
+        if (botonGuardar) botonGuardar.textContent = 'Guardar actividad';
         cargarActividadesMensuales();
         await guardarLog({
             usuario: usuarioSesion.nombre,
-            accion: 'Creó actividad "' + titulo + '"',
+            accion: `${estabaEditando ? 'Actualizó' : 'Creó'} actividad "${titulo}"`,
             fecha: new Date().toISOString()
         });
     } catch (error) {
         console.error("Error:", error);
         mostrarNotificacion('Error al crear la actividad', 'error');
+    }
+}
+
+function abrirEdicionActividad(evento) {
+    if (usuarioSesion?.rol !== 'admin') return;
+    eventoEditandoId = evento.id;
+    document.getElementById('act-titulo').value = evento.titulo || '';
+    document.getElementById('act-descripcion').value = evento.descripcion || '';
+    document.getElementById('act-fecha').value = String(evento.fecha || '').slice(0, 10);
+    document.getElementById('act-tipo').value = evento.tipo || 'evento';
+    const modal = document.getElementById('modal-nueva-actividad');
+    const encabezado = modal?.querySelector('h3');
+    if (encabezado) encabezado.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Editar actividad';
+    const botonGuardar = document.getElementById('form-nueva-actividad')?.querySelector('button[type="submit"]');
+    if (botonGuardar) botonGuardar.textContent = 'Guardar cambios';
+    modal?.classList.add('activo');
+}
+
+async function eliminarActividadMensual(id) {
+    if (usuarioSesion?.rol !== 'admin' || !id) return;
+    if (!(await confirmarAccion('¿Eliminar esta actividad permanentemente?'))) return;
+    try {
+        const resultado = await llamarSupabase(`eventos_calendario?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (resultado === null) throw new Error('No se confirmó la eliminación de la actividad.');
+        mostrarNotificacion('Actividad eliminada.', 'success');
+        await cargarActividadesMensuales();
+    } catch (error) {
+        console.error('No se pudo eliminar la actividad:', error);
+        mostrarNotificacion('No se pudo eliminar la actividad.', 'error');
     }
 }
 
@@ -2915,6 +3039,13 @@ function configurarVistasAdministrativas() {
 
     document.getElementById('btn-cancelar-actividad')?.addEventListener('click', () => {
         document.getElementById('modal-nueva-actividad')?.classList.remove('activo');
+        document.getElementById('form-nueva-actividad')?.reset();
+        eventoEditandoId = null;
+        const modal = document.getElementById('modal-nueva-actividad');
+        const encabezado = modal?.querySelector('h3');
+        if (encabezado) encabezado.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> Agregar actividad';
+        const botonGuardar = document.getElementById('form-nueva-actividad')?.querySelector('button[type="submit"]');
+        if (botonGuardar) botonGuardar.textContent = 'Guardar actividad';
     });
     document.getElementById('form-nueva-actividad')?.addEventListener('submit', event => {
         event.preventDefault();
@@ -2995,8 +3126,7 @@ async function guardarConfiguracionHorario() {
         mostrarNotificacion('Escribe el motivo del ajuste (mínimo 5 caracteres).', 'warning');
         return;
     }
-    const diasSustitucion = [...document.querySelectorAll('input[name="cfg-dia-sustitucion"]:checked')]
-        .map(input => Number(input.value));
+    const diasSustitucion = [1, 2];
     const nuevo = {
         dia_asistencia: Number(document.getElementById('cfg-dia-asistencia')?.value || 0),
         hora_inicio_asistencia: inicio,
@@ -3059,7 +3189,7 @@ async function cargarFeedbackAdministrador() {
         if (!Array.isArray(registros)) throw new Error('No se pudieron cargar los mensajes.');
         const pendientes = registros.filter(registro =>
             ['sugerencia', 'reporte'].includes(registro.tipo) &&
-            !['atendida', 'resuelta', 'cerrada'].includes(registro.estado)
+            !['atendida', 'resuelta', 'cerrada', 'finalizado'].includes(registro.estado)
         );
         lista.replaceChildren();
         if (!pendientes.length) {
@@ -3079,12 +3209,15 @@ async function cargarFeedbackAdministrador() {
             mensaje.textContent = registro.mensaje || '';
             const autor = document.createElement('small');
             autor.textContent = `${registro.usuario || 'Usuario'} · ${registro.fecha ? new Date(registro.fecha).toLocaleString() : 'Fecha no disponible'}`;
+            const estado = document.createElement('span');
+            estado.className = 'estado-feedback-admin';
+            estado.textContent = 'En proceso';
             const resolver = document.createElement('button');
             resolver.type = 'button';
             resolver.className = 'btn-admin';
-            resolver.textContent = 'Marcar como atendido';
+            resolver.textContent = 'Finalizar';
             resolver.addEventListener('click', () => marcarFeedbackAtendido(registro.id));
-            tarjeta.append(titulo, mensaje, autor, resolver);
+            tarjeta.append(titulo, mensaje, autor, estado, resolver);
             lista.appendChild(tarjeta);
         });
         await actualizarBadgeFeedbackAdmin(pendientes.length);
@@ -3105,7 +3238,7 @@ async function actualizarBadgeFeedbackAdmin(cantidadConocida) {
             ? cantidadConocida
             : (await llamarSupabase('sugerencias?select=*&limit=100') || []).filter(registro =>
                 ['sugerencia', 'reporte'].includes(registro.tipo) &&
-                !['atendida', 'resuelta', 'cerrada'].includes(registro.estado)
+                !['atendida', 'resuelta', 'cerrada', 'finalizado'].includes(registro.estado)
             ).length;
         const badge = document.getElementById('badge-feedback-admin');
         if (badge) {
@@ -3122,10 +3255,10 @@ async function marcarFeedbackAtendido(id) {
     try {
         const actualizado = await llamarSupabase(`sugerencias?id=eq.${encodeURIComponent(id)}`, {
             method: 'PATCH',
-            body: JSON.stringify({ estado: 'atendida' })
+            body: JSON.stringify({ estado: 'finalizado' })
         });
         if (!actualizado) throw new Error('No se confirmó la actualización del mensaje.');
-        mostrarNotificacion('Mensaje marcado como atendido.', 'success');
+        mostrarNotificacion('Reporte finalizado.', 'success');
         await cargarFeedbackAdministrador();
     } catch (error) {
         console.error('No se pudo marcar el mensaje como atendido:', error);
@@ -3137,8 +3270,14 @@ async function marcarFeedbackAtendido(id) {
 async function cargarAlumnosSegunRol() {
     const panelNoAsignado = document.getElementById('contenedor-mensaje-no-asignado');
     const panelAsistencia = document.getElementById('contenedor-asistencia-activa');
-    const sinAsignacionEnPrueba = modoPrueba && !seccionAsignadaMaestro;
-    if (!seccionAsignadaMaestro && !sinAsignacionEnPrueba) {
+    if (!seccionAsignadaMaestro) {
+        if (modoPrueba) {
+            const alumnosLocales = JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]');
+            bancoAlumnosCompleto = Array.isArray(alumnosLocales) ? alumnosLocales : [];
+        } else {
+            const alumnos = await cargarAlumnos();
+            bancoAlumnosCompleto = Array.isArray(alumnos) ? alumnos : [];
+        }
         if (panelNoAsignado) panelNoAsignado.style.display = 'block';
         if (panelAsistencia) panelAsistencia.style.display = 'none';
         const seccionActual = document.getElementById('asistencia-seccion-actual');
@@ -3148,7 +3287,7 @@ async function cargarAlumnosSegunRol() {
     if (panelNoAsignado) panelNoAsignado.style.display = 'none';
     if (panelAsistencia) panelAsistencia.style.display = 'block';
 
-    let salaAFiltrar = sinAsignacionEnPrueba ? 'todos' : seccionAsignadaMaestro;
+    let salaAFiltrar = seccionAsignadaMaestro;
     if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
         if (modoAdminVerTodos) { salaAFiltrar = "todos"; }
         else { salaAFiltrar = seccionAsignadaMaestro === "admin_total" ? "infancia" : seccionAsignadaMaestro; }
@@ -3158,6 +3297,7 @@ async function cargarAlumnosSegunRol() {
     if (seccionActual) {
         seccionActual.textContent = salaAFiltrar === "todos" ? "TODAS LAS SECCIONES" : (nombresSeccion[salaAFiltrar] || salaAFiltrar);
     }
+    seccionAsistenciaActual = salaAFiltrar;
 
     try {
         let alumnos;
@@ -3200,28 +3340,69 @@ async function cargarAlumnosSegunRol() {
 
         const hoy = new Date();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
+        const btnModificar = document.getElementById('btn-modificar-asistencia');
         const txtEstado = document.getElementById('txt-estado-horario-asistencia');
+        const fechaRegistro = fechaEnFormatoLocal(hoy);
+        const claveRegistro = `zk360_asistencia_${fechaRegistro}_${salaAFiltrar}`;
+        let idsPresentes = [];
+        asistenciaReportadaPor = null;
+        try {
+            const almacenada = JSON.parse(localStorage.getItem(claveRegistro) || 'null');
+            if (almacenada?.ids && Array.isArray(almacenada.ids)) {
+                idsPresentes = almacenada.ids.map(String);
+                asistenciaReportadaPor = almacenada.maestroEmail || null;
+            }
+        } catch (error) {
+            console.error('No se pudo leer la asistencia local guardada:', error);
+        }
+        if (!modoPrueba && !modoOffline) {
+            const registros = await llamarSupabase(
+                `asistencia?fecha=eq.${encodeURIComponent(fechaRegistro)}&presente=eq.true&select=alumno_id,seccion,maestro_email,maestro`
+            );
+            if (Array.isArray(registros)) {
+                const seccionesCompatibles = {
+                    infancia: ['infancia', 'primera infancia'],
+                    medianos: ['medianos'],
+                    grandes: ['grandes']
+                }[salaAFiltrar] || [String(salaAFiltrar).toLocaleLowerCase('es')];
+                const reportesSeccion = salaAFiltrar === 'todos'
+                    ? registros
+                    : registros.filter(registro =>
+                        seccionesCompatibles.includes(String(registro.seccion || '').toLocaleLowerCase('es').trim())
+                    );
+                idsPresentes = reportesSeccion.map(registro => String(registro.alumno_id));
+                asistenciaReportadaPor = reportesSeccion[0]?.maestro_email || null;
+            }
+        }
+        const reporteGuardado = idsPresentes.length > 0 ||
+            localStorage.getItem(`asistencia_${hoy.toDateString()}_${usuarioSesion.nombre}`) === 'true';
+        asistenciaEnviadaHoy = reporteGuardado;
+        asistenciaModificacionActiva = false;
+        document.querySelectorAll('.asistencia-checkbox').forEach(checkbox => {
+            checkbox.checked = idsPresentes.includes(String(checkbox.dataset.id));
+            checkbox.disabled = reporteGuardado;
+        });
+        if (btnModificar) btnModificar.style.display = reporteGuardado ? 'inline-flex' : 'none';
+        if (btnGuardar) {
+            btnGuardar.innerHTML = '<i class="fa-solid fa-square-check"></i> Reportar Asistencia';
+            btnGuardar.disabled = reporteGuardado;
+            btnGuardar.classList.toggle('deshabilitado', reporteGuardado);
+        }
+        if (txtEstado && reporteGuardado) {
+            txtEstado.innerHTML = '<i class="fas fa-check-circle" style="color:#2ecc71;"></i> Asistencia ya reportada';
+        }
 
         if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
             if (btnGuardar) {
-                btnGuardar.disabled = false;
-                btnGuardar.classList.remove('deshabilitado');
+                btnGuardar.disabled = reporteGuardado;
+                btnGuardar.classList.toggle('deshabilitado', reporteGuardado);
             }
-            if (txtEstado) txtEstado.innerHTML = '<i class="fas fa-unlock"></i> Modo Admin - Sin restricciones';
+            if (txtEstado && !reporteGuardado) txtEstado.innerHTML = '<i class="fas fa-unlock"></i> Modo Admin - Sin restricciones';
             return;
         }
 
         const fechaHoy = hoy.toDateString();
-        const asistenciaGuardada = localStorage.getItem('asistencia_' + fechaHoy + '_' + usuarioSesion.nombre);
-        if (asistenciaGuardada === 'true') {
-            asistenciaEnviadaHoy = true;
-            if (btnGuardar) {
-                btnGuardar.disabled = true;
-                btnGuardar.classList.add('deshabilitado');
-            }
-            if (txtEstado) txtEstado.innerHTML = '<i class="fas fa-check-circle" style="color:#2ecc71;"></i> Asistencia ya reportada';
-            return;
-        }
+        if (reporteGuardado) return;
 
         if (estaEnHorarioAsistencia(hoy)) {
             if (btnGuardar) {
@@ -3239,6 +3420,38 @@ async function cargarAlumnosSegunRol() {
     } catch (err) {
         console.error("Error:", err);
         mostrarNotificacion("Error al cargar la lista de alumnos", "error");
+    }
+}
+
+function habilitarModificacionAsistencia(motivo = '') {
+    asistenciaModificacionActiva = true;
+    motivoModificacionAsistencia = motivo;
+    document.querySelectorAll('.asistencia-checkbox').forEach(checkbox => { checkbox.disabled = false; });
+    const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
+    if (btnGuardar) {
+        btnGuardar.disabled = false;
+        btnGuardar.classList.remove('deshabilitado');
+        btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar cambios';
+    }
+    const estado = document.getElementById('txt-estado-horario-asistencia');
+    if (estado) estado.textContent = 'Modificación autorizada. Revisa las marcas y guarda los cambios.';
+    document.getElementById('modal-motivo-modificacion-asistencia')?.classList.remove('activo');
+}
+
+async function solicitarModificacionAsistencia() {
+    if (!asistenciaEnviadaHoy) return;
+    if (usuarioSesion?.rol === 'maestro') {
+        const modal = document.getElementById('modal-motivo-modificacion-asistencia');
+        const campo = document.getElementById('motivo-modificacion-asistencia');
+        if (campo) campo.value = '';
+        modal?.classList.add('activo');
+        campo?.focus();
+        return;
+    }
+    if (usuarioSesion?.rol === 'admin' || usuarioSesion?.rol === 'pastor') {
+        if (await confirmarAccion('¿Deseas modificar la asistencia reportada? Las marcas actuales se conservarán para que puedas cambiarlas.')) {
+            habilitarModificacionAsistencia('Confirmada por administrador');
+        }
     }
 }
 
@@ -3462,8 +3675,7 @@ function mostrarFechaLegible(fecha) {
 async function enviarAsistenciaSupabase() {
     const checkboxes = document.querySelectorAll('.asistencia-checkbox:checked');
     if (checkboxes.length === 0) { mostrarNotificacion("Selecciona al menos un alumno presente", "error"); return; }
-    const seccionEl = document.getElementById('asistencia-seccion-actual');
-    const seccion = seccionEl ? seccionEl.textContent : '';
+    const seccion = seccionAsistenciaActual || seccionAsignadaMaestro;
     const maestro = document.getElementById('chk-asistencia-maestro-firmado');
     if (!maestro || (!maestro.checked && usuarioSesion.rol !== "admin" && usuarioSesion.rol !== "pastor")) {
         mostrarNotificacion("Por favor, marca tu asistencia como maestro", "warning");
@@ -3471,46 +3683,98 @@ async function enviarAsistenciaSupabase() {
     }
     const fechaHoy = fechaEnFormatoLocal();
     const alumnosPresentes = [];
-    document.querySelectorAll('.asistencia-checkbox:checked').forEach(cb => {
-        const id = parseInt(cb.dataset.id);
-        const alumno = bancoAlumnosCompleto.find(a => a.id === id);
-        if (alumno) { alumnosPresentes.push({ alumno_id: id, nombre: alumno.nombre_completo }); }
-    });
-    try {
-        for (const alumno of alumnosPresentes) {
-            const resultado = await llamarSupabase("asistencia", {
-                method: "POST",
-                body: JSON.stringify({
-                    alumno_id: alumno.alumno_id,
-                    fecha: fechaHoy,
-                    presente: true,
-                    seccion: seccion,
-                    maestro: usuarioSesion.nombre,
-                    maestro_email: usuarioSesion.email
-                })
+    checkboxes.forEach(cb => {
+        const alumno = bancoAlumnosCompleto.find(a => String(a.id) === String(cb.dataset.id));
+        if (alumno) {
+            alumnosPresentes.push({
+                alumno_id: alumno.id,
+                nombre: alumno.nombre_completo,
+                seccion: alumno.seccion || seccion
             });
-            if (!resultado) throw new Error('No se pudo guardar la asistencia de un alumno.');
+        }
+    });
+    const claveRegistro = `zk360_asistencia_${fechaHoy}_${seccion}`;
+    try {
+        if (modoPrueba) {
+            localStorage.setItem(claveRegistro, JSON.stringify({
+                ids: alumnosPresentes.map(alumno => String(alumno.alumno_id)),
+                maestroEmail: usuarioSesion.email || '',
+                maestro: usuarioSesion.nombre
+            }));
+        } else {
+            if (asistenciaModificacionActiva && !modoOffline) {
+                let filtro = `fecha=eq.${encodeURIComponent(fechaHoy)}`;
+                if (seccion !== 'todos') {
+                    const nombreSeccion = {
+                        infancia: 'Primera Infancia',
+                        medianos: 'Medianos',
+                        grandes: 'Grandes'
+                    }[seccion] || seccion;
+                    const filtroSeccion = `(seccion.eq.${seccion},seccion.eq.${nombreSeccion})`;
+                    filtro += `&or=${encodeURIComponent(filtroSeccion)}`;
+                }
+                if (usuarioSesion.rol !== 'admin' && usuarioSesion.rol !== 'pastor') {
+                    const correoReporte = asistenciaReportadaPor || usuarioSesion.email;
+                    if (correoReporte) filtro += `&maestro_email=eq.${encodeURIComponent(correoReporte)}`;
+                }
+                const borrado = await llamarSupabase(`asistencia?${filtro}`, { method: 'DELETE' });
+                if (borrado === null) throw new Error('No se pudo reemplazar el reporte anterior.');
+            }
+        for (const alumno of alumnosPresentes) {
+                const resultado = await llamarSupabase("asistencia", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        alumno_id: alumno.alumno_id,
+                        fecha: fechaHoy,
+                        presente: true,
+                        seccion: alumno.seccion,
+                        maestro: usuarioSesion.nombre,
+                        maestro_email: asistenciaModificacionActiva &&
+                            usuarioSesion.rol !== 'admin' && usuarioSesion.rol !== 'pastor' &&
+                            asistenciaReportadaPor
+                            ? asistenciaReportadaPor
+                            : usuarioSesion.email
+                    })
+                });
+                if (!resultado) throw new Error('No se pudo guardar la asistencia de un alumno.');
+            }
         }
         const hoy = new Date().toDateString();
         localStorage.setItem('asistencia_' + hoy + '_' + usuarioSesion.nombre, 'true');
+        localStorage.setItem(claveRegistro, JSON.stringify({
+            ids: alumnosPresentes.map(alumno => String(alumno.alumno_id)),
+            maestroEmail: asistenciaModificacionActiva &&
+                usuarioSesion.rol !== 'admin' && usuarioSesion.rol !== 'pastor' &&
+                asistenciaReportadaPor
+                ? asistenciaReportadaPor
+                : usuarioSesion.email,
+            maestro: usuarioSesion.nombre
+        }));
         const fechaLegible = mostrarFechaLegible(fechaHoy);
         const detalleAsistencia = `${alumnosPresentes.length} alumnos presentes en ${seccion || 'la clase'}.`;
-        mostrarNotificacion(`Asistencia enviada para el ${fechaLegible}.`, "success");
+        mostrarNotificacion(asistenciaModificacionActiva
+            ? `Asistencia modificada para el ${fechaLegible}.`
+            : `Asistencia enviada para el ${fechaLegible}.`, "success");
         if (!modoPrueba && !modoOffline) {
             if (usuarioSesion.rol !== 'admin') {
                 registrarNotificacionImportante({
                     id: `asistencia-${usuarioSesion.email}-${Date.now()}`,
-                    mensaje: `Asistencia enviada · ${fechaLegible}`,
+                    mensaje: `${asistenciaModificacionActiva ? 'Asistencia modificada' : 'Asistencia enviada'} · ${fechaLegible}`,
                     detalle: detalleAsistencia,
                     tipo: 'success'
                 });
             }
             await guardarLog({
                 usuario: usuarioSesion.nombre,
-                accion: `Envió asistencia a ${alumnosPresentes.length} alumnos (${seccion || 'sin sección'})`,
+                accion: asistenciaModificacionActiva
+                    ? `Modificó asistencia (${seccion || 'sin sección'}). Motivo: ${motivoModificacionAsistencia || 'Actualización del maestro'}`
+                    : `Envió asistencia a ${alumnosPresentes.length} alumnos (${seccion || 'sin sección'})`,
                 fecha: new Date().toISOString()
             });
         }
+        asistenciaEnviadaHoy = true;
+        asistenciaModificacionActiva = false;
+        motivoModificacionAsistencia = '';
         cargarAlumnosSegunRol();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
         if (btnGuardar) {
@@ -3518,7 +3782,12 @@ async function enviarAsistenciaSupabase() {
             btnGuardar.classList.add('deshabilitado');
             btnGuardar.innerHTML = '<i class="fas fa-check-circle"></i> Asistencia Reportada';
         }
-    } catch (err) { mostrarNotificacion("Error al reportar asistencia", "error"); }
+        const btnModificar = document.getElementById('btn-modificar-asistencia');
+        if (btnModificar) btnModificar.style.display = 'inline-flex';
+    } catch (err) {
+        console.error('Error guardando asistencia:', err);
+        mostrarNotificacion(err.message || "Error al reportar asistencia", "error");
+    }
 }
 
 // ============ CERRAR MODALES ============
@@ -3563,19 +3832,21 @@ function mostrarCumpleaneros() {
     const mesActual = new Date().getMonth();
     const cumpleaneros = bancoAlumnosCompleto.filter(alumno => {
         if (!alumno.fecha_nacimiento) return false;
-        const fecha = new Date(alumno.fecha_nacimiento);
+        const [anio, mes, dia] = String(alumno.fecha_nacimiento).split('-').map(Number);
+        const fecha = new Date(anio, mes - 1, dia);
         return fecha.getMonth() === mesActual;
     });
     if (cumpleaneros.length === 0) {
         lista.innerHTML = '<p style="color:#95a5a6; text-align:center;">No hay cumpleaños este mes.</p>';
     } else {
-        lista.innerHTML = cumpleaneros.map((alumno) => {
-            const fecha = new Date(alumno.fecha_nacimiento);
+        lista.innerHTML = cumpleaneros.map((alumno, index) => {
+            const [anio, mesNumero, diaNumero] = String(alumno.fecha_nacimiento).split('-').map(Number);
+            const fecha = new Date(anio, mesNumero - 1, diaNumero);
             const dia = fecha.getDate();
             const mes = fecha.toLocaleString('es', { month: 'long' });
             return `
                 <div style="display:flex; justify-content:space-between; padding:8px 12px; border-bottom:1px solid #eef2f7;">
-                    <span><strong>${alumno.id}.</strong> ${alumno.nombre_completo}</span>
+                    <span><strong>${index + 1}.</strong> ${alumno.nombre_completo}</span>
                     <span style="color:#f39c12;"><i class="fas fa-cake-candles"></i> ${dia} de ${mes}</span>
                     <span style="color:#95a5a6; font-size:12px;">${alumno.seccion}</span>
                 </div>
@@ -4056,18 +4327,9 @@ function cerrarNuevaLeccion() {
     if (actividadCampo) actividadCampo.style.display = 'none';
 }
 
-function leerArchivoBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
 async function subirArchivoStorage(bucket, archivo) {
     if (modoPrueba) {
-        return { url: await leerArchivoBase64(archivo), bucket: null, path: null, client: null };
+        return { url: URL.createObjectURL(archivo), bucket: null, path: null, client: null };
     }
     if (!navigator.onLine || modoOffline) {
         throw new Error('Necesitas conexión a internet para subir archivos.');
@@ -4633,7 +4895,7 @@ function crearElementoMensajeChat(mensaje, esGrupo) {
         burbuja.append(emisor, document.createElement('br'));
     }
 
-    if (mensaje.tipo === 'imagen' && /^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(mensaje.mensaje || '')) {
+    if (mensaje.tipo === 'imagen' && /^https?:\/\//i.test(mensaje.mensaje || '')) {
         const imagen = document.createElement('img');
         imagen.src = mensaje.mensaje;
         imagen.alt = 'Imagen compartida en el chat';
@@ -4694,7 +4956,7 @@ async function eliminarMensajeChat(mensaje) {
     }
 }
 
-async function enviarPushChat(destinatario, texto) {
+async function enviarPushChat(destinatario, texto, titulo = 'ZoarKids 360') {
     try {
         const tokens = await llamarSupabase(
             `push_tokens?email=eq.${encodeURIComponent(destinatario)}&select=token`
@@ -4714,7 +4976,7 @@ async function enviarPushChat(destinatario, texto) {
                 },
                 body: JSON.stringify({
                     token: registro.token,
-                    titulo: 'ZoarKids 360',
+                    titulo,
                     mensaje: texto.slice(0, 180)
                 })
             });
@@ -4739,17 +5001,16 @@ async function enviarImagenChat(evento) {
         inputArchivo.value = '';
         return;
     }
+    let archivoSubido = null;
     try {
-        const imagenBase64 = await new Promise((resolve, reject) => {
-            const lector = new FileReader();
-            lector.onload = () => resolve(lector.result);
-            lector.onerror = () => reject(lector.error || new Error('No se pudo leer la imagen.'));
-            lector.readAsDataURL(archivo);
-        });
-        await enviarMensaje({ tipo: 'imagen', mensaje: imagenBase64 });
+        archivoSubido = await subirArchivoStorage('galeria', archivo);
+        const enviado = await enviarMensaje({ tipo: 'imagen', mensaje: archivoSubido.url });
+        if (!enviado) await eliminarArchivosStorage([archivoSubido]);
+        else archivoSubido = null;
     } catch (error) {
         console.error('No se pudo preparar la imagen del chat:', error);
-        mostrarNotificacion('No se pudo preparar la imagen.', 'error');
+        if (archivoSubido) await eliminarArchivosStorage([archivoSubido]);
+        mostrarNotificacion(error.message || 'No se pudo preparar la imagen.', 'error');
     } finally {
         inputArchivo.value = '';
     }
@@ -4784,18 +5045,30 @@ async function enviarMensaje(adjunto = null) {
         if (!adjunto) input.value = '';
         if (chatGrupalAbierto) {
             cargarMensajesGrupales();
+            if (!modoPrueba && !modoOffline && navigator.onLine) {
+                const usuarios = await llamarSupabase('usuarios?select=email');
+                const destinatarios = [...new Set((Array.isArray(usuarios) ? usuarios : [])
+                    .map(usuario => String(usuario.email || '').trim().toLowerCase())
+                    .filter(email => email && email !== String(usuarioSesion.email).toLowerCase()))];
+                await Promise.all(destinatarios.map(email =>
+                    enviarPushChat(email, `${usuarioSesion.nombre}: ${mensaje}`, 'Nuevo mensaje en el chat')
+                ));
+            }
         } else if (chatPersonalCon) {
             cargarMensajesPersonales(chatPersonalCon);
             if (!modoPrueba && !modoOffline && navigator.onLine) {
                 void enviarPushChat(
                     chatPersonalCon,
-                    adjunto ? `${usuarioSesion.nombre} te envió una imagen.` : `${usuarioSesion.nombre}: ${mensaje}`
+                    adjunto ? `${usuarioSesion.nombre} te envió una imagen.` : `${usuarioSesion.nombre}: ${mensaje}`,
+                    'Nuevo mensaje en el chat'
                 );
             }
         }
+        return true;
     } catch (error) {
         console.error("Error:", error);
         mostrarNotificacion(error.message || "No se pudo enviar el mensaje. El texto sigue en el campo para que puedas reintentarlo.", "error");
+        return false;
     } finally {
         delete input.dataset.enviando;
         if (botonEnviar) botonEnviar.disabled = false;
@@ -4864,6 +5137,8 @@ function abrirSugerencia() {
     const area = document.getElementById('area-mensaje-ayuda');
     const textarea = document.getElementById('txt-ayuda-mensaje');
     if (area) area.style.display = 'block';
+    const estado = document.getElementById('estado-feedback-usuario');
+    if (estado) estado.hidden = true;
     if (textarea) {
         textarea.placeholder = 'Escribe tu sugerencia para mejorar ZoarKids 360...';
         textarea.focus();
@@ -4882,6 +5157,8 @@ function abrirReporteError() {
     const area = document.getElementById('area-mensaje-ayuda');
     const textarea = document.getElementById('txt-ayuda-mensaje');
     if (area) area.style.display = 'block';
+    const estado = document.getElementById('estado-feedback-usuario');
+    if (estado) estado.hidden = true;
     if (textarea) {
         textarea.placeholder = 'Describe el error que encontraste...';
         textarea.focus();
@@ -4922,13 +5199,19 @@ async function enviarSugerencia() {
         return;
     }
     try {
-        await llamarSupabase('sugerencias', {
+        const guardado = await llamarSupabase('sugerencias', {
             method: 'POST',
-            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'sugerencia', mensaje, fecha: new Date().toISOString() })
+            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'sugerencia', mensaje, fecha: new Date().toISOString(), estado: 'en_proceso' })
         });
+        if (!guardado) throw new Error('No se confirmó el envío de la sugerencia.');
         mostrarNotificacion('Sugerencia enviada al administrador', 'success');
         const area = document.getElementById('area-mensaje-ayuda');
         if (area) area.style.display = 'none';
+        const estado = document.getElementById('estado-feedback-usuario');
+        if (estado) {
+            estado.textContent = 'Estado: En proceso. El administrador revisará tu sugerencia.';
+            estado.hidden = false;
+        }
         if (textarea) textarea.value = '';
         await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió sugerencia', fecha: new Date().toISOString() });
     } catch (error) {
@@ -4950,13 +5233,19 @@ async function enviarReporteError() {
         return;
     }
     try {
-        await llamarSupabase('sugerencias', {
+        const guardado = await llamarSupabase('sugerencias', {
             method: 'POST',
-            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'reporte', mensaje, fecha: new Date().toISOString() })
+            body: JSON.stringify({ usuario: usuarioSesion.nombre, tipo: 'reporte', mensaje, fecha: new Date().toISOString(), estado: 'en_proceso' })
         });
+        if (!guardado) throw new Error('No se confirmó el envío del reporte.');
         mostrarNotificacion('Reporte enviado al administrador', 'success');
         const area = document.getElementById('area-mensaje-ayuda');
         if (area) area.style.display = 'none';
+        const estado = document.getElementById('estado-feedback-usuario');
+        if (estado) {
+            estado.textContent = 'Estado: En proceso. El administrador revisará tu reporte.';
+            estado.hidden = false;
+        }
         if (textarea) textarea.value = '';
         await guardarLog({ usuario: usuarioSesion.nombre, accion: 'Envió reporte de error', fecha: new Date().toISOString() });
     } catch (error) {
@@ -5150,6 +5439,25 @@ function calcularProximoDomingo() {
     return domingo.getDate() + '/' + (domingo.getMonth() + 1) + '/' + domingo.getFullYear();
 }
 
+async function cargarTurnoProximoDomingo() {
+    if (modoPrueba || modoOffline || !navigator.onLine) return;
+    const fecha = calcularProximoDomingo();
+    try {
+        const filas = await llamarSupabase(`cronograma?fecha=eq.${encodeURIComponent(fecha)}&select=fecha,pi,me,gr`);
+        const turno = Array.isArray(filas) ? filas[0] : null;
+        if (!turno) return;
+        const actual = cronogramaOficial2026[fecha] || { pi: '', me: '', gr: '', seccion: {} };
+        cronogramaOficial2026[fecha] = {
+            ...actual,
+            pi: turno.pi ?? actual.pi,
+            me: turno.me ?? actual.me,
+            gr: turno.gr ?? actual.gr
+        };
+    } catch (error) {
+        console.error('No se pudo cargar el cronograma actualizado:', error);
+    }
+}
+
 function procesarCalendario() {
     const modoPruebaActivo = sessionStorage.getItem('zk360_modo_prueba') === 'true' || usuarioSesion?.esPrueba === true;
     if (modoPruebaActivo) {
@@ -5267,10 +5575,24 @@ function activarVistaPestaña(idVista, btnElemento) {
         'bandeja-lecciones': 'lecciones',
         reportes: 'reportes'
     }[idVista];
+    if (idVista === 'actividades' && usuarioSesion?.rol === 'maestro') {
+        document.querySelectorAll('.modulo-vista').forEach(v => v.classList.remove('activo'));
+        document.querySelectorAll('.menu-link[data-vista]').forEach(link => link.classList.remove('activo'));
+        document.getElementById('modulo-configuracion')?.classList.add('activo');
+        document.querySelector('.configuracion-pestanas')?.setAttribute('hidden', '');
+        document.querySelectorAll('.configuracion-panel').forEach(panel => {
+            panel.hidden = panel.id !== 'modulo-actividades';
+        });
+        btnElemento?.classList.add('activo');
+        cargarActividadesMensuales();
+        if (window.innerWidth <= 768) document.getElementById('menu-lateral')?.classList.remove('abierto');
+        return;
+    }
     if (idVista === 'configuracion' || pestañaConfiguracion) {
         document.querySelectorAll('.modulo-vista').forEach(v => v.classList.remove('activo'));
         document.querySelectorAll('.menu-link[data-vista]').forEach(link => link.classList.remove('activo'));
         document.getElementById('modulo-configuracion')?.classList.add('activo');
+        document.querySelector('.configuracion-pestanas')?.removeAttribute('hidden');
         const enlaceConfiguracion = document.getElementById('menu-configuracion');
         if (enlaceConfiguracion) enlaceConfiguracion.classList.add('activo');
         const moduloHistorial = document.getElementById('modulo-historial');

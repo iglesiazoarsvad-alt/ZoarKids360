@@ -2643,3 +2643,165 @@ html[data-tema="galaxia"] .configuracion-panel textarea::placeholder {
         font-size: 13px;
     }
 }
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda .ayuda-tarjeta,
+html[data-tema="dark-purpura"] #modulo-ayuda .ayuda-tarjeta,
+html[data-tema="galaxia"] #modulo-ayuda .ayuda-tarjeta,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-contenido,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-contenido,
+html[data-tema="galaxia"] #modulo-ayuda .manual-contenido,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-seccion,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-seccion,
+html[data-tema="galaxia"] #modulo-ayuda .manual-seccion {
+    background: var(--tema-fondo-tarjeta);
+    color: var(--tema-texto);
+    border-color: var(--tema-borde-neon);
+}
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda .ayuda-tarjeta h4,
+html[data-tema="dark-purpura"] #modulo-ayuda .ayuda-tarjeta h4,
+html[data-tema="galaxia"] #modulo-ayuda .ayuda-tarjeta h4,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-seccion h4,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-seccion h4,
+html[data-tema="galaxia"] #modulo-ayuda .manual-seccion h4 {
+    color: var(--tema-texto) !important;
+}
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda .ayuda-tarjeta p,
+html[data-tema="dark-purpura"] #modulo-ayuda .ayuda-tarjeta p,
+html[data-tema="galaxia"] #modulo-ayuda .ayuda-tarjeta p,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-seccion p,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-seccion p,
+html[data-tema="galaxia"] #modulo-ayuda .manual-seccion p,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-contenido,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-contenido,
+html[data-tema="galaxia"] #modulo-ayuda .manual-contenido,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-contenido a,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-contenido a,
+html[data-tema="galaxia"] #modulo-ayuda .manual-contenido a,
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-contenido li,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-contenido li,
+html[data-tema="galaxia"] #modulo-ayuda .manual-contenido li {
+    color: var(--tema-texto-secundario) !important;
+}
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda .ayuda-tarjeta:hover,
+html[data-tema="dark-purpura"] #modulo-ayuda .ayuda-tarjeta:hover,
+html[data-tema="galaxia"] #modulo-ayuda .ayuda-tarjeta:hover {
+    box-shadow: 0 8px 25px var(--tema-brillo);
+}
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda .manual-contenido,
+html[data-tema="dark-purpura"] #modulo-ayuda .manual-contenido,
+html[data-tema="galaxia"] #modulo-ayuda .manual-contenido {
+    scrollbar-color: var(--tema-borde-neon) var(--tema-fondo-interior);
+}
+
+.estado-fecha-actividad,
+.estado-feedback-admin {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.fecha-actividad-pasada {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.fecha-actividad-hoy {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.fecha-actividad-futura {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.acciones-actividad-admin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#estado-feedback-usuario {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border: 1px solid #86efac;
+    border-radius: 12px;
+    background: #f0fdf4;
+    color: #166534;
+    font-weight: 650;
+}
+
+#txt-ayuda-mensaje {
+    resize: none !important;
+}
+
+.estado-feedback-admin {
+    width: fit-content;
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.actividad-mes-fila {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .actividad-mes-fila {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .acciones-actividad-admin {
+        width: 100%;
+    }
+}
+
+html[data-tema="azul-esmeralda"] #modulo-ayuda #estado-feedback-usuario,
+html[data-tema="dark-purpura"] #modulo-ayuda #estado-feedback-usuario,
+html[data-tema="galaxia"] #modulo-ayuda #estado-feedback-usuario {
+    border-color: var(--tema-borde-neon);
+    background: var(--tema-fondo-interior);
+    color: var(--tema-texto);
+}
+
+html[data-tema="azul-esmeralda"] .actividad-mes-fila time,
+html[data-tema="dark-purpura"] .actividad-mes-fila time,
+html[data-tema="galaxia"] .actividad-mes-fila time {
+    color: var(--tema-texto-secundario);
+}
+
+html[data-tema="azul-esmeralda"] .fecha-actividad-pasada,
+html[data-tema="dark-purpura"] .fecha-actividad-pasada,
+html[data-tema="galaxia"] .fecha-actividad-pasada {
+    background: #7f1d1d;
+    color: #fff1f2;
+}
+
+html[data-tema="azul-esmeralda"] .fecha-actividad-hoy,
+html[data-tema="dark-purpura"] .fecha-actividad-hoy,
+html[data-tema="galaxia"] .fecha-actividad-hoy {
+    background: #14532d;
+    color: #dcfce7;
+}
+
+html[data-tema="azul-esmeralda"] .fecha-actividad-futura,
+html[data-tema="dark-purpura"] .fecha-actividad-futura,
+html[data-tema="galaxia"] .fecha-actividad-futura {
+    background: #7c2d12;
+    color: #ffedd5;
+}
+
+html[data-tema="azul-esmeralda"] .estado-feedback-admin,
+html[data-tema="dark-purpura"] .estado-feedback-admin,
+html[data-tema="galaxia"] .estado-feedback-admin {
+    background: #7c2d12;
+    color: #ffedd5;
+}

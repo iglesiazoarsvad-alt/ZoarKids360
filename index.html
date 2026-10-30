@@ -45,6 +45,10 @@
             </button>
         </form>
         <div id="login-error" class="error-message" role="alert" aria-live="assertive" hidden></div>
+        <button type="button" id="btn-reenviar-confirmacion" class="btn-enviar-clase"
+            style="display:none; width:100%; margin-top:10px;">
+            Reenviar correo de confirmación
+        </button>
         <button type="button" id="btn-ingresar-offline" class="btn-ingresar" style="display:none; margin-top:12px;">
             <i class="fa-solid fa-wifi"></i> Entrar como maestro asignado (sin conexión)
         </button>
@@ -128,7 +132,7 @@
         <div class="modal-burbuja">
             <h3><i class="fa-solid fa-user-plus" style="color:#2ecc71;"></i> Registrar con C&oacute;digo</h3>
             <p class="descripcion-modal">Ingresa el c&oacute;digo que recibiste y completa tus datos</p>
-            <p class="descripcion-modal">La cuenta requiere una invitación válida y un perfil creado en ZoarKids. Si Supabase solicita confirmar el correo, revisa el buzón antes de iniciar sesión.</p>
+            <p class="descripcion-modal">La cuenta requiere una invitación válida y un perfil creado. Si Supabase solicita confirmar el correo, revisa el buzón antes de iniciar sesión.</p>
             <form id="form-registro-codigo">
                 <div class="campo">
                     <label><i class="fa-solid fa-ticket"></i> C&oacute;digo de invitaci&oacute;n</label>
@@ -317,7 +321,7 @@
             document.write('<script src="config.local.js"><\/script>');
         }
     </script>
-    <script src="logica.js?v=20261027-5"></script>
+    <script src="logica.js?v=20261028-1"></script>
     <script src="pwa.js" defer></script>
 </body>
 </html>

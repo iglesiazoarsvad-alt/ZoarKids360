@@ -1186,6 +1186,9 @@
                 <div class="menu-link" data-vista="historial"><i class="fa-solid fa-clock-rotate-left"></i>
                     <span>Historial</span>
                 </div>
+                <div class="menu-link" data-vista="actividades" id="menu-actividades" style="display:none;">
+                    <i class="fa-solid fa-calendar-days"></i> <span>Actividades</span>
+                </div>
                 <div class="menu-link" data-vista="configuracion" id="menu-configuracion">
                     <i class="fa-solid fa-sliders"></i>
                     <span>Configuración</span>
@@ -1370,8 +1373,7 @@
                     <div class="icono-centro" style="color:#f39c12;"><i class="fa-regular fa-face-smile"></i></div>
                     <h3>No tienes clase asignada</h3>
                     <p style="color:#747d8c; font-size:15px; margin-top:10px;">
-                        No posees un salón asignado para este domingo.<br>
-                        <span style="font-weight:bold; color:#2ecc71;">Disfruta del servicio dominical</span>
+                        No tienes clase asignada. Disfruta el servicio dominical
                     </p>
                     <div style="margin-top:20px; padding-top:20px; border-top:2px dashed #eee;">
                         <button class="btn-admin" id="btn-inscribir-sin-clase"
@@ -1438,6 +1440,9 @@
                         <span id="txt-estado-horario-asistencia"><i class="fa-regular fa-clock"></i> Ventana: Domingos
                             2:45 PM - 5:00 PM</span>
                         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <button class="btn-admin" id="btn-modificar-asistencia" style="display:none;">
+                                <i class="fa-solid fa-pen-to-square"></i> Modificar
+                            </button>
                             <button class="btn-enviar-clase" id="btn-guardar-asistencia-final" disabled><i
                                     class="fa-solid fa-square-check"></i> Reportar Asistencia</button>
                         </div>
@@ -1646,13 +1651,8 @@
                         </div>
                         <fieldset class="campo config-dias-sustitucion">
                             <legend>Días en que se pueden solicitar sustituciones</legend>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="1"> Lunes</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="2"> Martes</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="3"> Miércoles</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="4"> Jueves</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="5"> Viernes</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="6"> Sábado</label>
-                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="0"> Domingo</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="1" disabled> Lunes</label>
+                            <label><input type="checkbox" name="cfg-dia-sustitucion" value="2" disabled> Martes</label>
                         </fieldset>
                         <div class="campo">
                             <label for="cfg-motivo">Motivo del ajuste</label>
@@ -1704,7 +1704,7 @@
                         <div class="campo">
                             <label>Tu mensaje:</label>
                             <textarea id="txt-ayuda-mensaje" class="input-txt input-ayuda"
-                                style="height:100px; resize:vertical; padding:14px 16px; border-radius:16px; border:2px solid #dfe4ea;"
+                                style="height:100px; resize:none; padding:14px 16px; border-radius:16px; border:2px solid #dfe4ea;"
                                 placeholder="Escribe tu mensaje aquí..."></textarea>
                             <div id="contador-caracteres"
                                 style="text-align:right; font-size:12px; color:#95a5a6; margin-top:5px;">0/500</div>
@@ -1717,6 +1717,7 @@
                             style="width:100%; margin-top:10px; background:#ff7675;"><i class="fa-solid fa-bug"></i>
                             Reportar Error</button>
                     </div>
+                    <p id="estado-feedback-usuario" role="status" aria-live="polite" hidden></p>
 
                     <div id="manual-uso-container"
                         style="display:none; margin-top:30px; border-top:2px dashed #eee; padding-top:25px;">
@@ -1906,6 +1907,19 @@
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
                 <i class="fa-solid fa-cake-candles" style="font-size:36px; color:#f39c12;"></i>
                 <h3 style="margin-top:8px;">Cumpleaños del Mes</h3>
+            </div>
+
+            <div id="modal-motivo-modificacion-asistencia" class="modal-overlay">
+                <div class="modal-burbuja modal-burbuja-mejorada">
+                    <h3><i class="fa-solid fa-pen-to-square"></i> Motivo de la modificación</h3>
+                    <p class="subtitulo-modulo">Describe por qué se actualizará la asistencia reportada.</p>
+                    <label for="motivo-modificacion-asistencia">Motivo</label>
+                    <textarea id="motivo-modificacion-asistencia" class="input-txt" rows="4" maxlength="500" required></textarea>
+                    <div class="config-horario-rango">
+                        <button type="button" class="btn-cerrar-modal btn-cancelar" id="btn-cancelar-modificacion-asistencia">Cancelar</button>
+                        <button type="button" class="btn-enviar-clase" id="btn-confirmar-modificacion-asistencia">Continuar</button>
+                    </div>
+                </div>
             </div>
 
             <div id="lista-cumpleaneros" style="margin-top:15px; text-align:left;"></div>
@@ -2119,14 +2133,10 @@
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" class="btn-admin" onclick="document.getElementById('foto-camara').click()"
                             style="background:#6c5ce7;"><i class="fa-solid fa-camera"></i> Tomar foto</button>
-                        <button type="button" class="btn-admin"
-                            onclick="document.getElementById('foto-archivo').click()" style="background:#2575fc;"><i
-                                class="fa-solid fa-folder-open"></i> Subir archivo</button>
                     </div>
                     <input type="file" id="foto-camara" accept="image/*" capture="environment" style="display:none;"
                         onchange="document.getElementById('foto-archivo').files = this.files; this.value='';">
-                    <input type="file" id="foto-archivo" accept="image/*"
-                        style="padding:10px; margin-top:8px; width:100%;" required>
+                    <input type="file" id="foto-archivo" accept="image/*" style="display:none;" required>
                 </div>
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px;">
                     <button type="button" class="btn-cerrar-modal btn-cancelar"

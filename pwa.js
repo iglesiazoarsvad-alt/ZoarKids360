@@ -2,6 +2,27 @@
     const status = document.getElementById('zk360-network-status');
     let hideTimer;
 
+    function obtenerMensajeAsignacionOffline() {
+        try {
+            const usuario = JSON.parse(sessionStorage.getItem('zk360_usuario_activo') || 'null');
+            const perfil = JSON.parse(localStorage.getItem('zk360_maestro_offline') || 'null');
+            const seccion = usuario?.seccion || perfil?.seccion;
+            if (!seccion) return '';
+            const nombres = {
+                infancia: 'Primera Infancia',
+                medianos: 'Medianos',
+                grandes: 'Grandes'
+            };
+            const nombreSeccion = nombres[seccion] || seccion;
+            return new Date().getDay() === 0
+                ? `Estás listo para recibir la sección ${nombreSeccion}. ¡Mucha suerte y bendiciones!`
+                : `Estás asignado a la sección ${nombreSeccion}`;
+        } catch (error) {
+            console.error('No se pudo leer la asignación para el aviso offline:', error);
+            return '';
+        }
+    }
+
     function showConnectionStatus(isOnline, message = '') {
         if (!status) return;
         clearTimeout(hideTimer);
@@ -9,7 +30,7 @@
         const text = document.createElement('span');
         text.textContent = message || (isOnline
             ? 'Conexión restablecida. Los cambios se sincronizarán automáticamente.'
-            : 'Sin conexión. Navegación con contenido guardado; los cambios se sincronizarán al reconectar.');
+            : obtenerMensajeAsignacionOffline() || 'Sin conexión. Navegación con contenido guardado; los cambios se sincronizarán al reconectar.');
         status.appendChild(text);
         status.classList.toggle('offline', !isOnline);
         status.classList.toggle('online', isOnline);
@@ -20,9 +41,13 @@
     function mostrarEstadoCola(event) {
         const { pending = 0, offline = !navigator.onLine, requiresLogin = false, message = '' } = event.detail || {};
         if (offline) {
-            showConnectionStatus(false, pending
-                ? `Sin conexión. ${pending} cambio(s) guardado(s) en este dispositivo.`
-                : 'Sin conexión. Puedes navegar con los datos guardados; los cambios se sincronizarán al reconectar.');
+            const asignacion = obtenerMensajeAsignacionOffline();
+            const detallePendientes = pending ? ` ${pending} cambio(s) guardado(s) en este dispositivo.` : '';
+            showConnectionStatus(false, asignacion
+                ? `${asignacion}${detallePendientes}`
+                : pending
+                    ? `Sin conexión. ${pending} cambio(s) guardado(s) en este dispositivo.`
+                    : 'Sin conexión. Puedes navegar con los datos guardados; los cambios se sincronizarán al reconectar.');
             return;
         }
         if (!pending) {

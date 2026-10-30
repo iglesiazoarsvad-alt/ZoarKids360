@@ -134,6 +134,10 @@ function validarContrasenaCompleta(clave) {
     return c.largo && c.mayuscula && c.numero && c.signo && c.sinEspacios;
 }
 
+function esCorreoZoarValido(correo) {
+    return /^[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org$/.test(correo);
+}
+
 function obtenerConfigSupabase() {
     const config = window.ZK360_CONFIG || {};
     if (!config.supabaseUrl || !config.supabaseAnonKey) {
@@ -533,9 +537,17 @@ function iniciarEasterEggs() {
 
 function mostrarErrorLogin(mensaje = '') {
     const errorEl = document.getElementById('login-error');
-    if (!errorEl) return;
-    errorEl.textContent = mensaje;
-    errorEl.hidden = !mensaje;
+    if (errorEl) {
+        errorEl.textContent = mensaje;
+        errorEl.hidden = !mensaje;
+    }
+}
+
+function mostrarBotonReenviarConfirmacion(visible, correo = '') {
+    const boton = document.getElementById('btn-reenviar-confirmacion');
+    if (!boton) return;
+    boton.dataset.email = correo;
+    boton.style.display = visible ? 'block' : 'none';
 }
 
 function obtenerPerfilMaestroOffline() {
@@ -627,16 +639,45 @@ window.addEventListener('hashchange', manejarEnlaceRecuperacion);
 
 function initLoginEvents() {
     const formLogin = document.getElementById('form-login');
+    const botonReenviar = document.getElementById('btn-reenviar-confirmacion');
+    if (botonReenviar && !botonReenviar.dataset.init) {
+        botonReenviar.dataset.init = 'true';
+        botonReenviar.addEventListener('click', async function () {
+            const correo = botonReenviar.dataset.email || document.getElementById('correo')?.value.trim().toLowerCase();
+            if (!correo || !esCorreoZoarValido(correo)) {
+                mostrarErrorLogin('Ingresa un correo oficial válido para reenviar la confirmación.');
+                return;
+            }
+
+            botonReenviar.disabled = true;
+            try {
+                const cliente = await crearClienteSupabaseAuth();
+                const { error } = await cliente.auth.resend({ type: 'signup', email: correo });
+                if (error) throw error;
+                mostrarErrorLogin(`Se solicitó un nuevo correo de confirmación para ${correo}. Revisa tu bandeja de entrada y correo no deseado.`);
+                mostrarNotificacion('Solicitud de confirmación enviada.', 'success');
+            } catch (error) {
+                console.error('No se pudo reenviar la confirmación:', error);
+                const mensaje = error.message || 'No se pudo reenviar el correo de confirmación. Inténtalo nuevamente.';
+                mostrarErrorLogin(mensaje);
+                mostrarNotificacion(mensaje, 'error');
+            } finally {
+                botonReenviar.disabled = false;
+            }
+        });
+    }
+
     if (formLogin && !formLogin.dataset.init) {
         formLogin.dataset.init = "true";
         formLogin.addEventListener('submit', async function (e) {
             e.preventDefault();
             mostrarErrorLogin();
+            mostrarBotonReenviarConfirmacion(false);
 
             const correo = document.getElementById('correo').value.trim().toLowerCase();
             const clave = document.getElementById('clave').value;
 
-            if (!correo.endsWith("@iglesiazoarsv.org")) {
+            if (!esCorreoZoarValido(correo)) {
                 const mensaje = "Solo se permiten correos oficiales (@iglesiazoarsv.org)";
                 mostrarErrorLogin(mensaje);
                 mostrarNotificacion(mensaje, "error");
@@ -653,6 +694,7 @@ function initLoginEvents() {
                 if (!usuarioAuth.email_confirmed_at && !usuarioAuth.confirmed_at) {
                     const mensaje = 'Debes confirmar tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.';
                     mostrarErrorLogin(mensaje);
+                    mostrarBotonReenviarConfirmacion(true, correo);
                     mostrarNotificacion(mensaje, 'error');
                     return;
                 }
@@ -692,6 +734,7 @@ function initLoginEvents() {
             } catch (error) {
                 sessionStorage.removeItem('zk360_supabase_session');
                 const esCredencialIncorrecta = error.code === 'invalid_credentials';
+                const requiereConfirmacion = error.code === 'email_not_confirmed' || /email not confirmed|email_not_confirmed|falta confirmar el correo/i.test(error.message);
                 const mensaje = /confirm/i.test(error.message)
                     ? 'Debes confirmar tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.'
                     : /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message)
@@ -701,6 +744,12 @@ function initLoginEvents() {
                     : perfilEncontrado
                         ? 'El perfil existe, pero la contraseña no coincide en Supabase Auth. Verifica tu contraseña o contacta al administrador para habilitar la cuenta.'
                         : error.message || 'No se pudo iniciar sesión. Verifica la configuración de Supabase y el estado de la cuenta.';
+                if (requiereConfirmacion) {
+                        mostrarErrorLogin(mensaje);
+                        mostrarBotonReenviarConfirmacion(true, correo);
+                        mostrarNotificacion(mensaje, 'error');
+                        return;
+                }
                 const errorDeConexion = /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message);
                 if (errorDeConexion) {
                     mostrarErrorLogin(mensaje);
@@ -798,7 +847,7 @@ function initLoginEvents() {
                 return;
             }
 
-            if (!email.endsWith('@iglesiazoarsv.org')) {
+            if (!esCorreoZoarValido(email)) {
                 mostrarNotificacion('El correo debe ser @iglesiazoarsv.org', 'error');
                 return;
             }
@@ -1073,7 +1122,10 @@ async function autenticarConSupabase(email, password) {
             throw error;
         }
         if (/email not confirmed|email_not_confirmed/i.test(detalle)) {
-            throw new Error('La cuenta existe, pero falta confirmar el correo desde el enlace enviado por Supabase.');
+            const error = new Error('La cuenta existe, pero falta confirmar el correo desde el enlace enviado por Supabase.');
+            error.code = 'email_not_confirmed';
+            error.status = response.status;
+            throw error;
         }
         if (response.status === 429) {
             throw new Error('Supabase limitó temporalmente los intentos. Espera unos minutos antes de volver a probar.');
@@ -1401,7 +1453,7 @@ function autenticarUsuario(correo, usuario) {
 
 async function solicitarEnlaceRecuperacion() {
     const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
-    if (!email || !email.endsWith('@iglesiazoarsv.org')) {
+    if (!esCorreoZoarValido(email)) {
         mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
         return;
     }
@@ -1418,7 +1470,7 @@ async function solicitarEnlaceRecuperacion() {
 
 async function usarPreguntaSeguridad() {
     const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
-    if (!email || !email.endsWith('@iglesiazoarsv.org')) {
+    if (!esCorreoZoarValido(email)) {
         mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
         return;
     }
