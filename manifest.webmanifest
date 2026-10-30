@@ -9,8 +9,8 @@
   "theme_color": "#2575fc",
   "icons": [
     {
-      "src": "./logo.png",
-      "sizes": "any",
+      "src": "./icono.png",
+      "sizes": "500x500",
       "type": "image/png",
       "purpose": "any maskable"
     }

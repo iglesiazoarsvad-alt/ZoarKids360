@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zoarkids-shell-v12';
+const CACHE_NAME = 'zoarkids-shell-v13';
 const APP_SHELL = [
     './index.html',
     './panel.html',
@@ -14,7 +14,8 @@ const APP_SHELL = [
     './pwa.js',
     './offline.html',
     './manifest.webmanifest',
-    './logo.png'
+    './logo.png',
+    './icono.png'
 ];
 
 self.addEventListener('install', event => {
