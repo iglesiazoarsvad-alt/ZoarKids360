@@ -59,6 +59,12 @@ async function hashAnswer(salt: string, answer: string) {
     return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function generarContrasenaTemporal() {
+    const bytes = crypto.getRandomValues(new Uint8Array(18));
+    const sufijo = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `ZK-Temp-${sufijo}`;
+}
+
 deno.serve(async (request: Request) => {
     const origin = originPermitido(request.headers.get('origin'));
     if (request.method === 'OPTIONS') {
@@ -80,16 +86,63 @@ deno.serve(async (request: Request) => {
         const body = await request.json();
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
         const action = body.action;
-        if (!/^[^@\s]+@iglesiazoarsv\.org$/.test(email)) {
+        if (action !== 'change-temporary-password' && !/^[^@\s]+@iglesiazoarsv\.org$/.test(email)) {
             return jsonResponse(400, { error: 'Correo no válido.' }, origin);
         }
-        if (action !== 'get-question' && action !== 'verify-answer') {
+        if (action !== 'get-question' && action !== 'verify-answer' && action !== 'change-temporary-password') {
             return jsonResponse(400, { error: 'Solicitud no válida.' }, origin);
         }
 
         const admin = createClient(supabaseUrl, serviceRoleKey, {
             auth: { persistSession: false, autoRefreshToken: false }
         });
+
+        if (action === 'change-temporary-password') {
+            const accessToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+            const password = typeof body.password === 'string' ? body.password : '';
+            if (!accessToken || password.length < 8 || password.length > 72 ||
+                !/[A-Z]/.test(password) || !/[0-9]/.test(password) ||
+                !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password) || /\s/.test(password)) {
+                return jsonResponse(400, { error: 'La nueva contraseña no cumple los requisitos.' }, origin);
+            }
+
+            const { data: authenticated, error: errorSesion } = await admin.auth.getUser(accessToken);
+            const authUser = authenticated?.user;
+            const emailSesion = authUser?.email?.trim().toLowerCase() || '';
+            if (errorSesion || !authUser || !/^[^@\s]+@iglesiazoarsv\.org$/.test(emailSesion)) {
+                return jsonResponse(401, { error: 'La sesión expiró. Inicia sesión nuevamente con tu contraseña temporal.' }, origin);
+            }
+
+            const { data: perfil, error: errorPerfil } = await admin
+                .from('usuarios')
+                .select('email,requiere_cambio_clave')
+                .eq('email', emailSesion)
+                .maybeSingle();
+            if (errorPerfil) {
+                console.error('Required password-change lookup failed:', errorPerfil.message);
+                return jsonResponse(500, { error: 'No se pudo validar el perfil para cambiar la contraseña.' }, origin);
+            }
+            if (!perfil || perfil.requiere_cambio_clave !== true) {
+                return jsonResponse(409, { error: 'La cuenta no tiene un cambio obligatorio pendiente.' }, origin);
+            }
+
+            const { error: errorActualizacionAuth } = await admin.auth.admin.updateUserById(authUser.id, { password });
+            if (errorActualizacionAuth) {
+                console.error('Temporary password update failed:', errorActualizacionAuth.message);
+                return jsonResponse(400, { error: errorActualizacionAuth.message }, origin);
+            }
+
+            const { error: errorActualizacionPerfil } = await admin
+                .from('usuarios')
+                .update({ requiere_cambio_clave: false })
+                .eq('email', emailSesion);
+            if (errorActualizacionPerfil) {
+                console.error('Required password-change flag update failed:', errorActualizacionPerfil.message);
+                return jsonResponse(500, { error: 'La contraseña cambió, pero no se pudo completar el perfil. Intenta guardar la misma contraseña nuevamente.' }, origin);
+            }
+            return jsonResponse(200, { ok: true }, origin);
+        }
+
         const { data: permitida, error: errorLimite } = await admin.rpc(
             'allow_security_question_attempt',
             { p_email: email }
@@ -137,15 +190,44 @@ deno.serve(async (request: Request) => {
             console.error('Recovery account lookup failed:', errorUsuario?.message);
             return jsonResponse(400, { error: 'No se pudo iniciar la recuperación.' }, origin);
         }
-        const { data: linkData, error: errorEnlace } = await admin.auth.admin.generateLink({
-            type: 'recovery',
-            email
-        });
-        if (errorEnlace || !linkData.properties?.hashed_token) {
-            console.error('Recovery token generation failed:', errorEnlace?.message);
-            return jsonResponse(500, { error: 'No se pudo emitir una sesión de recuperación.' }, origin);
+        const { data: perfil, error: errorPerfil } = await admin
+            .from('usuarios')
+            .select('email,requiere_cambio_clave')
+            .eq('email', email)
+            .maybeSingle();
+        if (errorPerfil) {
+            console.error('Recovery profile lookup failed:', errorPerfil.message);
+            return jsonResponse(500, { error: 'No se pudo preparar la recuperación.' }, origin);
         }
-        return jsonResponse(200, { token_hash: linkData.properties.hashed_token }, origin);
+        if (!perfil) return jsonResponse(404, { error: 'No se encontró el perfil de ZoarKids.' }, origin);
+
+        const { error: errorMarcarCambio } = await admin
+            .from('usuarios')
+            .update({ requiere_cambio_clave: true })
+            .eq('email', email);
+        if (errorMarcarCambio) {
+            console.error('Required password-change flag update failed:', errorMarcarCambio.message);
+            return jsonResponse(500, { error: 'No se pudo marcar el cambio obligatorio de contraseña.' }, origin);
+        }
+
+        const temporaryPassword = generarContrasenaTemporal();
+        const { error: errorContrasena } = await admin.auth.admin.updateUserById(authUser.user.id, {
+            password: temporaryPassword
+        });
+        if (errorContrasena) {
+            console.error('Temporary password generation failed:', errorContrasena.message);
+            if (perfil.requiere_cambio_clave !== true) {
+                const { error: errorReversion } = await admin
+                    .from('usuarios')
+                    .update({ requiere_cambio_clave: false })
+                    .eq('email', email);
+                if (errorReversion) {
+                    console.error('Required password-change rollback failed:', errorReversion.message);
+                }
+            }
+            return jsonResponse(500, { error: 'No se pudo actualizar la contraseña temporal en Supabase Auth.' }, origin);
+        }
+        return jsonResponse(200, { temporary_password: temporaryPassword }, origin);
     } catch (error) {
         console.error('Security question recovery failed:', error);
         return jsonResponse(500, { error: 'No se pudo procesar la recuperación.' }, origin);

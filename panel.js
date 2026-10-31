@@ -22,17 +22,17 @@ const cronogramaOficial2026 = {
     "20/9/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Dina", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "dina": "grandes" } },
     "27/9/2026": { pi: "Brenda y Claudia", me: "Maribel", gr: "Flor", seccion: { "brenda": "infancia", "claudia": "infancia", "maribel": "medianos", "flor": "grandes" } },
     "4/10/2026": { pi: "Marí y Jonathan", me: "Claudia", gr: "Erick", seccion: { "marí": "infancia", "jonathan": "infancia", "claudia": "medianos", "erick": "grandes" } },
-    "11/10/2026": { pi: "Marisol y Maribel", me: "Jonathan", gr: "Yeny", seccion: { "marisol": "infancia", "maribel": "infancia", "jonathan": "medianos", "yeny": "grandes" } },
+    "11/10/2026": { pi: "Maribel", me: "Jonathan", gr: "Yeny", seccion: { "marisol": "infancia", "maribel": "infancia", "jonathan": "medianos", "yeny": "grandes" } },
     "18/10/2026": { pi: "Dina Y Flor", me: "Brenda", gr: "Erick", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "erick": "grandes" } },
     "25/10/2026": { pi: "Yeny y Fernando", me: "Mari", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "mari": "medianos", "flor": "grandes" } },
     "1/11/2026": { pi: "Brenda y Claudia", me: "Dina", gr: "Yeny", seccion: { "brenda": "infancia", "claudia": "infancia", "dina": "medianos", "yeny": "grandes" } },
     "8/11/2026": { pi: "Marí y Jonathan", me: "Erick", gr: "Dina", seccion: { "marí": "infancia", "jonathan": "infancia", "erick": "medianos", "dina": "grandes" } },
-    "15/11/2026": { pi: "Marisol y Maribel", me: "Claudia", gr: "Erick", seccion: { "marisol": "infancia", "maribel": "infancia", "claudia": "medianos", "erick": "grandes" } },
+    "15/11/2026": { pi: "Maribel", me: "Claudia", gr: "Erick", seccion: { "marisol": "infancia", "maribel": "infancia", "claudia": "medianos", "erick": "grandes" } },
     "22/11/2026": { pi: "Dina Y Flor", me: "Jonathan", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "jonathan": "medianos", "yeny": "grandes" } },
     "29/11/2026": { pi: "Yeny y Fernando", me: "Marisol", gr: "Flor", seccion: { "yeny": "infancia", "fernando": "infancia", "marisol": "medianos", "flor": "grandes" } },
     "6/12/2026": { pi: "Brenda y Claudia", me: "Erick", gr: "Dina", seccion: { "brenda": "infancia", "claudia": "infancia", "erick": "medianos", "dina": "grandes" } },
     "13/12/2026": { pi: "Marí y Jonathan", me: "Claudia", gr: "Erick", seccion: { "marí": "infancia", "jonathan": "infancia", "claudia": "medianos", "erick": "grandes" } },
-    "20/12/2026": { pi: "Marisol y Maribel", me: "Yeny", gr: "Flor", seccion: { "marisol": "infancia", "maribel": "infancia", "yeny": "medianos", "flor": "grandes" } },
+    "20/12/2026": { pi: "Maribel", me: "Yeny", gr: "Flor", seccion: { "marisol": "infancia", "maribel": "infancia", "yeny": "medianos", "flor": "grandes" } },
     "27/12/2026": { pi: "Dina Y Flor", me: "Brenda", gr: "Yeny", seccion: { "dina": "infancia", "flor": "infancia", "brenda": "medianos", "yeny": "grandes" } }
 };
 

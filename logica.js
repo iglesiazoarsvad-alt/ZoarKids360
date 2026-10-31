@@ -11,6 +11,7 @@ let intentosFallidos = 0;
 let contadorInterval = null;
 let usuarioTemporal = null;
 let ultimoErrorSupabase = '';
+let usuarioPendienteCambioClave = null;
 
 // ============ CONFIGURACIÓN DEL EASTER EGG ============
 const CLICS_REQUERIDOS_LOGO = 10;    // 10 clics en el logo para modo prueba maestro
@@ -200,43 +201,27 @@ async function crearClienteSupabaseAuth() {
     });
 }
 
-async function llamarRecuperacionPregunta(body) {
-    return llamarFuncionSupabase('security-question-reset', body);
+async function llamarRecuperacionPregunta(body, accessToken = '') {
+    return llamarFuncionSupabase('security-question-reset', body, accessToken);
 }
 
-async function llamarFuncionSupabase(nombreFuncion, body) {
+async function llamarFuncionSupabase(nombreFuncion, body, accessToken = '') {
     const config = obtenerConfigSupabase();
-    const response = await fetch(`${config.url}/functions/v1/${encodeURIComponent(nombreFuncion)}`, {
+    const response = await fetch(config.url + '/functions/v1/' + encodeURIComponent(nombreFuncion), {
         method: 'POST',
         cache: 'no-store',
         headers: {
             apikey: config.anonKey,
-            Authorization: `Bearer ${config.anonKey}`,
+            Authorization: 'Bearer ' + (accessToken || config.anonKey),
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(result.error || 'No se pudo verificar la respuesta de seguridad.');
+        throw new Error(result.error || 'No se pudo completar la solicitud de autenticación.');
     }
     return result;
-}
-
-function generarContrasenaTemporal() {
-    const grupos = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!@#$%*-_'];
-    const caracteres = grupos.join('');
-    const bytes = new Uint8Array(16);
-    window.crypto.getRandomValues(bytes);
-    const clave = grupos.map((grupo, index) => grupo[bytes[index] % grupo.length]);
-    for (let i = grupos.length; i < bytes.length; i++) {
-        clave.push(caracteres[bytes[i] % caracteres.length]);
-    }
-    for (let i = clave.length - 1; i > 0; i--) {
-        const j = bytes[i % bytes.length] % (i + 1);
-        [clave[i], clave[j]] = [clave[j], clave[i]];
-    }
-    return clave.join('');
 }
 
 // ============ CONFIGURAR LOGO (10 CLICS - MODO PRUEBA) ============
@@ -543,13 +528,6 @@ function mostrarErrorLogin(mensaje = '') {
     }
 }
 
-function mostrarBotonReenviarConfirmacion(visible, correo = '') {
-    const boton = document.getElementById('btn-reenviar-confirmacion');
-    if (!boton) return;
-    boton.dataset.email = correo;
-    boton.style.display = visible ? 'block' : 'none';
-}
-
 function obtenerPerfilMaestroOffline() {
     try {
         const perfil = JSON.parse(localStorage.getItem('zk360_maestro_offline') || 'null');
@@ -599,7 +577,18 @@ function configurarAccesoOffline() {
     actualizar();
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function mostrarModalCambioClaveObligatorio(correo, usuario) {
+    usuarioPendienteCambioClave = usuario;
+    sessionStorage.removeItem('zk360_modo_offline');
+    sessionStorage.removeItem('zk360_usuario_activo');
+    const form = document.getElementById('form-cambio-clave-persistente');
+    const modal = document.getElementById('modal-cambio-clave-persistente');
+    if (form) form.dataset.email = correo;
+    if (modal) modal.classList.add('activo');
+    mostrarNotificacion('Debes establecer una nueva contraseña antes de continuar.', 'warning');
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
     const tema = localStorage.getItem('zoarkids_tema_activo') || 'predeterminado';
     document.documentElement.setAttribute('data-tema', tema);
     
@@ -621,9 +610,26 @@ document.addEventListener('DOMContentLoaded', function() {
                         seccion: perfilOffline.seccion
                     }));
                     sessionStorage.setItem('zk360_modo_offline', 'true');
+                    window.location.replace('panel.html');
+                    return;
                 }
-                window.location.replace('panel.html');
-                return;
+                const perfiles = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(data.user.email));
+                const perfil = Array.isArray(perfiles)
+                    ? perfiles.find(registro => String(registro.email || '').trim().toLowerCase() === data.user.email.toLowerCase())
+                    : null;
+                if (perfil?.requiere_cambio_clave === true) {
+                    document.getElementById('correo').value = data.user.email;
+                    mostrarModalCambioClaveObligatorio(data.user.email, { ...perfil, ...data.user });
+                    configurarAccesoOffline();
+                    initLoginEvents();
+                    return;
+                }
+                if (perfil) {
+                    window.location.replace('panel.html');
+                    return;
+                }
+                sessionStorage.removeItem('zk360_supabase_session');
+                mostrarErrorLogin(ultimoErrorSupabase || 'No se pudo validar el perfil de la sesión. Inicia sesión nuevamente.');
             }
         }
     } catch (error) {
@@ -632,47 +638,15 @@ document.addEventListener('DOMContentLoaded', function() {
     configurarAccesoOffline();
     localStorage.removeItem('zk360_usuario_persistente');
     initLoginEvents();
-    manejarEnlaceRecuperacion();
 });
-
-window.addEventListener('hashchange', manejarEnlaceRecuperacion);
 
 function initLoginEvents() {
     const formLogin = document.getElementById('form-login');
-    const botonReenviar = document.getElementById('btn-reenviar-confirmacion');
-    if (botonReenviar && !botonReenviar.dataset.init) {
-        botonReenviar.dataset.init = 'true';
-        botonReenviar.addEventListener('click', async function () {
-            const correo = botonReenviar.dataset.email || document.getElementById('correo')?.value.trim().toLowerCase();
-            if (!correo || !esCorreoZoarValido(correo)) {
-                mostrarErrorLogin('Ingresa un correo oficial válido para reenviar la confirmación.');
-                return;
-            }
-
-            botonReenviar.disabled = true;
-            try {
-                const cliente = await crearClienteSupabaseAuth();
-                const { error } = await cliente.auth.resend({ type: 'signup', email: correo });
-                if (error) throw error;
-                mostrarErrorLogin(`Se solicitó un nuevo correo de confirmación para ${correo}. Revisa tu bandeja de entrada y correo no deseado.`);
-                mostrarNotificacion('Solicitud de confirmación enviada.', 'success');
-            } catch (error) {
-                console.error('No se pudo reenviar la confirmación:', error);
-                const mensaje = error.message || 'No se pudo reenviar el correo de confirmación. Inténtalo nuevamente.';
-                mostrarErrorLogin(mensaje);
-                mostrarNotificacion(mensaje, 'error');
-            } finally {
-                botonReenviar.disabled = false;
-            }
-        });
-    }
-
     if (formLogin && !formLogin.dataset.init) {
         formLogin.dataset.init = "true";
         formLogin.addEventListener('submit', async function (e) {
             e.preventDefault();
             mostrarErrorLogin();
-            mostrarBotonReenviarConfirmacion(false);
 
             const correo = document.getElementById('correo').value.trim().toLowerCase();
             const clave = document.getElementById('clave').value;
@@ -691,14 +665,6 @@ function initLoginEvents() {
                 if (!usuarioAuth || (usuarioAuth.email || '').toLowerCase() !== correo) {
                     throw new Error('Supabase no pudo validar la identidad del correo.');
                 }
-                if (!usuarioAuth.email_confirmed_at && !usuarioAuth.confirmed_at) {
-                    const mensaje = 'Debes confirmar tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.';
-                    mostrarErrorLogin(mensaje);
-                    mostrarBotonReenviarConfirmacion(true, correo);
-                    mostrarNotificacion(mensaje, 'error');
-                    return;
-                }
-
                 sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
                     access_token: sesion.access_token,
                     refresh_token: sesion.refresh_token,
@@ -724,32 +690,27 @@ function initLoginEvents() {
                 perfilEncontrado = Boolean(perfil);
                 if (perfil) {
                     intentosFallidos = 0;
+                    if (perfil.requiere_cambio_clave === true) {
+                        mostrarModalCambioClaveObligatorio(correo, { ...perfil, ...usuarioAuth });
+                        return;
+                    }
                     autenticarUsuario(correo, { ...perfil, ...usuarioAuth });
                     return;
                 }
                 sessionStorage.removeItem('zk360_supabase_session');
-                const mensaje = 'El correo fue validado, pero no tiene un perfil registrado. Contacta al administrador.';
+                const mensaje = 'El correo no tiene un perfil registrado en ZoarKids. Completa el registro con un código de invitación válido.';
                 mostrarErrorLogin(mensaje);
                 mostrarNotificacion(mensaje, 'error');
             } catch (error) {
                 sessionStorage.removeItem('zk360_supabase_session');
                 const esCredencialIncorrecta = error.code === 'invalid_credentials';
-                const requiereConfirmacion = error.code === 'email_not_confirmed' || /email not confirmed|email_not_confirmed|falta confirmar el correo/i.test(error.message);
-                const mensaje = /confirm/i.test(error.message)
-                    ? 'Debes confirmar tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.'
-                    : /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message)
+                const mensaje = /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message)
                         ? 'No se pudo conectar con Supabase. Verifica tu conexión e inténtalo nuevamente.'
                     : esCredencialIncorrecta
                         ? error.message
                     : perfilEncontrado
-                        ? 'El perfil existe, pero la contraseña no coincide en Supabase Auth. Verifica tu contraseña o contacta al administrador para habilitar la cuenta.'
+                        ? 'El perfil existe, pero la contraseña no coincide en Supabase Auth. Verifica la contraseña e inténtalo de nuevo.'
                         : error.message || 'No se pudo iniciar sesión. Verifica la configuración de Supabase y el estado de la cuenta.';
-                if (requiereConfirmacion) {
-                        mostrarErrorLogin(mensaje);
-                        mostrarBotonReenviarConfirmacion(true, correo);
-                        mostrarNotificacion(mensaje, 'error');
-                        return;
-                }
                 const errorDeConexion = /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message);
                 if (errorDeConexion) {
                     mostrarErrorLogin(mensaje);
@@ -882,6 +843,9 @@ function initLoginEvents() {
                 if (!usuarioAuth?.id) {
                     throw new Error('Supabase no devolvió una cuenta de autenticación válida.');
                 }
+                if (!registroAuth.session?.access_token) {
+                    throw new Error('Supabase creó la cuenta pero no inició sesión. Desactiva la confirmación de correo en Authentication → Providers → Email e inténtalo de nuevo.');
+                }
                 cuentaAuthCreada = true;
                 const respuestaHash = await hashRespuestaSeguridad(respuesta);
                 const resultadoRegistro = await llamarFuncionSupabase('register-teacher-profile', {
@@ -903,26 +867,21 @@ function initLoginEvents() {
                 document.getElementById('modal-registro-codigo').classList.remove('activo');
                 document.getElementById('form-registro-codigo').reset();
 
-                const sesionAuth = registroAuth.session || registroAuth;
-                const usuarioRegistradoAuth = registroAuth.user || (sesionAuth && sesionAuth.user);
-                if (sesionAuth && sesionAuth.access_token && usuarioRegistradoAuth) {
-                    sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
-                        access_token: sesionAuth.access_token,
-                        refresh_token: sesionAuth.refresh_token,
-                        expires_at: sesionAuth.expires_at,
-                        user: usuarioRegistradoAuth
-                    }));
-                    mostrarNotificacion('Iniciando sesión...', 'success');
-                    setTimeout(() => autenticarUsuario(email, nuevoUsuario), 1000);
-                } else {
-                    mostrarNotificacion('Confirma tu correo desde el mensaje enviado por Supabase antes de iniciar sesión.', 'info');
-                }
+                const sesionAuth = await autenticarConSupabase(email, clave);
+                sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
+                    access_token: sesionAuth.access_token,
+                    refresh_token: sesionAuth.refresh_token,
+                    expires_at: sesionAuth.expires_at,
+                    user: sesionAuth.user
+                }));
+                mostrarNotificacion(`¡Bienvenido, ${nuevoUsuario.nombre}! Tu cuenta está lista.`, 'success');
+                setTimeout(() => autenticarUsuario(email, { ...nuevoUsuario, ...sesionAuth.user }), 700);
 
             } catch (error) {
                 console.error("Error:", error);
                 const detalle = error.message || 'Error al registrar usuario.';
                 const mensaje = cuentaAuthCreada && !perfilCreado
-                    ? `Supabase creó la cuenta, pero no completó el perfil. No intentes registrarte de nuevo con ese correo; el administrador debe revisar el código de registro, las migraciones y la función register-teacher-profile. Detalle: ${detalle}`
+                    ? `Supabase creó la cuenta, pero no completó el perfil: ${detalle}`
                     : detalle;
                 mostrarNotificacion(mensaje, 'error');
             }
@@ -935,7 +894,7 @@ function initLoginEvents() {
         formCambioClave.addEventListener('submit', async function (e) {
             e.preventDefault();
 
-            const email = this.dataset.email || obtenerEmailRecuperacion();
+            const email = this.dataset.email || '';
             const nueva = document.getElementById('cambio-clave-nueva').value;
             const confirmar = document.getElementById('cambio-clave-confirmar').value;
 
@@ -949,18 +908,23 @@ function initLoginEvents() {
             }
 
             try {
-                const accessToken = obtenerTokenRecuperacion();
-                if (!accessToken) {
-                    mostrarNotificacion('Abre el enlace de recuperación enviado a tu correo y vuelve a intentarlo.', 'error');
+                const session = JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+                if (!session.access_token || !email) {
+                    mostrarNotificacion('Inicia sesión con la contraseña temporal para cambiar tu contraseña.', 'error');
                     return;
                 }
-                await actualizarContrasenaAuth(nueva, accessToken);
-                sessionStorage.removeItem('zk360_supabase_session');
-                history.replaceState(null, document.title, window.location.pathname + window.location.search);
-                mostrarNotificacion('Contraseña actualizada en Supabase. Ya puedes iniciar sesión.', 'success');
+                await llamarRecuperacionPregunta(
+                    { action: 'change-temporary-password', password: nueva },
+                    session.access_token
+                );
                 document.getElementById('modal-cambio-clave-persistente').classList.remove('activo');
-                document.getElementById('form-cambio-clave-persistente').reset();
+                formCambioClave.reset();
                 this.dataset.email = '';
+                const usuario = usuarioPendienteCambioClave ||
+                    JSON.parse(sessionStorage.getItem('zk360_usuario_activo') || '{}');
+                usuarioPendienteCambioClave = null;
+                mostrarNotificacion('Contraseña actualizada. Entrando al sistema...', 'success');
+                autenticarUsuario(email, usuario);
             } catch (error) {
                 console.error("Error:", error);
                 mostrarNotificacion(error.message || 'No se pudo cambiar la contraseña en Supabase.', 'error');
@@ -1116,13 +1080,13 @@ async function autenticarConSupabase(email, password) {
             resultado.code
         ].filter(Boolean).join(' ');
         if (/invalid login credentials|invalid_credentials/i.test(detalle)) {
-            const error = new Error('Supabase Authentication rechazó el correo y la contraseña. Verifica que la cuenta exista y esté confirmada en Authentication y que la contraseña sea la de esa cuenta. El perfil de public.usuarios es independiente y no sustituye el acceso.');
+            const error = new Error('Supabase Authentication rechazó el correo y la contraseña. Verifica que la cuenta exista y que la contraseña sea correcta. El perfil de public.usuarios es independiente y no sustituye el acceso.');
             error.code = 'invalid_credentials';
             error.status = response.status;
             throw error;
         }
         if (/email not confirmed|email_not_confirmed/i.test(detalle)) {
-            const error = new Error('La cuenta existe, pero falta confirmar el correo desde el enlace enviado por Supabase.');
+            const error = new Error('Supabase Auth rechazó el acceso porque aún exige confirmación por correo. Desactiva la confirmación de Email en la configuración del proyecto.');
             error.code = 'email_not_confirmed';
             error.status = response.status;
             throw error;
@@ -1136,119 +1100,18 @@ async function autenticarConSupabase(email, password) {
 }
 
 async function registrarConSupabase(email, password) {
-    const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    if (!baseUrl || !SUPABASE_ANON_KEY) {
-        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
+    const cliente = await crearClienteSupabaseAuth();
+    const { data: resultado, error } = await cliente.auth.signUp({ email, password });
+    if (error) {
+        throw new Error(`Supabase Auth: ${error.message}`);
     }
-
-    const redirectTo = window.location.origin + window.location.pathname;
-    let response;
-    try {
-        response = await fetch(`${baseUrl}/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
-            method: 'POST',
-            cache: 'no-store',
-            headers: {
-                apikey: SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ email, password })
-        });
-    } catch (error) {
-        throw new Error('No se pudo conectar con Supabase Auth. Verifica la conexión y la URL autorizada para confirmar el correo.');
-    }
-    const texto = await response.text();
-    let resultado = {};
-    try { resultado = texto ? JSON.parse(texto) : {}; } catch (e) {}
-    if (!response.ok) {
-        const detalle = `${resultado.msg || ''} ${resultado.message || ''} ${resultado.error_description || ''}`.trim();
-        if (response.status === 429 || /rate limit exceeded/i.test(detalle)) {
-            throw new Error('Supabase limitó temporalmente los correos de registro. Espera unos minutos antes de intentarlo de nuevo.');
-        }
-        throw new Error(detalle || `No se pudo crear la cuenta de autenticación (${response.status}).`);
-    }
-    if (!resultado.user && !(resultado.session && resultado.session.user)) {
+    if (!resultado.user && !resultado.session?.user) {
         throw new Error('Supabase no confirmó la creación de la cuenta de autenticación.');
     }
     if (!resultado.session && Array.isArray(resultado.user?.identities) && resultado.user.identities.length === 0) {
-        throw new Error('Ese correo ya tiene una cuenta en Supabase Authentication. Inicia sesión o usa la recuperación; si aún no tiene perfil en ZoarKids, contacta al administrador para completarlo.');
+        throw new Error('Ese correo ya tiene una cuenta en Supabase Authentication. Inicia sesión o recupera la contraseña.');
     }
     return resultado;
-}
-
-function obtenerTokenRecuperacion() {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    return hash.get('access_token') || sessionStorage.getItem('zk360_token_recuperacion') || '';
-}
-
-function obtenerEmailRecuperacion() {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    return hash.get('email') || sessionStorage.getItem('zk360_email_recuperacion') || '';
-}
-
-function manejarEnlaceRecuperacion() {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    if (hash.get('type') !== 'recovery' && !hash.get('access_token')) return;
-    const token = hash.get('access_token');
-    if (!token) {
-        mostrarNotificacion('El enlace de recuperación expiró o no es válido. Solicita uno nuevo.', 'error');
-        return;
-    }
-    sessionStorage.setItem('zk360_token_recuperacion', token);
-    const email = hash.get('email') || '';
-    if (email) sessionStorage.setItem('zk360_email_recuperacion', email);
-    const form = document.getElementById('form-cambio-clave-persistente');
-    const modal = document.getElementById('modal-cambio-clave-persistente');
-    if (form) form.dataset.email = email;
-    if (modal) modal.classList.add('activo');
-    mostrarNotificacion('Enlace verificado. Ingresa tu nueva contraseña.', 'success');
-}
-
-async function solicitarRecuperacionAuth(email) {
-    const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    if (!baseUrl || !SUPABASE_ANON_KEY) {
-        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
-    }
-    const redirectTo = window.location.origin + window.location.pathname;
-    const response = await fetch(`${baseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-    });
-    if (!response.ok) {
-        const texto = await response.text();
-        let detalle = texto;
-        try {
-            const json = JSON.parse(texto);
-            detalle = json.msg || json.message || json.error_description || texto;
-        } catch (e) {}
-        throw new Error(detalle || `Supabase rechazó la solicitud (${response.status}).`);
-    }
-}
-
-async function actualizarContrasenaAuth(password, accessToken) {
-    const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/auth/v1/user`, {
-        method: 'PUT',
-        cache: 'no-store',
-        headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ password })
-    });
-    if (!response.ok) {
-        const texto = await response.text();
-        let detalle = texto;
-        try {
-            const json = JSON.parse(texto);
-            detalle = json.msg || json.message || json.error_description || texto;
-        } catch (e) {}
-        throw new Error(detalle || `No se pudo actualizar la contraseña (${response.status}).`);
-    }
-    sessionStorage.removeItem('zk360_token_recuperacion');
-    sessionStorage.removeItem('zk360_email_recuperacion');
 }
 
 function verificarBloqueoPersistente() {
@@ -1451,23 +1314,6 @@ function autenticarUsuario(correo, usuario) {
     setTimeout(() => { window.location.href = "panel.html"; }, 700);
 }
 
-async function solicitarEnlaceRecuperacion() {
-    const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
-    if (!esCorreoZoarValido(email)) {
-        mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
-        return;
-    }
-
-    try {
-        await solicitarRecuperacionAuth(email);
-        cerrarRecuperarClave();
-        mostrarNotificacion(`Se solicitó el envío al buzón de ${email}. Si la cuenta existe, el correo saliente de Supabase está configurado y la dirección puede recibir mensajes, llegará allí el enlace para restablecer la contraseña.`, 'success');
-    } catch (error) {
-        console.error("Error:", error);
-        mostrarNotificacion(error.message || 'No se pudo solicitar la recuperación. Verifica tu conexión y la configuración de correo de Supabase.', 'error');
-    }
-}
-
 async function usarPreguntaSeguridad() {
     const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
     if (!esCorreoZoarValido(email)) {
@@ -1504,25 +1350,12 @@ async function validarRespuestaSeguridad() {
     }
 
     try {
-        const nuevaClave = generarContrasenaTemporal();
-        const { token_hash: tokenHash } = await llamarRecuperacionPregunta({
+        const { temporary_password: nuevaClave } = await llamarRecuperacionPregunta({
             action: 'verify-answer',
             email,
             answer: respuesta
         });
-        if (!tokenHash) throw new Error('No se pudo emitir una sesión segura de recuperación.');
-
-        const clienteAuth = await crearClienteSupabaseAuth();
-        const { error: errorVerificacion } = await clienteAuth.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: 'recovery'
-        });
-        if (errorVerificacion) throw errorVerificacion;
-        const { error: errorActualizacion } = await clienteAuth.auth.updateUser({ password: nuevaClave });
-        if (errorActualizacion) throw errorActualizacion;
-
-        sessionStorage.setItem('zk360_clave_temporal', 'true');
-        localStorage.setItem(`zk360_clave_temporal_${email}`, 'true');
+        if (!nuevaClave) throw new Error('Supabase no devolvió la contraseña temporal.');
         mostrarClaveTemporal(nuevaClave);
         document.getElementById('modal-recuperar-clave').classList.remove('activo');
         document.getElementById('recuperar-respuesta').value = '';
@@ -1547,7 +1380,7 @@ function mostrarClaveTemporal(clave) {
         modal.innerHTML = `
             <div class="modal-burbuja">
                 <h3><i class="fa-solid fa-key"></i> Contraseña temporal</h3>
-                <p>Esta clave temporal ya quedó activa. No se envía por correo: cópiala para entrar y ZoarKids te pedirá cambiarla al iniciar sesión.</p>
+                <p>Esta clave temporal ya está activa. Cópiala, inicia sesión con ella y establece una contraseña nueva antes de entrar al panel.</p>
                 <input id="clave-temporal-valor" type="text" readonly
                     style="width:100%; text-align:center; font-size:20px; font-weight:bold; margin:12px 0;">
                 <button type="button" class="btn-enviar-clase" style="width:100%; justify-content:center;"
