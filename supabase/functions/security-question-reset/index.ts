@@ -201,7 +201,7 @@ deno.serve(async (request: Request) => {
                 return jsonResponse(500, { error: 'No se pudo buscar la cuenta de autenticación.' }, origin);
             }
             authUser = usuariosAuth.users.find(
-                usuario => usuario.email?.trim().toLowerCase() === email
+                (usuario: { email?: string }) => usuario.email?.trim().toLowerCase() === email
             ) || null;
             if (authUser || usuariosAuth.users.length < perPage) break;
             page++;
