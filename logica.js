@@ -855,7 +855,7 @@ function initLoginEvents() {
                     codigo,
                     pregunta: preguntaFinal,
                     respuesta_hash: respuestaHash
-                });
+                }, registroAuth.session.access_token);
                 perfilCreado = true;
                 const nuevoUsuario = {
                     email: email,

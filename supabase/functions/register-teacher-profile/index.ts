@@ -16,11 +16,14 @@ function normalizarOrigin(origin: string) {
 
 function originPermitido(origin: string | null) {
     if (!origin) return '';
-    const permitidos = (Deno.env.get('MI_SITE_ORIGIN') || '')
+    const configuracion = (Deno.env.get('MI_SITE_ORIGIN') || '').trim();
+    const recibido = normalizarOrigin(origin);
+    if (!recibido) return '';
+    if (!configuracion || configuracion === '*') return recibido;
+    const permitidos = configuracion
         .split(',')
         .map(valor => normalizarOrigin(valor.trim()))
         .filter(Boolean);
-    const recibido = normalizarOrigin(origin);
     return permitidos.includes(recibido) ? recibido : '';
 }
 
@@ -44,7 +47,7 @@ Deno.serve(async (request: Request) => {
     const origin = originPermitido(request.headers.get('origin'));
     if (request.method === 'OPTIONS') {
         return origin
-            ? new Response('ok', { headers: corsHeaders(origin) })
+            ? new Response(null, { status: 204, headers: corsHeaders(origin) })
             : jsonResponse(403, { error: 'Origen no permitido.' });
     }
     if (!origin) return jsonResponse(403, { error: 'Origen no permitido.' });
