@@ -178,6 +178,47 @@ body.body-login {
     position: relative;
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-field > .input-txt {
+    padding-right: 50px;
+}
+
+.modal-burbuja .campo .password-field > .input-txt {
+    padding-right: 50px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    z-index: 3;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #747d8c;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.password-toggle:hover {
+    background: rgba(37, 117, 252, 0.1);
+    color: #2575fc;
+}
+
+.password-toggle:focus-visible {
+    outline: 2px solid #2575fc;
+    outline-offset: 1px;
+}
+
 .wrapper-input i {
     position: absolute;
     left: 16px;

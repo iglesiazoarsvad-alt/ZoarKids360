@@ -34,7 +34,39 @@ window.addEventListener('DOMContentLoaded', () => {
     verificarBloqueoPersistente();
     iniciarEasterEggs();
     configurarBarraSeguridad();
+    configurarVisibilidadContrasenas();
 });
+
+function configurarVisibilidadContrasenas() {
+    document.querySelectorAll('input[type="password"]').forEach((input) => {
+        if (input.parentElement?.classList.contains('password-field')) return;
+        const contenedor = document.createElement('div');
+        contenedor.className = 'password-field';
+        input.parentElement?.insertBefore(contenedor, input);
+        contenedor.appendChild(input);
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'password-toggle';
+        boton.setAttribute('aria-label', 'Mostrar contraseña');
+        boton.setAttribute('aria-pressed', 'false');
+        boton.title = 'Mostrar contraseña';
+
+        const icono = document.createElement('i');
+        icono.className = 'fa-regular fa-eye';
+        icono.setAttribute('aria-hidden', 'true');
+        boton.appendChild(icono);
+        boton.addEventListener('click', () => {
+            const mostrar = input.type === 'password';
+            input.type = mostrar ? 'text' : 'password';
+            boton.setAttribute('aria-label', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña');
+            boton.setAttribute('aria-pressed', String(mostrar));
+            boton.title = mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña';
+            icono.className = mostrar ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+            input.focus();
+        });
+        contenedor.appendChild(boton);
+    });
+}
 
 function configurarBarraSeguridad() {
     const inputs = [
@@ -835,8 +867,6 @@ function initLoginEvents() {
                 return;
             }
 
-            let cuentaAuthCreada = false;
-            let perfilCreado = false;
             try {
                 const registroAuth = await registrarConSupabase(email, clave);
                 const usuarioAuth = registroAuth.user || registroAuth.session?.user;
@@ -846,17 +876,31 @@ function initLoginEvents() {
                 if (!registroAuth.session?.access_token) {
                     throw new Error('Supabase creó la cuenta pero no inició sesión. Desactiva la confirmación de correo en Authentication → Providers → Email e inténtalo de nuevo.');
                 }
-                cuentaAuthCreada = true;
                 const respuestaHash = await hashRespuestaSeguridad(respuesta);
-                const resultadoRegistro = await llamarFuncionSupabase('register-teacher-profile', {
+                if (!/^[0-9a-f-]{36}$/i.test(usuarioAuth.id)) {
+                    throw new Error('Supabase devolvió un auth_user_id que no tiene formato UUID.');
+                }
+                if (!/^sha256\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(respuestaHash)) {
+                    throw new Error('La respuesta de seguridad no se generó en el formato esperado.');
+                }
+                const cuerpoRegistro = {
                     auth_user_id: usuarioAuth.id,
                     email,
                     nombre: email.split('@')[0],
-                    codigo,
+                    codigo: codigo.trim().toUpperCase(),
                     pregunta: preguntaFinal,
                     respuesta_hash: respuestaHash
-                }, registroAuth.session.access_token);
-                perfilCreado = true;
+                };
+                console.log('Datos de registro para register-teacher-profile:', {
+                    ...cuerpoRegistro,
+                    codigo: '[redactado]',
+                    respuesta_hash: '[redactado]'
+                });
+                const resultadoRegistro = await llamarFuncionSupabase(
+                    'register-teacher-profile',
+                    cuerpoRegistro,
+                    registroAuth.session.access_token
+                );
                 const nuevoUsuario = {
                     email: email,
                     nombre: resultadoRegistro.nombre || email.split('@')[0],
@@ -879,11 +923,7 @@ function initLoginEvents() {
 
             } catch (error) {
                 console.error("Error:", error);
-                const detalle = error.message || 'Error al registrar usuario.';
-                const mensaje = cuentaAuthCreada && !perfilCreado
-                    ? `Supabase creó la cuenta, pero no completó el perfil: ${detalle}`
-                    : detalle;
-                mostrarNotificacion(mensaje, 'error');
+                mostrarNotificacion(error.message || 'Error al registrar usuario.', 'error');
             }
         });
     }

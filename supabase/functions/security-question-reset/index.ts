@@ -188,9 +188,25 @@ deno.serve(async (request: Request) => {
             return jsonResponse(400, { error: 'Respuesta incorrecta.' }, origin);
         }
 
-        const { data: authUser, error: errorUsuario } = await admin.auth.admin.getUserByEmail(email);
-        if (errorUsuario || !authUser.user) {
-            console.error('Recovery account lookup failed:', errorUsuario?.message);
+        const perPage = 1000;
+        let authUser: { id: string; email?: string } | null = null;
+        let page = 1;
+        while (!authUser) {
+            const { data: usuariosAuth, error: errorUsuariosAuth } = await admin.auth.admin.listUsers({
+                page,
+                perPage
+            });
+            if (errorUsuariosAuth) {
+                console.error('Recovery account lookup failed:', errorUsuariosAuth.message);
+                return jsonResponse(500, { error: 'No se pudo buscar la cuenta de autenticación.' }, origin);
+            }
+            authUser = usuariosAuth.users.find(
+                usuario => usuario.email?.trim().toLowerCase() === email
+            ) || null;
+            if (authUser || usuariosAuth.users.length < perPage) break;
+            page++;
+        }
+        if (!authUser) {
             return jsonResponse(400, { error: 'No se pudo iniciar la recuperación.' }, origin);
         }
         const { data: perfil, error: errorPerfil } = await admin
@@ -214,7 +230,7 @@ deno.serve(async (request: Request) => {
         }
 
         const temporaryPassword = generarContrasenaTemporal();
-        const { error: errorContrasena } = await admin.auth.admin.updateUserById(authUser.user.id, {
+        const { error: errorContrasena } = await admin.auth.admin.updateUserById(authUser.id, {
             password: temporaryPassword
         });
         if (errorContrasena) {

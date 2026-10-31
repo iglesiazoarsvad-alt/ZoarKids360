@@ -710,7 +710,7 @@ async function cargarAlumnos(seccion = null) {
 
 async function validarUsuarioRegistrado(email) {
     if (!email) return false;
-    const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,seccion');
+    const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja');
     if (usuarios === null) return null;
     return usuarios.length > 0 ? usuarios[0] : false;
 }
@@ -1184,7 +1184,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (perfRol) perfRol.textContent = usuarioSesion.rol;
 
     // Procesar calendario y asignación
-    await cargarTurnoProximoDomingo();
     procesarCalendario();
     const perfSeccion = document.getElementById('perf-seccion');
     if (perfSeccion) perfSeccion.textContent = seccionAsignadaMaestro || "Sin asignación";
@@ -5437,25 +5436,6 @@ function calcularProximoDomingo() {
     const domingo = new Date(hoy);
     domingo.setDate(hoy.getDate() + diasFaltantes);
     return domingo.getDate() + '/' + (domingo.getMonth() + 1) + '/' + domingo.getFullYear();
-}
-
-async function cargarTurnoProximoDomingo() {
-    if (modoPrueba || modoOffline || !navigator.onLine) return;
-    const fecha = calcularProximoDomingo();
-    try {
-        const filas = await llamarSupabase(`cronograma?fecha=eq.${encodeURIComponent(fecha)}&select=fecha,pi,me,gr`);
-        const turno = Array.isArray(filas) ? filas[0] : null;
-        if (!turno) return;
-        const actual = cronogramaOficial2026[fecha] || { pi: '', me: '', gr: '', seccion: {} };
-        cronogramaOficial2026[fecha] = {
-            ...actual,
-            pi: turno.pi ?? actual.pi,
-            me: turno.me ?? actual.me,
-            gr: turno.gr ?? actual.gr
-        };
-    } catch (error) {
-        console.error('No se pudo cargar el cronograma actualizado:', error);
-    }
 }
 
 function procesarCalendario() {
