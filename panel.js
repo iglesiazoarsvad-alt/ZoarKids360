@@ -58,6 +58,7 @@ let sincronizacionOfflineEnCurso = false;
 let ultimoStatusHttpSupabase = null;
 let leccionSeleccionada = null;
 let preguntasEstudio = [];
+let registroPushEnCurso = null;
 let preguntaActual = 0;
 let respuestasCorrectas = 0;
 let contadorNotificaciones = 0;
@@ -1043,12 +1044,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     const sesionTemporal = sessionStorage.getItem('zk360_usuario_activo');
     const sesionPersistente = localStorage.getItem('zk360_usuario_persistente');
     const esPrueba = sessionStorage.getItem('zk360_modo_prueba') === 'true';
-    const perfilOffline = (() => {
-        try { return JSON.parse(localStorage.getItem('zk360_maestro_offline') || 'null'); }
+    const perfilPersistente = (() => {
+        try { return JSON.parse(localStorage.getItem('zk360_usuario_persistente') || 'null'); }
         catch (error) { return null; }
     })();
-    const perfilOfflineValido = perfilOffline?.rol === 'maestro' && perfilOffline.seccion &&
-        perfilOffline.expira_en && new Date(perfilOffline.expira_en).getTime() > Date.now();
+    const perfilPersistenteValido = typeof perfilPersistente?.email === 'string' &&
+        typeof perfilPersistente?.nombre === 'string' && typeof perfilPersistente?.rol === 'string';
     modoOffline = sessionStorage.getItem('zk360_modo_offline') === 'true';
     
     if (esPrueba) {
@@ -1065,8 +1066,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (!modoPrueba && !navigator.onLine) {
-        if (usuarioSesion?.rol !== 'maestro' || !perfilOfflineValido ||
-            perfilOffline.email !== usuarioSesion.email) {
+        if (!perfilPersistenteValido ||
+            perfilPersistente.email.trim().toLowerCase() !== String(usuarioSesion?.email || '').trim().toLowerCase()) {
             sessionStorage.removeItem('zk360_usuario_activo');
             sessionStorage.removeItem('zk360_modo_offline');
             window.location.replace('index.html');
@@ -1076,25 +1077,19 @@ window.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.setItem('zk360_modo_offline', 'true');
     }
 
-    if (modoOffline && (!perfilOfflineValido ||
-        usuarioSesion?.rol !== 'maestro' ||
-        perfilOffline.email !== usuarioSesion.email)) {
+    if (modoOffline && (!perfilPersistenteValido ||
+        perfilPersistente.email.trim().toLowerCase() !== String(usuarioSesion?.email || '').trim().toLowerCase())) {
         sessionStorage.removeItem('zk360_modo_offline');
         sessionStorage.removeItem('zk360_usuario_activo');
         window.location.replace('index.html');
         return;
     }
-    if (!modoPrueba && !navigator.onLine && usuarioSesion?.rol !== 'maestro') {
-        sessionStorage.removeItem('zk360_usuario_activo');
-        sessionStorage.removeItem('zk360_modo_offline');
-        window.location.replace('index.html');
-        return;
-    }
-    
     if (!usuarioSesion) { 
         window.location.href = "index.html"; 
         return; 
     }
+    configurarBannerOffline();
+    if (!modoPrueba && !modoOffline && navigator.onLine) void registrarPush();
     esClaveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true' ||
         localStorage.getItem(`zk360_clave_temporal_${String(usuarioSesion.email || '').toLowerCase()}`) === 'true';
 
@@ -1269,7 +1264,6 @@ if (usuarioSesion?.rol !== 'admin') {
     clearInterval(intervaloBadgeChat);
     intervaloBadgeChat = setInterval(actualizarBadgeChat, 30000);
     document.getElementById('chat-input-imagen')?.addEventListener('change', enviarImagenChat);
-    cargarActividadesMensuales();
     await revisarEventosImportantesAdmin();
     clearInterval(intervaloNotificacionesAdmin);
     intervaloNotificacionesAdmin = setInterval(revisarEventosImportantesAdmin, 30000);
@@ -1395,6 +1389,8 @@ window.desactivarModoPrueba = async function() {
 
 // ============ ONBOARDING DEL SISTEMA ============
 function iniciarOnboardingSistema() {
+    const correo = String(usuarioSesion?.email || '').trim().toLowerCase();
+    if (!correo || localStorage.getItem(`zk360_onboarding_visto_${correo}`) === 'true') return;
     const pasos = [
         { titulo: "Bienvenido a ZoarKids 360", descripcion: "Sistema de gestión para la Escuela Dominical de la Iglesia Zoar.", selector: null },
         { titulo: "Tu rol es " + (usuarioSesion ? usuarioSesion.rol : 'Maestro'), descripcion: "Explora las funciones disponibles según tu rol.", selector: null },
@@ -1463,7 +1459,8 @@ function siguientePasoOnboardingSistema() {
 function cerrarOnboardingSistema() {
     const backdrop = document.getElementById('onboarding-backdrop-sistema');
     if (backdrop) backdrop.remove();
-    localStorage.setItem('zoarkids_onboarding_sistema', 'true');
+    const correo = String(usuarioSesion?.email || '').trim().toLowerCase();
+    if (correo) localStorage.setItem(`zk360_onboarding_visto_${correo}`, 'true');
 }
 
 window.cerrarOnboardingSistema = cerrarOnboardingSistema;
@@ -2094,7 +2091,6 @@ async function transferirClase(email, turno, claveSeccion, nuevosNombres) {
         // los argumentos anteriores para compatibilidad con llamadas existentes.
         const solicitud = email && typeof email === 'object' ? email : null;
         const fecha = solicitud ? solicitud.fecha_domingo : calcularProximoDomingo();
-        const seccion = solicitud ? solicitud.seccion : seccionAsignadaMaestro;
         const mapa = { infancia: 'pi', medianos: 'me', grandes: 'gr' };
         const clave = solicitud ? mapa[seccion] : claveSeccion;
         const cronograma = turno || cronogramaOficial2026[fecha];
@@ -2124,38 +2120,20 @@ async function transferirClase(email, turno, claveSeccion, nuevosNombres) {
             }
         }
 
-        const actualizado = await llamarSupabase('cronograma?fecha=eq.' + encodeURIComponent(fecha), {
-            method: 'PATCH',
-            body: JSON.stringify({ [clave]: Array.isArray(nuevosNombres) ? nuevosNombres.join(' y ') : nuevosNombres })
-        });
-        if (actualizado === null) throw new Error('No se pudo actualizar el cronograma.');
         cronograma[clave] = Array.isArray(nuevosNombres) ? nuevosNombres.join(' y ') : nuevosNombres;
 
         if (solicitud) {
-            for (const r of receptores) {
-                await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(r.receptor_email), {
-                    method: 'PATCH', body: JSON.stringify({ seccion })
-                });
-            }
-            const solicitantes = new Set(receptores.flatMap(r => [r.solicitante_email, r.pareja_email].filter(Boolean)));
-            for (const solicitanteEmail of solicitantes) {
-                await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(solicitanteEmail), {
-                    method: 'PATCH', body: JSON.stringify({ seccion: null })
-                });
-            }
             for (const r of receptores) {
                 await llamarSupabase('sustituciones?id=eq.' + encodeURIComponent(r.id), {
                     method: 'PATCH', body: JSON.stringify({ estado: 'aceptada', aceptada_en: new Date().toISOString() })
                 });
             }
             mostrarNotificacion('Sustitución aceptada y asignación transferida.', 'success');
-        } else {
-            await llamarSupabase('cronograma?fecha=eq.' + encodeURIComponent(fecha), {
-                method: 'PATCH', body: JSON.stringify({ [clave]: nuevosNombres.join(' y ') })
-            });
         }
         await verificarBloqueoSustituto();
-        setTimeout(() => window.location.reload(), 1200);
+        procesarCalendario();
+        const perfilSeccion = document.getElementById('perf-seccion');
+        if (perfilSeccion) perfilSeccion.textContent = seccionAsignadaMaestro || 'Sin asignación';
         return true;
     } catch (error) {
         console.error('Error transfiriendo clase:', error);
@@ -2638,7 +2616,9 @@ async function publicarLeccionAdmin(id) {
 
 // ============ DASHBOARD OPTIMIZADO ============
 async function cargarDashboard() {
-    if (cacheDashboard && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL) {
+    renderizarCalendarioMensual([], new Date());
+    void cargarActividadesMensuales();
+    if (!modoPrueba && cacheDashboard && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL) {
         renderizarDashboard(cacheDashboard);
         actualizarDashboardBackground();
         return;
@@ -2646,17 +2626,38 @@ async function cargarDashboard() {
     
     try {
         const [alumnos, usuarios, asistencia] = await Promise.all([
-            cargarAlumnos(),
-            llamarSupabase("usuarios?rol=eq.maestro"),
-            llamarSupabase("asistencia?select=alumno_id,fecha&order=fecha.desc&limit=100")
+            modoPrueba
+                ? Promise.resolve(JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]'))
+                : cargarAlumnos(),
+            modoPrueba
+                ? Promise.resolve([])
+                : llamarSupabase("usuarios?rol=eq.maestro"),
+            llamarSupabase("asistencia?select=alumno_id,fecha,seccion&presente=eq.true&order=fecha.desc")
         ]);
         
         const data = {
-            alumnos: alumnos || [],
+            alumnos: Array.isArray(alumnos) ? alumnos : [],
             usuarios: usuarios || [],
             asistencia: asistencia || []
         };
-        
+
+        if (modoPrueba) {
+            const asistenciasPorAlumno = new Map();
+            (Array.isArray(data.asistencia) ? data.asistencia : []).forEach(registro => {
+                if (registro.alumno_id == null || !registro.fecha) return;
+                const id = String(registro.alumno_id);
+                const fechas = asistenciasPorAlumno.get(id) || new Set();
+                fechas.add(String(registro.fecha).slice(0, 10));
+                asistenciasPorAlumno.set(id, fechas);
+            });
+            data.alumnos = data.alumnos.map(alumno => ({
+                ...alumno,
+                clases_totales: asistenciasPorAlumno.has(String(alumno.id))
+                    ? asistenciasPorAlumno.get(String(alumno.id)).size
+                    : Number(alumno.clases_totales) || 0
+            }));
+        }
+
         cacheDashboard = data;
         cacheTimestamp = Date.now();
         sessionStorage.setItem('zk360_cache_dashboard', JSON.stringify(data));
@@ -2677,6 +2678,26 @@ async function cargarDashboard() {
 }
 
 // ============ RENDERIZAR DASHBOARD - CORREGIDO ============
+function normalizarSeccionDashboard(seccion) {
+    const valor = String(seccion || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (valor.includes('infancia')) return 'infancia';
+    if (valor.includes('mediano')) return 'medianos';
+    if (valor.includes('grande')) return 'grandes';
+    return '';
+}
+
+function calcularPromedioAsistencia(alumnos, seccionFiltro = null) {
+    const alumnosFiltrados = (Array.isArray(alumnos) ? alumnos : []).filter(alumno =>
+        !seccionFiltro || normalizarSeccionDashboard(alumno.seccion) === seccionFiltro
+    );
+    if (!alumnosFiltrados.length) return 0;
+    const totalClases = alumnosFiltrados.reduce(
+        (total, alumno) => total + Math.max(0, Number(alumno.clases_totales) || 0),
+        0
+    );
+    return Math.round((totalClases / alumnosFiltrados.length) * 100);
+}
+
 function renderizarDashboard(data) {
     const { alumnos, usuarios } = data;
     
@@ -2684,25 +2705,7 @@ function renderizarDashboard(data) {
     const statAlumnos = document.getElementById('stat-alumnos');
     if (statAlumnos) statAlumnos.textContent = alumnos.length || 0;
     
-    // ASISTENCIA PROMEDIO - CORREGIDO
-    // El promedio NO debe ser mayor a 100%
-    let totalAsistencia = 0;
-    let alumnosConDatos = 0;
-    
-    alumnos.forEach(a => {
-        if (a.clases_totales !== undefined && a.clases_totales !== null) {
-            totalAsistencia += a.clases_totales;
-            alumnosConDatos++;
-        }
-    });
-    
-    // Promedio: suma de clases totales / cantidad de alumnos que tienen datos
-    // Si el total de alumnos es 6 y cada uno tiene 6 clases, el promedio es 6 (no 217%)
-    let promedio = 0;
-    if (alumnosConDatos > 0) {
-        promedio = Math.round(totalAsistencia / alumnosConDatos);
-    }
-    
+    const promedio = calcularPromedioAsistencia(alumnos);
     const statAsistencia = document.getElementById('stat-asistencia');
     if (statAsistencia) statAsistencia.textContent = promedio + '%';
     
@@ -2739,21 +2742,8 @@ function renderizarBarrasAsistencia(alumnos) {
     contenedor.innerHTML = '';
 
     for (const sec of secciones) {
-        const alumnosSec = alumnos.filter(a => a.seccion === sec);
-        const totalSec = alumnosSec.length;
-        let totalClasesSec = 0;
-        
-        alumnosSec.forEach(a => {
-            totalClasesSec += a.clases_totales || 0;
-        });
-        
-        // PROMEDIO CORRECTO: total de clases / total de alumnos de esa sección
-        let promSec = 0;
-        if (totalSec > 0) {
-            promSec = Math.round(totalClasesSec / totalSec);
-        }
-        
-        // Limitar a 100% para visualización
+        const alumnosSec = alumnos.filter(a => normalizarSeccionDashboard(a.seccion) === sec);
+        const promSec = calcularPromedioAsistencia(alumnosSec);
         const porcentajeVisual = Math.min(promSec, 100);
         
         contenedor.innerHTML += `
@@ -2779,8 +2769,10 @@ function renderizarTopAsistencia(alumnos) {
     container.innerHTML = '';
     
     for (const sec of secciones) {
-        const alumnosSec = alumnos.filter(a => a.seccion === sec);
-        const ordenados = alumnosSec.sort((a, b) => (b.clases_totales || 0) - (a.clases_totales || 0));
+        const alumnosSec = alumnos.filter(a => normalizarSeccionDashboard(a.seccion) === sec);
+        const ordenados = alumnosSec.sort((a, b) =>
+            (Number(b.clases_totales) || 0) - (Number(a.clases_totales) || 0)
+        );
         const top = ordenados.slice(0, 3);
         
         let topHtml = `<div class="top-col"><h5><i class="fas fa-medal"></i> ${nombres[sec]}</h5>`;
@@ -2791,7 +2783,7 @@ function renderizarTopAsistencia(alumnos) {
             topHtml += top.map((a, i) => `
                 <div class="top-item">
                     <span>${i+1}. ${a.nombre_completo}</span>
-                    <span style="color:#2575fc; font-weight:bold;">${a.clases_totales || 0}</span>
+                    <span style="color:#2575fc; font-weight:bold;">${Number(a.clases_totales) || 0}</span>
                 </div>
             `).join('');
         }
@@ -2802,12 +2794,18 @@ function renderizarTopAsistencia(alumnos) {
 }
 
 async function actualizarDashboardBackground() {
+    if (modoPrueba) return;
     try {
-        const [alumnos, usuarios] = await Promise.all([
+        const [alumnos, usuarios, asistencia] = await Promise.all([
             cargarAlumnos(),
-            llamarSupabase("usuarios?rol=eq.maestro")
+            llamarSupabase("usuarios?rol=eq.maestro"),
+            llamarSupabase("asistencia?select=fecha,seccion&presente=eq.true&order=fecha.desc")
         ]);
-        const data = { alumnos: alumnos || [], usuarios: usuarios || [] };
+        const data = {
+            alumnos: alumnos || [],
+            usuarios: usuarios || [],
+            asistencia: asistencia || []
+        };
         cacheDashboard = data;
         cacheTimestamp = Date.now();
         sessionStorage.setItem('zk360_cache_dashboard', JSON.stringify(data));
@@ -2818,13 +2816,80 @@ async function actualizarDashboardBackground() {
 }
 
 // ============ ACTIVIDADES MENSUALES ============
+function renderizarCalendarioMensual(eventos, fechaBase = new Date()) {
+    const calendario = document.getElementById('calendario-mensual');
+    if (!calendario) return;
+
+    const año = fechaBase.getFullYear();
+    const mes = fechaBase.getMonth();
+    const primerDiaSemana = (new Date(año, mes, 1).getDay() + 6) % 7;
+    const diasEnMes = new Date(año, mes + 1, 0).getDate();
+    const fechaHoy = new Date();
+    const hoyEsMesMostrado = fechaHoy.getFullYear() === año && fechaHoy.getMonth() === mes;
+    const eventosPorDia = new Map();
+    (Array.isArray(eventos) ? eventos : []).forEach(evento => {
+        const fechaEvento = String(evento.fecha || '').slice(0, 10);
+        const [eventoAño, eventoMes, eventoDia] = fechaEvento.split('-').map(Number);
+        if (eventoAño !== año || eventoMes !== mes + 1 || !eventoDia) return;
+        const nombres = eventosPorDia.get(eventoDia) || [];
+        nombres.push(String(evento.titulo || 'Actividad'));
+        eventosPorDia.set(eventoDia, nombres);
+    });
+
+    calendario.replaceChildren();
+    const encabezado = document.createElement('div');
+    encabezado.textContent = fechaBase.toLocaleDateString('es', { month: 'long', year: 'numeric' });
+    encabezado.style.cssText = 'text-align:center;font-weight:700;text-transform:capitalize;margin-bottom:10px;';
+    calendario.appendChild(encabezado);
+
+    const cuadrilla = document.createElement('div');
+    cuadrilla.style.cssText = 'display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center;';
+    ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach(dia => {
+        const celda = document.createElement('div');
+        celda.textContent = dia;
+        celda.style.cssText = 'font-weight:700;padding:5px 0;color:#526174;';
+        cuadrilla.appendChild(celda);
+    });
+    for (let espacio = 0; espacio < primerDiaSemana; espacio++) {
+        cuadrilla.appendChild(document.createElement('div'));
+    }
+    for (let dia = 1; dia <= diasEnMes; dia++) {
+        const celda = document.createElement('div');
+        const nombresEventos = eventosPorDia.get(dia) || [];
+        const esHoy = hoyEsMesMostrado && fechaHoy.getDate() === dia;
+        celda.textContent = String(dia);
+        celda.style.cssText = [
+            'position:relative',
+            'padding:7px 3px',
+            'border-radius:8px',
+            nombresEventos.length ? 'background:#dff3ff;color:#145da0;font-weight:700' : '',
+            esHoy ? 'outline:2px solid #e67e22;outline-offset:-2px' : ''
+        ].filter(Boolean).join(';') + ';';
+        if (esHoy) {
+            celda.setAttribute('aria-current', 'date');
+            celda.title = 'Hoy';
+        }
+        if (nombresEventos.length) {
+            celda.title = [celda.title, nombresEventos.join(', ')].filter(Boolean).join(' · ');
+            celda.setAttribute('aria-label', `${dia}${esHoy ? ', hoy' : ''}: ${nombresEventos.join(', ')}`);
+            const punto = document.createElement('span');
+            punto.setAttribute('aria-hidden', 'true');
+            punto.style.cssText = 'display:block;width:5px;height:5px;border-radius:50%;background:#2575fc;margin:2px auto 0;';
+            celda.appendChild(punto);
+        }
+        cuadrilla.appendChild(celda);
+    }
+    calendario.appendChild(cuadrilla);
+}
+
 async function cargarActividadesMensuales() {
     const container = document.getElementById('actividades-mensuales');
     if (!container) return;
 
     container.replaceChildren();
+    const hoy = new Date();
+    renderizarCalendarioMensual([], hoy);
     try {
-        const hoy = new Date();
         const mesActual = hoy.getMonth() + 1;
         const añoActual = hoy.getFullYear();
         const primerDia = `${añoActual}-${String(mesActual).padStart(2, '0')}-01`;
@@ -2886,7 +2951,11 @@ async function cargarActividadesMensuales() {
             container.appendChild(seccion);
         }
 
-        const eventosDelMes = Array.isArray(actividades) ? actividades : [];
+        const eventosDelMes = (Array.isArray(actividades) ? actividades : []).filter(evento => {
+            const fechaEvento = String(evento.fecha || '');
+            return fechaEvento >= primerDia && fechaEvento < limiteMes;
+        });
+        renderizarCalendarioMensual(eventosDelMes, hoy);
         if (eventosDelMes.length) {
             const seccion = crearSeccion('Actividades del mes', 'fa-calendar-check');
             eventosDelMes.forEach(evento => {
@@ -2940,6 +3009,7 @@ async function cargarActividadesMensuales() {
         }
     } catch (error) {
         console.error("Error cargando actividades:", error);
+        renderizarCalendarioMensual([], hoy);
         const aviso = document.createElement('p');
         aviso.className = 'actividad-mes-vacio';
         aviso.textContent = navigator.onLine
@@ -3695,6 +3765,17 @@ async function enviarAsistenciaSupabase() {
     const claveRegistro = `zk360_asistencia_${fechaHoy}_${seccion}`;
     try {
         if (modoPrueba) {
+            if (asistenciaModificacionActiva) {
+                const reporteAnterior = JSON.parse(localStorage.getItem(claveRegistro) || 'null');
+                const idsAnteriores = new Set((reporteAnterior?.ids || []).map(String));
+                const registrosAnteriores = JSON.parse(localStorage.getItem('zk360_prueba_tabla_asistencia') || '[]');
+                localStorage.setItem('zk360_prueba_tabla_asistencia', JSON.stringify(
+                    registrosAnteriores.filter(registro =>
+                        !(String(registro.fecha).slice(0, 10) === fechaHoy &&
+                            idsAnteriores.has(String(registro.alumno_id)))
+                    )
+                ));
+            }
             localStorage.setItem(claveRegistro, JSON.stringify({
                 ids: alumnosPresentes.map(alumno => String(alumno.alumno_id)),
                 maestroEmail: usuarioSesion.email || '',
@@ -3719,6 +3800,7 @@ async function enviarAsistenciaSupabase() {
                 const borrado = await llamarSupabase(`asistencia?${filtro}`, { method: 'DELETE' });
                 if (borrado === null) throw new Error('No se pudo reemplazar el reporte anterior.');
             }
+        }
         for (const alumno of alumnosPresentes) {
                 const resultado = await llamarSupabase("asistencia", {
                     method: "POST",
@@ -3737,6 +3819,23 @@ async function enviarAsistenciaSupabase() {
                 });
                 if (!resultado) throw new Error('No se pudo guardar la asistencia de un alumno.');
             }
+        if (modoPrueba) {
+            const registrosPrueba = JSON.parse(localStorage.getItem('zk360_prueba_tabla_asistencia') || '[]');
+            const clasesPorAlumno = new Map();
+            registrosPrueba.forEach(registro => {
+                if (registro.presente !== true || registro.alumno_id == null || !registro.fecha) return;
+                const id = String(registro.alumno_id);
+                const fechas = clasesPorAlumno.get(id) || new Set();
+                fechas.add(String(registro.fecha).slice(0, 10));
+                clasesPorAlumno.set(id, fechas);
+            });
+            const alumnosPrueba = JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]');
+            localStorage.setItem(CLAVE_ALUMNOS_MODO_PRUEBA, JSON.stringify(
+                alumnosPrueba.map(alumno => ({
+                    ...alumno,
+                    clases_totales: clasesPorAlumno.get(String(alumno.id))?.size || 0
+                }))
+            ));
         }
         const hoy = new Date().toDateString();
         localStorage.setItem('asistencia_' + hoy + '_' + usuarioSesion.nombre, 'true');
@@ -3774,6 +3873,8 @@ async function enviarAsistenciaSupabase() {
         asistenciaEnviadaHoy = true;
         asistenciaModificacionActiva = false;
         motivoModificacionAsistencia = '';
+        cacheDashboard = null;
+        cacheTimestamp = null;
         cargarAlumnosSegunRol();
         const btnGuardar = document.getElementById('btn-guardar-asistencia-final');
         if (btnGuardar) {
@@ -5431,22 +5532,27 @@ async function cambiarContrasenaPanel() {
 // ============ FUNCIONES DE UTILIDAD ============
 function calcularProximoDomingo() {
     const hoy = new Date();
-    const dia = hoy.getDay();
-    const diasFaltantes = dia === 0 ? 0 : 7 - dia;
-    const domingo = new Date(hoy);
-    domingo.setDate(hoy.getDate() + diasFaltantes);
+    const domingo = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    domingo.setDate(domingo.getDate() + ((7 - domingo.getDay()) % 7));
     return domingo.getDate() + '/' + (domingo.getMonth() + 1) + '/' + domingo.getFullYear();
 }
 
 function procesarCalendario() {
+    const claveFecha = calcularProximoDomingo();
+    const turno = cronogramaOficial2026[claveFecha] || Object.entries(cronogramaOficial2026)
+        .find(([fecha]) => {
+            const [dia, mes, año] = fecha.split('/').map(Number);
+            return `${dia}/${mes}/${año}` === claveFecha;
+        })?.[1];
+    const piEl = document.getElementById('docente-pi');
+    const meEl = document.getElementById('docente-me');
+    const grEl = document.getElementById('docente-gr');
+    if (piEl) piEl.textContent = turno?.pi || 'Sin asignación';
+    if (meEl) meEl.textContent = turno?.me || 'Sin asignación';
+    if (grEl) grEl.textContent = turno?.gr || 'Sin asignación';
+
     const modoPruebaActivo = sessionStorage.getItem('zk360_modo_prueba') === 'true' || usuarioSesion?.esPrueba === true;
     if (modoPruebaActivo) {
-        const piEl = document.getElementById('docente-pi');
-        if (piEl) piEl.textContent = 'Marisol y Maribel';
-        const meEl = document.getElementById('docente-me');
-        if (meEl) meEl.textContent = 'Erik';
-        const grEl = document.getElementById('docente-gr');
-        if (grEl) grEl.textContent = 'Dina';
         seccionAsignadaMaestro = usuarioSesion?.rol === 'admin'
             ? 'admin_total'
             : usuarioSesion?.seccion || null;
@@ -5460,16 +5566,7 @@ function procesarCalendario() {
         return;
     }
 
-    const claveFecha = calcularProximoDomingo();
-    const turno = cronogramaOficial2026[claveFecha];
     if (turno) {
-        const piEl = document.getElementById('docente-pi');
-        if (piEl) piEl.textContent = turno.pi;
-        const meEl = document.getElementById('docente-me');
-        if (meEl) meEl.textContent = turno.me;
-        const grEl = document.getElementById('docente-gr');
-        if (grEl) grEl.textContent = turno.gr;
-        
         const nombreLower = (usuarioSesion.nombre || '').toLocaleLowerCase('es').trim();
         const parejaLower = usuarioSesion.pareja
             ? usuarioSesion.pareja.toLocaleLowerCase('es').trim()
@@ -5511,8 +5608,83 @@ function seleccionarRolPrueba(rol) {
     setTimeout(() => { window.location.reload(); }, 500);
 }
 
-function registrarPush() {
-    // Los avisos se muestran en la interfaz, sin prompts ni notificaciones del navegador.
+function configurarBannerOffline() {
+    const idBanner = 'zk360-banner-offline';
+    const actualizar = () => {
+        let perfilGuardado = null;
+        try {
+            perfilGuardado = JSON.parse(localStorage.getItem('zk360_usuario_persistente') || 'null');
+        } catch (error) {
+            console.error('No se pudo validar la sesión offline del banner:', error);
+        }
+        const coincide = typeof perfilGuardado?.email === 'string' &&
+            perfilGuardado.email.trim().toLowerCase() === String(usuarioSesion?.email || '').trim().toLowerCase();
+        let banner = document.getElementById(idBanner);
+        if (!navigator.onLine && coincide) {
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = idBanner;
+                banner.setAttribute('role', 'status');
+                banner.textContent = 'Sin conexión a internet. Estás usando los datos disponibles en este dispositivo.';
+                banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10001;padding:10px 16px;text-align:center;background:#b45309;color:#fff;font-weight:600;';
+                document.body.appendChild(banner);
+            }
+        } else {
+            banner?.remove();
+        }
+    };
+    window.addEventListener('online', actualizar);
+    window.addEventListener('offline', actualizar);
+    actualizar();
+}
+
+async function registrarPush() {
+    if (registroPushEnCurso) return registroPushEnCurso;
+    registroPushEnCurso = (async () => {
+        if (!navigator.onLine || !usuarioSesion?.email || !('Notification' in window) ||
+            !('serviceWorker' in navigator)) return;
+        if (Notification.permission === 'default') await Notification.requestPermission();
+        if (Notification.permission !== 'granted') return;
+
+        const config = window.ZK360_CONFIG?.firebase;
+        const vapidKey = window.ZK360_CONFIG?.firebaseVapidKey;
+        if (!config || !vapidKey) throw new Error('La configuración de Firebase Push está incompleta.');
+
+        const [{ initializeApp, getApps }, { getMessaging, getToken }] = await Promise.all([
+            import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
+            import('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js')
+        ]);
+        const app = getApps().find(item => item.name === 'zk360-push') ||
+            initializeApp(config, 'zk360-push');
+        const messaging = getMessaging(app);
+        const worker = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+            scope: '/firebase-push/'
+        });
+        const token = await getToken(messaging, {
+            vapidKey,
+            serviceWorkerRegistration: worker
+        });
+        if (!token) throw new Error('Firebase no devolvió un token de notificaciones.');
+
+        const email = usuarioSesion.email.trim().toLowerCase();
+        const registrados = await llamarSupabase(
+            `push_tokens?email=eq.${encodeURIComponent(email)}&token=eq.${encodeURIComponent(token)}&select=token`
+        );
+        if (!Array.isArray(registrados)) throw new Error('No se pudo verificar el token de notificaciones guardado.');
+        if (registrados.length === 0) {
+            const guardado = await llamarSupabase('push_tokens', {
+                method: 'POST',
+                body: JSON.stringify({ email, token })
+            });
+            if (guardado === null) throw new Error('No se pudo guardar el token de notificaciones.');
+        }
+    })().catch(error => {
+        console.error('No se pudieron activar las notificaciones push:', error);
+        mostrarNotificacion(error.message || 'No se pudieron activar las notificaciones push.', 'warning');
+    }).finally(() => {
+        registroPushEnCurso = null;
+    });
+    return registroPushEnCurso;
 }
 
 function activarPestanaConfiguracion(idPestana, btnElemento) {
@@ -5628,8 +5800,10 @@ window.cerrarSesion = async function() {
 
 // ============ ONBOARDING (SISTEMA) ============
 async function verificarOnboarding() {
+    const correo = String(usuarioSesion?.email || '').trim().toLowerCase();
+    if (!correo || localStorage.getItem(`zk360_onboarding_visto_${correo}`) === 'true') return;
     try {
-        const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(usuarioSesion.email));
+        const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(correo));
         if (usuarios && usuarios.length > 0 && !usuarios[0].onboarding_completado) {
             // Iniciar onboarding del sistema después de seleccionar tema
             setTimeout(() => {

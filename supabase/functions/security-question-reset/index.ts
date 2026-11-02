@@ -57,7 +57,7 @@ function constantTimeEqual(left: string, right: string) {
 async function hashAnswer(salt: string, answer: string) {
     const digest = await crypto.subtle.digest(
         'SHA-256',
-        new TextEncoder().encode(`${salt}:${answer.trim().toLocaleLowerCase('es')}`)
+        new TextEncoder().encode(`${salt}:${answer.trim().toLowerCase()}`)
     );
     return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
@@ -173,7 +173,7 @@ deno.serve(async (request: Request) => {
             return jsonResponse(200, { question: pregunta.pregunta }, origin);
         }
 
-        const answer = typeof body.answer === 'string' ? body.answer.trim().toLocaleLowerCase('es') : '';
+        const answer = typeof body.answer === 'string' ? body.answer.trim().toLowerCase() : '';
         if (answer.length < 2 || answer.length > 200) {
             return jsonResponse(400, { error: 'Respuesta incorrecta.' }, origin);
         }
@@ -188,30 +188,9 @@ deno.serve(async (request: Request) => {
             return jsonResponse(400, { error: 'Respuesta incorrecta.' }, origin);
         }
 
-        const perPage = 1000;
-        let authUser: { id: string; email?: string } | null = null;
-        let page = 1;
-        while (!authUser) {
-            const { data: usuariosAuth, error: errorUsuariosAuth } = await admin.auth.admin.listUsers({
-                page,
-                perPage
-            });
-            if (errorUsuariosAuth) {
-                console.error('Recovery account lookup failed:', errorUsuariosAuth.message);
-                return jsonResponse(500, { error: 'No se pudo buscar la cuenta de autenticación.' }, origin);
-            }
-            authUser = usuariosAuth.users.find(
-                (usuario: { email?: string }) => usuario.email?.trim().toLowerCase() === email
-            ) || null;
-            if (authUser || usuariosAuth.users.length < perPage) break;
-            page++;
-        }
-        if (!authUser) {
-            return jsonResponse(400, { error: 'No se pudo iniciar la recuperación.' }, origin);
-        }
         const { data: perfil, error: errorPerfil } = await admin
             .from('usuarios')
-            .select('email,requiere_cambio_clave')
+            .select('auth_user_id,requiere_cambio_clave')
             .eq('email', email)
             .maybeSingle();
         if (errorPerfil) {
@@ -219,6 +198,9 @@ deno.serve(async (request: Request) => {
             return jsonResponse(500, { error: 'No se pudo preparar la recuperación.' }, origin);
         }
         if (!perfil) return jsonResponse(404, { error: 'No se encontró el perfil de ZoarKids.' }, origin);
+        if (!perfil.auth_user_id) {
+            return jsonResponse(409, { error: 'Tu cuenta requiere ser vinculada, contacta al administrador' }, origin);
+        }
 
         const { error: errorMarcarCambio } = await admin
             .from('usuarios')
@@ -230,7 +212,7 @@ deno.serve(async (request: Request) => {
         }
 
         const temporaryPassword = generarContrasenaTemporal();
-        const { error: errorContrasena } = await admin.auth.admin.updateUserById(authUser.id, {
+        const { error: errorContrasena } = await admin.auth.admin.updateUserById(perfil.auth_user_id, {
             password: temporaryPassword
         });
         if (errorContrasena) {

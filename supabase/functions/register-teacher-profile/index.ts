@@ -101,6 +101,17 @@ Deno.serve(async (request: Request) => {
             return jsonResponse(400, { error: 'No se pudo completar el registro. Verifica el código y vuelve a intentarlo.' }, origin);
         }
 
+        const { data: perfilActualizado, error: errorAuthId } = await admin
+            .from('usuarios')
+            .update({ auth_user_id: authUserId })
+            .eq('email', email)
+            .select('email')
+            .maybeSingle();
+        if (errorAuthId || !perfilActualizado) {
+            console.error('Could not link Auth identity to teacher profile:', errorAuthId?.message || 'Profile not found.');
+            return jsonResponse(500, { error: 'El perfil se creó, pero no se pudo vincular la cuenta de autenticación. Contacta al administrador.' }, origin);
+        }
+
         const { error: errorRol } = await admin.auth.admin.updateUserById(authUserId, {
             app_metadata: { role: 'maestro' }
         });

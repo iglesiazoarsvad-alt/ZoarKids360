@@ -189,7 +189,7 @@ async function hashRespuestaSeguridad(respuesta) {
     const sal = new Uint8Array(16);
     window.crypto.getRandomValues(sal);
     const salHex = Array.from(sal, byte => byte.toString(16).padStart(2, '0')).join('');
-    const normalizada = respuesta.trim().toLocaleLowerCase('es');
+    const normalizada = respuesta.trim().toLowerCase();
     const digest = await window.crypto.subtle.digest(
         'SHA-256',
         new TextEncoder().encode(`${salHex}:${normalizada}`)
@@ -620,6 +620,16 @@ function mostrarModalCambioClaveObligatorio(correo, usuario) {
     mostrarNotificacion('Debes establecer una nueva contraseña antes de continuar.', 'warning');
 }
 
+function leerUsuarioPersistente() {
+    try {
+        const usuario = JSON.parse(localStorage.getItem('zk360_usuario_persistente') || 'null');
+        return usuario && typeof usuario.email === 'string' ? usuario : null;
+    } catch (error) {
+        console.error('No se pudo leer el perfil persistente:', error);
+        return null;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     const tema = localStorage.getItem('zoarkids_tema_activo') || 'predeterminado';
     document.documentElement.setAttribute('data-tema', tema);
@@ -657,6 +667,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                     return;
                 }
                 if (perfil) {
+                    localStorage.setItem('zk360_usuario_persistente', JSON.stringify({
+                        nombre: perfil.nombre || data.user.user_metadata?.nombre || '',
+                        email: perfil.email,
+                        rol: perfil.rol,
+                        pareja: perfil.pareja || null,
+                        seccion: perfil.seccion || null
+                    }));
                     window.location.replace('panel.html');
                     return;
                 }
@@ -668,7 +685,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         sessionStorage.removeItem('zk360_supabase_session');
     }
     configurarAccesoOffline();
-    localStorage.removeItem('zk360_usuario_persistente');
     initLoginEvents();
 });
 
@@ -690,9 +706,30 @@ function initLoginEvents() {
                 return;
             }
 
+            if (!navigator.onLine) {
+                const usuarioGuardado = leerUsuarioPersistente();
+                if (usuarioGuardado?.email.trim().toLowerCase() === correo) {
+                    sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioGuardado));
+                    sessionStorage.setItem('zk360_modo_offline', 'true');
+                    window.location.assign('panel.html');
+                    return;
+                }
+                const mensaje = 'No tienes conexión a internet. Debes iniciar sesión al menos una vez con conexión para usar el modo offline';
+                mostrarErrorLogin(mensaje);
+                mostrarNotificacion(mensaje, 'error');
+                return;
+            }
+
             let perfilEncontrado = false;
             try {
-                const sesion = await autenticarConSupabase(correo, clave);
+                let sesion;
+                try {
+                    sesion = await autenticarConSupabase(correo, clave);
+                } catch (errorAuth) {
+                    if (errorAuth.code !== 'invalid_credentials') throw errorAuth;
+                    await migrarUsuarioLegacyConSupabase(correo, clave);
+                    sesion = await autenticarConSupabase(correo, clave);
+                }
                 const usuarioAuth = sesion.user;
                 if (!usuarioAuth || (usuarioAuth.email || '').toLowerCase() !== correo) {
                     throw new Error('Supabase no pudo validar la identidad del correo.');
@@ -830,7 +867,8 @@ function initLoginEvents() {
             const email = document.getElementById('reg-email').value.trim().toLowerCase();
             const clave = document.getElementById('reg-clave-codigo').value;
             const confirmar = document.getElementById('reg-clave-confirmar-codigo').value;
-            const pregunta = document.getElementById('reg-pregunta').value;
+            const selectorPregunta = document.getElementById('reg-pregunta');
+            const pregunta = selectorPregunta.value;
             const preguntaPersonal = document.getElementById('reg-pregunta-personal').value.trim();
             const respuesta = document.getElementById('reg-respuesta').value.trim();
             const aceptoPoliticas = document.getElementById('reg-acepto-politicas').checked;
@@ -861,6 +899,12 @@ function initLoginEvents() {
                     return;
                 }
                 preguntaFinal = preguntaPersonal;
+            } else {
+                preguntaFinal = selectorPregunta.options[selectorPregunta.selectedIndex]?.textContent.trim() || '';
+                if (!preguntaFinal) {
+                    mostrarNotificacion('Selecciona una pregunta de seguridad válida', 'error');
+                    return;
+                }
             }
             if (!respuesta || respuesta.length < 2) {
                 mostrarNotificacion('Escribe una respuesta válida para tu pregunta de seguridad', 'error');
@@ -1139,10 +1183,59 @@ async function autenticarConSupabase(email, password) {
     return resultado;
 }
 
+async function migrarUsuarioLegacyConSupabase(email, password) {
+    const baseUrl = (window.ZK360_SUPABASE_URL || SUPABASE_URL || '').replace(/\/$/, '');
+    if (!baseUrl || !SUPABASE_ANON_KEY) {
+        throw new Error('Falta la URL o la clave pública de Supabase en la configuración.');
+    }
+
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/functions/v1/migrate-legacy-auth`, {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+    } catch (error) {
+        throw new Error('No se pudo conectar con el servicio de migración de cuentas.');
+    }
+
+    let resultado = {};
+    try {
+        resultado = await response.json();
+    } catch (error) {
+        if (response.ok) throw new Error('El servicio de migración devolvió una respuesta no válida.');
+    }
+    if (!response.ok) {
+        if (response.status === 429) {
+            throw new Error('Se alcanzó el límite de intentos. Espera antes de volver a probar.');
+        }
+        if (response.status === 409) {
+            throw new Error(resultado.error || 'La cuenta requiere asistencia del administrador para vincularse con Auth.');
+        }
+        if (response.status === 401 || response.status === 404) {
+            const error = new Error('Supabase Authentication rechazó el correo y la contraseña. Verifica tus credenciales.');
+            error.code = 'invalid_credentials';
+            throw error;
+        }
+        throw new Error(resultado.error || `No se pudo migrar la cuenta (${response.status}).`);
+    }
+    return resultado;
+}
+
 async function registrarConSupabase(email, password) {
     const cliente = await crearClienteSupabaseAuth();
     const { data: resultado, error } = await cliente.auth.signUp({ email, password });
     if (error) {
+        const mensaje = String(error.message || '').toLowerCase();
+        if (/(already registered|already exists|user exists|email exists|correo.*registrad)/i.test(mensaje)) {
+            throw new Error('Ese correo ya tiene una cuenta en Supabase Auth. Inicia sesión o usa recuperación de contraseña.');
+        }
         throw new Error(`Supabase Auth: ${error.message}`);
     }
     if (!resultado.user && !resultado.session?.user) {
@@ -1335,19 +1428,12 @@ function autenticarUsuario(correo, usuario) {
         seccion: usuario.seccion || null
     };
     sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(perfilSesion));
+    localStorage.setItem('zk360_usuario_persistente', JSON.stringify(perfilSesion));
     if (perfilSesion.rol === 'maestro' && perfilSesion.seccion) {
         localStorage.setItem('zk360_maestro_offline', JSON.stringify({
             ...perfilSesion,
             guardado_en: new Date().toISOString(),
             expira_en: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        }));
-    }
-    if (usuario.rol === "admin" || usuario.rol === "pastor") {
-        localStorage.setItem('zk360_usuario_persistente', JSON.stringify({
-            nombre: usuario.nombre,
-            rol: usuario.rol,
-            pareja: usuario.pareja || null,
-            email: correo
         }));
     }
     mostrarNotificacion('Inicio de sesión exitoso. Cargando tu panel…', 'success');
@@ -1370,7 +1456,13 @@ async function usarPreguntaSeguridad() {
         if (!preguntaMostrada || !paso1 || !paso2 || !campoRespuesta) {
             throw new Error('No se pudo abrir la recuperación mediante pregunta de seguridad.');
         }
-        preguntaMostrada.textContent = pregunta.question;
+        const preguntasLegadas = new Map([
+            ['mascota', '¿Cuál es el nombre de tu mascota?'],
+            ['primer_maestro', '¿Cómo se llamaba tu primer maestro?'],
+            ['comida', '¿Cuál es tu comida favorita?'],
+            ['ciudad', '¿En qué ciudad naciste?']
+        ]);
+        preguntaMostrada.textContent = preguntasLegadas.get(pregunta.question) || pregunta.question;
         paso1.style.display = 'none';
         paso2.style.display = 'block';
         campoRespuesta.dataset.email = email;
@@ -1381,7 +1473,7 @@ async function usarPreguntaSeguridad() {
 }
 
 async function validarRespuestaSeguridad() {
-    const respuesta = document.getElementById('recuperar-respuesta').value.trim();
+    const respuesta = document.getElementById('recuperar-respuesta').value.trim().toLowerCase();
     const email = document.getElementById('recuperar-respuesta').dataset.email;
 
     if (!respuesta || respuesta.length < 2) {

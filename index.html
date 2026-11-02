@@ -30,7 +30,7 @@
                 <label>Correo electr&oacute;nico</label>
                 <div class="wrapper-input">
                     <i class="fa-regular fa-envelope"></i>
-                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required autocomplete="email">
+                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required autocomplete="email">
                 </div>
             </div>
             <div class="campo">
@@ -136,7 +136,7 @@
                 </div>
                 <div class="campo">
                     <label><i class="fa-regular fa-envelope"></i> Correo</label>
-                    <input type="email" id="reg-email" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
+                    <input type="email" id="reg-email" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required>
                     <span id="reg-email-error" style="font-size:11px; color:#ff7675; display:none;"></span>
                 </div>
                 <div class="campo">
@@ -232,10 +232,10 @@
                 <p class="descripcion-modal">Ingresa tu correo para consultar tu pregunta de seguridad</p>
                 <div class="campo">
                     <label>Correo electr&oacute;nico</label>
-                    <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" required>
+                    <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required>
                 </div>
                 <button type="button" class="btn-enviar-clase" onclick="usarPreguntaSeguridad()" style="width:100%;">
-                    Consultar pregunta de seguridad
+                    Validar correo electr&oacute;nico
                 </button>
             </div>
             <div id="paso-recuperar-2" style="display:none;">

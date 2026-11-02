@@ -5,15 +5,38 @@ const PASOS_ONBOARDING = [
 
 let pasoActual = 0;
 
+function obtenerClaveOnboarding() {
+    try {
+        const usuario = JSON.parse(
+            sessionStorage.getItem('zk360_usuario_activo') ||
+            localStorage.getItem('zk360_usuario_persistente') ||
+            'null'
+        );
+        const correo = String(usuario?.email || '').trim().toLowerCase();
+        return correo ? `zk360_onboarding_visto_${correo}` : null;
+    } catch (error) {
+        console.error('No se pudo determinar el usuario del onboarding:', error);
+        return null;
+    }
+}
+
+function finalizarOnboardingForzado() {
+    const clave = obtenerClaveOnboarding();
+    if (clave) localStorage.setItem(clave, 'true');
+}
+
 window.iniciarOnboardingForzado = function () {
-    if (localStorage.getItem('zk360_onboarding_completed') === 'true') return;
+    const clave = obtenerClaveOnboarding();
+    if (!clave || localStorage.getItem(clave) === 'true') return;
     pasoActual = 0;
     mostrarPasoOnboarding(pasoActual);
 };
 
 function mostrarPasoOnboarding(index) {
     if (index >= PASOS_ONBOARDING.length) {
-        localStorage.setItem('zk360_onboarding_completed', 'true');
+        finalizarOnboardingForzado();
         return;
     }
 }
+
+window.omitirOnboardingForzado = finalizarOnboardingForzado;
