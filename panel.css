@@ -1336,6 +1336,70 @@ main {
     margin-bottom: 4px;
 }
 
+#modal-nueva-actividad select.input-txt {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+    border: 2px solid #dfe4ea;
+    border-radius: 14px;
+    background-color: #fafbfc;
+    color: #2c3e50;
+    font: inherit;
+    line-height: 1.4;
+    appearance: auto;
+}
+
+#modal-nueva-actividad select.input-txt:focus {
+    border-color: #2575fc;
+    background-color: #fff;
+    box-shadow: 0 0 0 4px rgba(37, 117, 252, 0.1);
+    outline: none;
+}
+
+#modal-nueva-actividad select.input-txt option {
+    background: #fff;
+    color: #2c3e50;
+}
+
+#lista-usuarios-admin {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e4e9f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+#lista-usuarios-admin .tabla-datos {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    color: #2c3e50;
+    font-size: 14px;
+    text-align: left;
+}
+
+#lista-usuarios-admin .tabla-datos th,
+#lista-usuarios-admin .tabla-datos td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e9edf2;
+    color: #2c3e50;
+    text-align: left;
+}
+
+#lista-usuarios-admin .tabla-datos th {
+    background: #f5f8fc;
+    font-weight: 700;
+}
+
+#lista-usuarios-admin .tabla-datos tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+#lista-usuarios-admin .tabla-datos tbody tr:hover {
+    background: #f8fafc;
+}
+
 #notificacion-sistema {
     position: fixed;
     bottom: 25px;
@@ -2641,6 +2705,52 @@ html[data-tema="galaxia"] .configuracion-panel textarea::placeholder {
     .configuracion-pestana {
         padding-inline: 8px;
         font-size: 13px;
+    }
+}
+
+#modulo-usuarios-admin .cabecera-asistencia {
+    align-items: center;
+}
+
+#modulo-usuarios-admin #btn-agregar-maestro {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: max-content;
+    margin-left: auto;
+}
+
+#lista-usuarios-admin {
+    border-radius: 12px;
+    background-color: #fff;
+}
+
+#lista-usuarios-admin .tabla-datos {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: #fff;
+    color: #2c3e50;
+}
+
+#lista-usuarios-admin .tabla-datos th,
+#lista-usuarios-admin .tabla-datos td {
+    color: #2c3e50;
+}
+
+#modal-nueva-actividad select.input-txt {
+    padding: 12px 16px;
+    background-color: #fafbfc;
+    color: #2c3e50;
+}
+
+@media (max-width: 600px) {
+    #modulo-usuarios-admin .cabecera-asistencia {
+        align-items: stretch;
+    }
+
+    #modulo-usuarios-admin #btn-agregar-maestro {
+        align-self: flex-end;
     }
 }
 

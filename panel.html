@@ -1795,36 +1795,35 @@
                 onclick="document.getElementById('modal-notificaciones').classList.remove('activo')"
                 style="margin-top:15px; width:100%;">Cerrar</button>
         </div>
-        <div id="modal-agregar-maestro" class="modal-overlay" role="dialog" aria-modal="true"
-            aria-labelledby="titulo-modal-agregar-maestro">
-            <div class="modal-burbuja">
-                <h3 id="titulo-modal-agregar-maestro"><i class="fa-solid fa-user-plus"></i> Agregar usuario</h3>
-                <form id="form-agregar-maestro">
-                    <div class="campo">
-                        <label for="admin-usuario-nombre">Nombre</label>
-                        <input id="admin-usuario-nombre" name="nombre" class="input-txt" autocomplete="name"
-                            minlength="2" maxlength="100" required>
-                    </div>
-                    <div class="campo">
-                        <label for="admin-usuario-email">Correo</label>
-                        <input id="admin-usuario-email" name="email" type="email" class="input-txt"
-                            autocomplete="email" required>
-                    </div>
-                    <div class="campo">
-                        <label for="admin-usuario-rol">Rol</label>
-                        <select id="admin-usuario-rol" name="rol" class="input-txt" required>
-                            <option value="maestro">Maestro/a</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <p id="error-agregar-maestro" role="alert"></p>
-                    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
-                        <button type="button" class="btn-cerrar-modal"
-                            onclick="document.getElementById('modal-agregar-maestro').classList.remove('activo')">Cancelar</button>
-                        <button id="btn-guardar-maestro" type="submit" class="btn-enviar-clase">Enviar invitación</button>
-                    </div>
-                </form>
-            </div>
+    </div>
+    <div id="modal-agregar-maestro" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true"
+        aria-labelledby="titulo-modal-agregar-maestro">
+        <div class="modal-burbuja">
+            <h3 id="titulo-modal-agregar-maestro"><i class="fa-solid fa-user-plus"></i> Agregar usuario</h3>
+            <form id="form-agregar-maestro">
+                <div class="campo">
+                    <label for="admin-usuario-nombre">Nombre</label>
+                    <input id="admin-usuario-nombre" name="nombre" class="input-txt" autocomplete="name"
+                        minlength="2" maxlength="100" required>
+                </div>
+                <div class="campo">
+                    <label for="admin-usuario-email">Correo</label>
+                    <input id="admin-usuario-email" name="email" type="email" class="input-txt"
+                        autocomplete="email" required>
+                </div>
+                <div class="campo">
+                    <label for="admin-usuario-rol">Rol</label>
+                    <select id="admin-usuario-rol" name="rol" class="input-txt" required>
+                        <option value="maestro">Maestro/a</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <p id="error-agregar-maestro" role="alert"></p>
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+                    <button id="btn-cancelar-agregar-maestro" type="button" class="btn-cerrar-modal">Cancelar</button>
+                    <button id="btn-guardar-maestro" type="submit" class="btn-enviar-clase">Enviar invitación</button>
+                </div>
+            </form>
         </div>
     </div>
 

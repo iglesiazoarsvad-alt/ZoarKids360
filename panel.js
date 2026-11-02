@@ -1539,11 +1539,29 @@ function configurarNavegacion() {
             activarPestanaConfiguracion(this.dataset.configTab, this);
         });
     });
-    document.getElementById('btn-agregar-maestro')?.addEventListener('click', () => {
+    const btnAgregarMaestro = document.getElementById('btn-agregar-maestro');
+    const modalAgregarMaestro = document.getElementById('modal-agregar-maestro');
+    const errorAgregarMaestro = document.getElementById('error-agregar-maestro');
+    btnAgregarMaestro?.addEventListener('click', () => {
         if (usuarioSesion?.rol !== 'admin') return;
-        document.getElementById('error-agregar-maestro').textContent = '';
-        document.getElementById('modal-agregar-maestro').classList.add('activo');
+        if (!modalAgregarMaestro) {
+            console.error('No se encontró el modal para agregar usuarios.');
+            mostrarNotificacion('No se pudo abrir el formulario de usuarios.', 'error');
+            return;
+        }
+        if (errorAgregarMaestro) errorAgregarMaestro.textContent = '';
+        modalAgregarMaestro.classList.add('activo');
+        modalAgregarMaestro.setAttribute('aria-hidden', 'false');
         document.getElementById('admin-usuario-nombre')?.focus();
+    });
+    document.getElementById('btn-cancelar-agregar-maestro')?.addEventListener('click', () => {
+        modalAgregarMaestro?.classList.remove('activo');
+        modalAgregarMaestro?.setAttribute('aria-hidden', 'true');
+    });
+    modalAgregarMaestro?.addEventListener('click', event => {
+        if (event.target !== modalAgregarMaestro) return;
+        modalAgregarMaestro.classList.remove('activo');
+        modalAgregarMaestro.setAttribute('aria-hidden', 'true');
     });
     document.getElementById('form-agregar-maestro')?.addEventListener('submit', guardarUsuarioAdministrador);
 
@@ -5869,7 +5887,9 @@ async function guardarUsuarioAdministrador(event) {
         const resultado = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(resultado.error || `No se pudo crear el usuario (${response.status}).`);
         document.getElementById('form-agregar-maestro')?.reset();
-        document.getElementById('modal-agregar-maestro')?.classList.remove('activo');
+        const modal = document.getElementById('modal-agregar-maestro');
+        modal?.classList.remove('activo');
+        modal?.setAttribute('aria-hidden', 'true');
         mostrarNotificacion('Usuario creado. Se envió una invitación a su correo.', 'success');
         await cargarUsuariosAdministrador();
     } catch (error) {
