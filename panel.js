@@ -54,6 +54,7 @@ let timerCerrarSesionInactividad = null;
 let ultimaActividad = Date.now();
 let modoPrueba = false;
 let modoOffline = false;
+let usuarioPendienteAutorizacion = false;
 let sincronizacionOfflineEnCurso = false;
 let ultimoStatusHttpSupabase = null;
 let leccionSeleccionada = null;
@@ -243,9 +244,7 @@ window.seleccionarTemaBienvenida = function(temaId) {
     
     // Iniciar onboarding del sistema después de seleccionar tema
     setTimeout(() => {
-        if (typeof iniciarOnboardingSistema === 'function') {
-            iniciarOnboardingSistema();
-        }
+        window.iniciarOnboardingForzado?.();
     }, 500);
 };
 
@@ -711,7 +710,9 @@ async function cargarAlumnos(seccion = null) {
 
 async function validarUsuarioRegistrado(email) {
     if (!email) return false;
-    const usuarios = await llamarSupabase('usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja');
+    const usuarios = await llamarSupabase(
+        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,auth_user_id'
+    );
     if (usuarios === null) return null;
     return usuarios.length > 0 ? usuarios[0] : false;
 }
@@ -1088,8 +1089,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         window.location.href = "index.html"; 
         return; 
     }
+    usuarioPendienteAutorizacion = usuarioSesion.pendingAuthorization === true;
     configurarBannerOffline();
-    if (!modoPrueba && !modoOffline && navigator.onLine) void registrarPush();
     esClaveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true' ||
         localStorage.getItem(`zk360_clave_temporal_${String(usuarioSesion.email || '').toLowerCase()}`) === 'true';
 
@@ -1113,13 +1114,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!modoPrueba && !modoOffline && navigator.onLine) {
         const usuarioRegistrado = await validarUsuarioRegistrado(usuarioSesion.email);
         if (usuarioRegistrado === false) {
-            sessionStorage.removeItem('zk360_usuario_activo');
-            localStorage.removeItem('zk360_usuario_persistente');
-            window.location.replace('index.html');
-            return;
+            if (usuarioSesion.rol === 'maestro') {
+                usuarioPendienteAutorizacion = true;
+                usuarioSesion = {
+                    ...usuarioSesion,
+                    nombre: usuarioSesion.nombre || String(usuarioSesion.email || '').split('@')[0],
+                    pendingAuthorization: true
+                };
+                sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
+            } else {
+                sessionStorage.removeItem('zk360_usuario_activo');
+                localStorage.removeItem('zk360_usuario_persistente');
+                window.location.replace('index.html');
+                return;
+            }
         }
         if (usuarioRegistrado) {
+            usuarioPendienteAutorizacion = false;
             usuarioSesion = { ...usuarioSesion, ...usuarioRegistrado };
+            delete usuarioSesion.pendingAuthorization;
             sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
             if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
                 localStorage.setItem('zk360_maestro_offline', JSON.stringify({
@@ -1139,6 +1152,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 
     const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
+    if (!modoPrueba && !modoOffline && !usuarioPendienteAutorizacion) void registrarPush();
     const menuConfiguracion = document.getElementById('menu-configuracion');
     const menuActividades = document.getElementById('menu-actividades');
     const btnAgregarActividad = document.getElementById('btn-agregar-actividad');
@@ -1147,18 +1161,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('[data-admin-only]').forEach(tab => {
         tab.hidden = usuarioSesion.rol !== 'admin';
     });
+    document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
+        if (usuarioPendienteAutorizacion) {
+            link.hidden = link.dataset.vista !== 'dashboard';
+            link.style.display = link.hidden ? 'none' : '';
+        }
+    });
     if (btnAgregarActividad) btnAgregarActividad.style.display = usuarioSesion.rol === 'admin' ? 'inline-flex' : 'none';
     gestionarPermisosHistorial();
 
     // Cargar tema preferido desde Supabase
-    const temaPreferido = await cargarTemaPreferido(usuarioSesion.email);
+    const temaPreferido = usuarioPendienteAutorizacion ? null : await cargarTemaPreferido(usuarioSesion.email);
     if (temaPreferido) {
         aplicarTema(temaPreferido);
     }
 
     // Verificar si es primer inicio (onboarding de temas)
     const onboardingTemas = localStorage.getItem('zoarkids_onboarding_temas') === 'true';
-    if (!onboardingTemas) {
+    if (!usuarioPendienteAutorizacion && !onboardingTemas) {
         setTimeout(mostrarModalBienvenidaTemas, 800);
     }
 
@@ -1247,23 +1267,25 @@ if (usuarioSesion?.rol !== 'admin') {
     configurarNavegacion();
     configurarBotonTema();
     configurarVistasAdministrativas();
-    await cargarConfiguracionHorario(false);
+    if (!usuarioPendienteAutorizacion) await cargarConfiguracionHorario(false);
     if (usuarioSesion.rol === 'admin') {
         await actualizarBadgeFeedbackAdmin();
         window.timerFeedbackAdmin = setInterval(actualizarBadgeFeedbackAdmin, 60000);
     }
     await cargarAlumnosSegunRol();
-    await verificarBloqueoSustituto();
+    if (!usuarioPendienteAutorizacion) await verificarBloqueoSustituto();
     
     // Cargar dashboard inmediatamente
     cargarDashboard();
-    cargarBiblioteca();
-    cargarGaleria('todas');
-    cargarChats();
-    actualizarBadgeChat();
-    clearInterval(intervaloBadgeChat);
-    intervaloBadgeChat = setInterval(actualizarBadgeChat, 30000);
-    document.getElementById('chat-input-imagen')?.addEventListener('change', enviarImagenChat);
+    if (!usuarioPendienteAutorizacion) {
+        cargarBiblioteca();
+        cargarGaleria('todas');
+        cargarChats();
+        actualizarBadgeChat();
+        clearInterval(intervaloBadgeChat);
+        intervaloBadgeChat = setInterval(actualizarBadgeChat, 30000);
+        document.getElementById('chat-input-imagen')?.addEventListener('change', enviarImagenChat);
+    }
     await revisarEventosImportantesAdmin();
     clearInterval(intervaloNotificacionesAdmin);
     intervaloNotificacionesAdmin = setInterval(revisarEventosImportantesAdmin, 30000);
@@ -1274,11 +1296,13 @@ if (usuarioSesion?.rol !== 'admin') {
         }
     });
     window.addEventListener('offline', () => publicarEstadoColaOffline());
-    await sincronizarCambiosOffline();
+    if (!usuarioPendienteAutorizacion) await sincronizarCambiosOffline();
     publicarEstadoColaOffline(modoOffline && !sessionStorage.getItem('zk360_supabase_session'));
 
-    if (!modoPrueba) { 
-        await verificarOnboarding(); 
+    if (usuarioPendienteAutorizacion) {
+        // Keep pending accounts on the restricted dashboard without loading test data.
+    } else if (!modoPrueba) {
+        await verificarOnboarding();
     } else {
         // ============ INICIALIZAR MODO PRUEBA ============
         console.log(' Modo Prueba detectado - Aplicando sin restricciones');
@@ -1515,6 +1539,13 @@ function configurarNavegacion() {
             activarPestanaConfiguracion(this.dataset.configTab, this);
         });
     });
+    document.getElementById('btn-agregar-maestro')?.addEventListener('click', () => {
+        if (usuarioSesion?.rol !== 'admin') return;
+        document.getElementById('error-agregar-maestro').textContent = '';
+        document.getElementById('modal-agregar-maestro').classList.add('activo');
+        document.getElementById('admin-usuario-nombre')?.focus();
+    });
+    document.getElementById('form-agregar-maestro')?.addEventListener('submit', guardarUsuarioAdministrador);
 
     const triggerMenu = document.getElementById('trigger-menu');
     if (triggerMenu) {
@@ -2616,6 +2647,34 @@ async function publicarLeccionAdmin(id) {
 
 // ============ DASHBOARD OPTIMIZADO ============
 async function cargarDashboard() {
+    if (usuarioPendienteAutorizacion) {
+        cacheDashboard = null;
+        cacheTimestamp = null;
+        ['stat-alumnos', 'stat-clases', 'stat-maestros'].forEach(id => {
+            const elemento = document.getElementById(id);
+            if (elemento) elemento.textContent = '0';
+        });
+        const asistencia = document.getElementById('stat-asistencia');
+        if (asistencia) asistencia.textContent = '0%';
+        const barras = document.getElementById('barras-asistencia');
+        if (barras) barras.replaceChildren();
+        const top = document.getElementById('top-asistencia-container');
+        if (top) top.replaceChildren();
+        const contenido = document.getElementById('dashboard-content');
+        if (contenido) contenido.hidden = false;
+        const detalles = document.getElementById('dashboard-details');
+        if (detalles) detalles.hidden = true;
+        const aviso = document.getElementById('mensaje-pendiente-autorizacion');
+        if (aviso) aviso.hidden = false;
+        return;
+    }
+
+    const contenido = document.getElementById('dashboard-content');
+    if (contenido) contenido.hidden = false;
+    const detalles = document.getElementById('dashboard-details');
+    if (detalles) detalles.hidden = false;
+    const aviso = document.getElementById('mensaje-pendiente-autorizacion');
+    if (aviso) aviso.hidden = true;
     renderizarCalendarioMensual([], new Date());
     void cargarActividadesMensuales();
     if (!modoPrueba && cacheDashboard && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL) {
@@ -3339,6 +3398,17 @@ async function marcarFeedbackAtendido(id) {
 async function cargarAlumnosSegunRol() {
     const panelNoAsignado = document.getElementById('contenedor-mensaje-no-asignado');
     const panelAsistencia = document.getElementById('contenedor-asistencia-activa');
+    if (usuarioPendienteAutorizacion) {
+        bancoAlumnosCompleto = [];
+        if (panelNoAsignado) {
+            panelNoAsignado.textContent = 'Tu cuenta está pendiente de autorización por el administrador';
+            panelNoAsignado.style.display = 'block';
+        }
+        if (panelAsistencia) panelAsistencia.style.display = 'none';
+        const tabla = document.getElementById('tabla-asistencia-niños-cuerpo');
+        if (tabla) tabla.replaceChildren();
+        return;
+    }
     if (!seccionAsignadaMaestro) {
         if (modoPrueba) {
             const alumnosLocales = JSON.parse(localStorage.getItem(CLAVE_ALUMNOS_MODO_PRUEBA) || '[]');
@@ -5657,9 +5727,9 @@ async function registrarPush() {
         const app = getApps().find(item => item.name === 'zk360-push') ||
             initializeApp(config, 'zk360-push');
         const messaging = getMessaging(app);
-        const worker = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-            scope: '/firebase-push/'
-        });
+        const worker = typeof window.registrarServiceWorkerFirebase === 'function'
+            ? await window.registrarServiceWorkerFirebase()
+            : await navigator.serviceWorker.register('./firebase-messaging-sw.js');
         const token = await getToken(messaging, {
             vapidKey,
             serviceWorkerRegistration: worker
@@ -5692,7 +5762,8 @@ function activarPestanaConfiguracion(idPestana, btnElemento) {
         actividades: 'modulo-actividades',
         horarios: 'modulo-configuracion-horarios',
         lecciones: 'modulo-bandeja-lecciones',
-        reportes: 'modulo-reportes'
+        reportes: 'modulo-reportes',
+        usuarios: 'modulo-usuarios-admin'
     };
     const destinoId = pestañas[idPestana];
     if (!destinoId) return;
@@ -5714,9 +5785,106 @@ function activarPestanaConfiguracion(idPestana, btnElemento) {
     if (idPestana === 'horarios') cargarConfiguracionHorario(true);
     if (idPestana === 'lecciones') cargarLeccionesPendientes();
     if (idPestana === 'reportes') cargarFeedbackAdministrador();
+    if (idPestana === 'usuarios') cargarUsuariosAdministrador();
+}
+
+async function cargarUsuariosAdministrador() {
+    if (usuarioSesion?.rol !== 'admin') return;
+    const lista = document.getElementById('lista-usuarios-admin');
+    const estado = document.getElementById('estado-usuarios-admin');
+    if (!lista || !estado) return;
+    estado.textContent = 'Cargando usuarios...';
+    const usuarios = await llamarSupabase(
+        'usuarios?select=email,nombre,rol&order=nombre.asc'
+    );
+    if (!Array.isArray(usuarios)) {
+        estado.textContent = ultimoErrorSupabase || 'No se pudieron cargar los usuarios.';
+        return;
+    }
+    lista.replaceChildren();
+    if (!usuarios.length) {
+        estado.textContent = 'No hay usuarios registrados.';
+        return;
+    }
+    const tabla = document.createElement('table');
+    tabla.className = 'tabla-datos';
+    const encabezado = tabla.createTHead().insertRow();
+    ['Nombre', 'Correo', 'Rol'].forEach(texto => {
+        const celda = document.createElement('th');
+        celda.textContent = texto;
+        encabezado.appendChild(celda);
+    });
+    const cuerpo = tabla.createTBody();
+    usuarios.forEach(usuario => {
+        const fila = cuerpo.insertRow();
+        [usuario.nombre, usuario.email, usuario.rol].forEach(valor => {
+            const celda = fila.insertCell();
+            celda.textContent = String(valor || '');
+        });
+    });
+    lista.appendChild(tabla);
+    estado.textContent = `${usuarios.length} usuario(s).`;
+}
+
+async function guardarUsuarioAdministrador(event) {
+    event.preventDefault();
+    if (usuarioSesion?.rol !== 'admin') {
+        mostrarNotificacion('Solo el administrador puede agregar usuarios.', 'error');
+        return;
+    }
+    const nombre = document.getElementById('admin-usuario-nombre')?.value.trim() || '';
+    const email = document.getElementById('admin-usuario-email')?.value.trim().toLowerCase() || '';
+    const rol = document.getElementById('admin-usuario-rol')?.value || '';
+    const errorEl = document.getElementById('error-agregar-maestro');
+    const boton = document.getElementById('btn-guardar-maestro');
+    if (!nombre || nombre.length < 2 || !/^[^@\s]+@iglesiazoarsv\.org$/.test(email) ||
+        !['admin', 'maestro'].includes(rol)) {
+        if (errorEl) errorEl.textContent = 'Ingresa un nombre, un correo oficial válido y un rol permitido.';
+        return;
+    }
+    const sesion = (() => {
+        try {
+            return JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+        } catch {
+            return {};
+        }
+    })();
+    if (!sesion.access_token || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        if (errorEl) errorEl.textContent = 'La sesión de administrador expiró. Inicia sesión nuevamente.';
+        return;
+    }
+    if (boton) boton.disabled = true;
+    if (errorEl) errorEl.textContent = '';
+    try {
+        const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/admin-create-user`, {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${sesion.access_token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ nombre, email, rol })
+        });
+        const resultado = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(resultado.error || `No se pudo crear el usuario (${response.status}).`);
+        document.getElementById('form-agregar-maestro')?.reset();
+        document.getElementById('modal-agregar-maestro')?.classList.remove('activo');
+        mostrarNotificacion('Usuario creado. Se envió una invitación a su correo.', 'success');
+        await cargarUsuariosAdministrador();
+    } catch (error) {
+        console.error('No se pudo crear el usuario administrador:', error);
+        if (errorEl) errorEl.textContent = error.message || 'No se pudo crear el usuario.';
+    } finally {
+        if (boton) boton.disabled = false;
+    }
 }
 
 function activarVistaPestaña(idVista, btnElemento) {
+    if (usuarioPendienteAutorizacion && idVista !== 'dashboard') {
+        mostrarNotificacion('Tu cuenta está pendiente de autorización por el administrador.', 'warning');
+        return;
+    }
     const esAdmin = usuarioSesion && (usuarioSesion.rol === 'admin' || usuarioSesion.rol === 'pastor');
     if (idVista === 'historial' && !esAdmin) {
         mostrarNotificacion('El historial está disponible solo para administración.', 'warning');
@@ -5807,9 +5975,7 @@ async function verificarOnboarding() {
         if (usuarios && usuarios.length > 0 && !usuarios[0].onboarding_completado) {
             // Iniciar onboarding del sistema después de seleccionar tema
             setTimeout(() => {
-                if (typeof iniciarOnboardingSistema === 'function') {
-                    iniciarOnboardingSistema();
-                }
+                window.iniciarOnboardingForzado?.();
             }, 1500);
         }
     } catch (error) {

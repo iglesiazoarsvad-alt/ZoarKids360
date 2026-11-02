@@ -766,6 +766,17 @@ function initLoginEvents() {
                     autenticarUsuario(correo, { ...perfil, ...usuarioAuth });
                     return;
                 }
+                if (usuarioAuth.app_metadata?.role === 'maestro') {
+                    intentosFallidos = 0;
+                    autenticarUsuario(correo, {
+                        ...usuarioAuth,
+                        email: correo,
+                        nombre: usuarioAuth.user_metadata?.nombre || correo.split('@')[0],
+                        rol: 'maestro',
+                        pendingAuthorization: true
+                    });
+                    return;
+                }
                 sessionStorage.removeItem('zk360_supabase_session');
                 const mensaje = 'El correo no tiene un perfil registrado en ZoarKids. Completa el registro con un código de invitación válido.';
                 mostrarErrorLogin(mensaje);
@@ -1420,16 +1431,23 @@ function cerrarRegistroCodigo() {
 
 function autenticarUsuario(correo, usuario) {
     sessionStorage.removeItem('zk360_modo_offline');
+    const pendienteAutorizacion = usuario.pendingAuthorization === true;
     const perfilSesion = {
         nombre: usuario.nombre,
         rol: usuario.rol,
         pareja: usuario.pareja || null,
         email: correo,
-        seccion: usuario.seccion || null
+        seccion: usuario.seccion || null,
+        ...(pendienteAutorizacion ? { pendingAuthorization: true } : {})
     };
     sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(perfilSesion));
-    localStorage.setItem('zk360_usuario_persistente', JSON.stringify(perfilSesion));
-    if (perfilSesion.rol === 'maestro' && perfilSesion.seccion) {
+    if (pendienteAutorizacion) {
+        localStorage.removeItem('zk360_usuario_persistente');
+        localStorage.removeItem('zk360_maestro_offline');
+    } else {
+        localStorage.setItem('zk360_usuario_persistente', JSON.stringify(perfilSesion));
+    }
+    if (!pendienteAutorizacion && perfilSesion.rol === 'maestro' && perfilSesion.seccion) {
         localStorage.setItem('zk360_maestro_offline', JSON.stringify({
             ...perfilSesion,
             guardado_en: new Date().toISOString(),

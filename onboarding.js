@@ -1,10 +1,3 @@
-const PASOS_ONBOARDING = [
-    { target: '#menu-lateral', titulo: 'Navegación', msg: 'Accede a los módulos desde el menú.' },
-    { target: '#modulo-dashboard', titulo: 'Dashboard', msg: 'Métricas en tiempo real.' }
-];
-
-let pasoActual = 0;
-
 function obtenerClaveOnboarding() {
     try {
         const usuario = JSON.parse(
@@ -20,23 +13,18 @@ function obtenerClaveOnboarding() {
     }
 }
 
-function finalizarOnboardingForzado() {
-    const clave = obtenerClaveOnboarding();
-    if (clave) localStorage.setItem(clave, 'true');
-}
-
 window.iniciarOnboardingForzado = function () {
     const clave = obtenerClaveOnboarding();
     if (!clave || localStorage.getItem(clave) === 'true') return;
-    pasoActual = 0;
-    mostrarPasoOnboarding(pasoActual);
-};
-
-function mostrarPasoOnboarding(index) {
-    if (index >= PASOS_ONBOARDING.length) {
-        finalizarOnboardingForzado();
+    if (typeof window.iniciarOnboardingSistema !== 'function') {
+        console.error('El tour de onboarding no está disponible.');
         return;
     }
-}
+    window.iniciarOnboardingSistema();
+};
 
-window.omitirOnboardingForzado = finalizarOnboardingForzado;
+window.omitirOnboardingForzado = function () {
+    const clave = obtenerClaveOnboarding();
+    if (clave) localStorage.setItem(clave, 'true');
+    window.cerrarOnboardingSistema?.();
+};

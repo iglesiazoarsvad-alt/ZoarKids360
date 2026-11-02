@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zoarkids-shell-v15';
+const CACHE_NAME = 'zoarkids-shell-v16';
 const APP_SHELL = [
     './index.html',
     './panel.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
     './logica.js',
     './panel.js',
     './offline-store.js',
+    './firebase-notificaciones.js',
     './prueba.js',
     './onboarding.js',
     './onboarding.css',
