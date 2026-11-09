@@ -1165,7 +1165,7 @@
                 <h3>ZoarKids 360</h3>
             </div>
             <div class="menu-items" id="menu-principal">
-                <div class="menu-link activo" data-vista="dashboard"><i class="fa-solid fa-chart-pie"></i>
+                <div class="menu-link activo" id="menu-dashboard" data-vista="dashboard"><i class="fa-solid fa-chart-pie"></i>
                     <span>Dashboard</span>
                 </div>
                 <div class="menu-link" data-vista="inicio"><i class="fa-solid fa-house"></i> <span>Inicio</span></div>
@@ -1183,7 +1183,7 @@
                     <span id="badge-chat-no-leidos" class="notificacion-badge" hidden
                         aria-label="Mensajes sin leer">0</span>
                 </div>
-                <div class="menu-link" data-vista="historial"><i class="fa-solid fa-clock-rotate-left"></i>
+                <div class="menu-link" id="menu-historial" data-vista="historial"><i class="fa-solid fa-clock-rotate-left"></i>
                     <span>Historial</span>
                 </div>
                 <div class="menu-link" data-vista="actividades" id="menu-actividades" style="display:none;">
@@ -2322,7 +2322,7 @@
     <script src="offline-store.js"></script>
     <script src="firebase-notificaciones.js"></script>
     <script src="onboarding.js"></script>
-    <script src="panel.js?v=20261109-2"></script>
+    <script src="panel.js?v=20261109-4"></script>
     <script>
         // Exponer globalmente la función usada por los onclick del cronograma.
         window.verLeccionDesdeCronograma = function (seccion) {

@@ -63,9 +63,17 @@ async function hashAnswer(salt: string, answer: string) {
 }
 
 function generarContrasenaTemporal() {
-    const bytes = crypto.getRandomValues(new Uint8Array(18));
-    const sufijo = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-    return `ZK-Temp-${sufijo}`;
+    const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const limite = 256 - (256 % caracteres.length);
+    let contrasena = '';
+    while (contrasena.length < 6) {
+        const bytes = crypto.getRandomValues(new Uint8Array(12));
+        for (const byte of bytes) {
+            if (byte < limite) contrasena += caracteres[byte % caracteres.length];
+            if (contrasena.length === 6) break;
+        }
+    }
+    return contrasena;
 }
 
 deno.serve(async (request: Request) => {

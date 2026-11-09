@@ -727,7 +727,7 @@ async function cargarAlumnos(seccion = null) {
 async function validarUsuarioRegistrado(email) {
     if (!email) return false;
     const usuarios = await llamarSupabase(
-        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,auth_user_id,autorizado,activo'
+        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,seccion_asignada,auth_user_id,autorizado,activo'
     );
     if (usuarios === null) return null;
     return usuarios.length > 0 ? usuarios[0] : false;
@@ -790,8 +790,9 @@ async function verificarAutorizacionPendiente() {
         if (!usuarioPendienteAutorizacion) return;
 
         usuarioSesion = { ...usuarioSesion, ...perfil, pendingAuthorization: false };
+        usuarioSesion = { ...usuarioSesion, ...perfil, pendingAuthorization: false };
         usuarioPendienteAutorizacion = false;
-        seccionAsignadaMaestro = perfil.seccion || null;
+        procesarCalendario();
         sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
         localStorage.setItem('zk360_usuario_persistente', JSON.stringify(usuarioSesion));
         if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
@@ -805,19 +806,11 @@ async function verificarAutorizacionPendiente() {
                 expira_en: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
             }));
         }
-        document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
-            link.hidden = false;
-            link.style.display = '';
-        });
-        const menuConfiguracion = document.getElementById('menu-configuracion');
-        const menuActividades = document.getElementById('menu-actividades');
-        if (menuConfiguracion) menuConfiguracion.style.display = usuarioSesion.rol === 'maestro' ? 'none' : 'flex';
-        if (menuActividades) menuActividades.style.display = usuarioSesion.rol === 'maestro' ? 'flex' : 'none';
-        document.querySelectorAll('[data-admin-only]').forEach(tab => {
-            tab.hidden = usuarioSesion.rol !== 'admin';
-        });
+        aplicarNavegacionPorRol();
         gestionarPermisosHistorial();
-        procesarCalendario();
+        if (esRolMaestro()) {
+            activarVistaPestaña('inicio', document.querySelector('.menu-link[data-vista="inicio"]'));
+        }
         const aviso = document.getElementById('mensaje-pendiente-autorizacion');
         if (aviso) aviso.hidden = true;
         const detalles = document.getElementById('dashboard-details');
@@ -1218,6 +1211,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         window.location.href = "index.html"; 
         return; 
     }
+    if (usuarioSesion.rol === 'maestra') usuarioSesion.rol = 'maestro';
     usuarioPendienteAutorizacion = usuarioSesion.pendingAuthorization === true ||
         (modoOffline && ['maestro', 'admin'].includes(usuarioSesion.rol) && usuarioSesion.autorizado !== true);
     configurarBannerOffline();
@@ -1272,6 +1266,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
         if (usuarioRegistrado) {
             usuarioSesion = { ...usuarioSesion, ...usuarioRegistrado };
+            if (usuarioSesion.rol === 'maestra') usuarioSesion.rol = 'maestro';
             usuarioPendienteAutorizacion = ['maestro', 'admin'].includes(usuarioSesion.rol) &&
                 usuarioSesion.autorizado !== true;
             usuarioSesion.pendingAuthorization = usuarioPendienteAutorizacion;
@@ -1279,7 +1274,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             if (usuarioPendienteAutorizacion) {
                 localStorage.removeItem('zk360_usuario_persistente');
                 localStorage.removeItem('zk360_maestro_offline');
-            } else if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
+            } else if (usuarioSesion.rol === 'maestro') {
+                procesarCalendario();
                 localStorage.setItem('zk360_maestro_offline', JSON.stringify({
                     nombre: usuarioSesion.nombre,
                     email: usuarioSesion.email,
@@ -1298,14 +1294,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const esAdmin = usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor";
     if (!modoPrueba && !modoOffline && !usuarioPendienteAutorizacion) void registrarPush();
-    const menuConfiguracion = document.getElementById('menu-configuracion');
-    const menuActividades = document.getElementById('menu-actividades');
     const btnAgregarActividad = document.getElementById('btn-agregar-actividad');
-    if (menuConfiguracion) menuConfiguracion.style.display = usuarioSesion.rol === 'maestro' ? 'none' : 'flex';
-    if (menuActividades) menuActividades.style.display = usuarioSesion.rol === 'maestro' ? 'flex' : 'none';
-    document.querySelectorAll('[data-admin-only]').forEach(tab => {
-        tab.hidden = usuarioSesion.rol !== 'admin';
-    });
+    aplicarNavegacionPorRol();
     document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
         if (usuarioPendienteAutorizacion) {
             link.hidden = link.dataset.vista !== 'dashboard';
@@ -1345,6 +1335,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Procesar calendario y asignación
     procesarCalendario();
+    if (esRolMaestro() && !usuarioPendienteAutorizacion) {
+        sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
+        if (localStorage.getItem('zk360_usuario_persistente')) {
+            localStorage.setItem('zk360_usuario_persistente', JSON.stringify(usuarioSesion));
+        }
+    }
     const perfSeccion = document.getElementById('perf-seccion');
     if (perfSeccion) perfSeccion.textContent = seccionAsignadaMaestro || "Sin asignación";
     const botonSustituto = document.getElementById('btn-solicitar-sustituto');
@@ -1412,6 +1408,9 @@ if (usuarioSesion?.rol !== 'admin') {
     configurarNavegacion();
     configurarBotonTema();
     configurarVistasAdministrativas();
+    if (esRolMaestro() && !usuarioPendienteAutorizacion) {
+        activarVistaPestaña('inicio', document.querySelector('.menu-link[data-vista="inicio"]'));
+    }
     if (!usuarioPendienteAutorizacion) await cargarConfiguracionHorario(false);
     if (usuarioSesion.rol === 'admin') {
         await actualizarBadgeFeedbackAdmin();
@@ -5780,6 +5779,58 @@ function calcularProximoDomingo() {
     return domingo.getDate() + '/' + (domingo.getMonth() + 1) + '/' + domingo.getFullYear();
 }
 
+function normalizarNombreCronograma(nombre) {
+    return String(nombre || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase('es')
+        .trim();
+}
+
+function obtenerSeccionDelTurno(turno, nombre) {
+    if (!turno || !nombre) return null;
+    const nombreNormalizado = normalizarNombreCronograma(nombre);
+    const infantil = String(turno.pi || '').split(/\s+y\s+/i)
+        .some(persona => normalizarNombreCronograma(persona) === nombreNormalizado);
+    if (infantil) return 'infancia';
+    if (normalizarNombreCronograma(turno.me) === nombreNormalizado) return 'medianos';
+    if (normalizarNombreCronograma(turno.gr) === nombreNormalizado) return 'grandes';
+    return null;
+}
+
+function obtenerSeccionAutomaticaMaestro(nombre) {
+    const turnos = Object.entries(cronogramaOficial2026);
+    const fechaActual = calcularProximoDomingo();
+    const turnoActual = turnos.find(([fecha]) => fecha === fechaActual)?.[1];
+    const asignacionActual = obtenerSeccionDelTurno(turnoActual, nombre);
+    if (asignacionActual) return asignacionActual;
+
+    for (const [, turno] of turnos) {
+        const primeraAsignacion = obtenerSeccionDelTurno(turno, nombre);
+        if (primeraAsignacion) return primeraAsignacion;
+    }
+    return null;
+}
+
+function esRolMaestro(rol = usuarioSesion?.rol) {
+    return rol === 'maestro' || rol === 'maestra';
+}
+
+function aplicarNavegacionPorRol() {
+    const esMaestro = esRolMaestro();
+    const esAdmin = usuarioSesion?.rol === 'admin';
+    const vistasAdmin = ['dashboard', 'historial', 'configuracion', 'actividades'];
+    document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
+        const ocultar = link.dataset.vista === 'actividades' ||
+            (esMaestro && vistasAdmin.includes(link.dataset.vista));
+        link.hidden = ocultar;
+        link.style.display = ocultar ? 'none' : '';
+    });
+    document.querySelectorAll('[data-admin-only]').forEach(elemento => {
+        elemento.hidden = !esAdmin;
+    });
+}
+
 function procesarCalendario() {
     const claveFecha = calcularProximoDomingo();
     const turno = cronogramaOficial2026[claveFecha] || Object.entries(cronogramaOficial2026)
@@ -5802,36 +5853,18 @@ function procesarCalendario() {
         if (usuarioSesion?.rol === 'admin') modoAdminVerTodos = true;
         return;
     }
-    if (modoOffline) {
-        seccionAsignadaMaestro = usuarioSesion?.rol === 'maestro'
-            ? usuarioSesion.seccion || null
-            : null;
+    if (esRolMaestro()) {
+        const manual = ['infancia', 'medianos', 'grandes'].includes(usuarioSesion.seccion_asignada)
+            ? usuarioSesion.seccion_asignada
+            : modoOffline && !Object.prototype.hasOwnProperty.call(usuarioSesion, 'seccion_asignada') &&
+                ['infancia', 'medianos', 'grandes'].includes(usuarioSesion.seccion)
+                ? usuarioSesion.seccion
+                : null;
+        seccionAsignadaMaestro = manual || obtenerSeccionAutomaticaMaestro(usuarioSesion.nombre);
+        usuarioSesion.seccion = seccionAsignadaMaestro;
         return;
     }
-
-    if (turno) {
-        const nombreLower = (usuarioSesion.nombre || '').toLocaleLowerCase('es').trim();
-        const parejaLower = usuarioSesion.pareja
-            ? usuarioSesion.pareja.toLocaleLowerCase('es').trim()
-            : '';
-        seccionAsignadaMaestro = null;
-
-        // La pareja solo participa en el turno compartido de Primera Infancia.
-        if (turno.pi) {
-            const partesPI = turno.pi.toLocaleLowerCase('es').split(' y ').map(n => n.trim());
-            if (partesPI.includes(nombreLower) || (parejaLower && partesPI.includes(parejaLower))) {
-                seccionAsignadaMaestro = 'infancia';
-            }
-        }
-
-        // Medianos y Grandes siempre se asignan individualmente.
-        if (turno.me && turno.me.toLocaleLowerCase('es').trim() === nombreLower) {
-            seccionAsignadaMaestro = 'medianos';
-        }
-        if (turno.gr && turno.gr.toLocaleLowerCase('es').trim() === nombreLower) {
-            seccionAsignadaMaestro = 'grandes';
-        }
-    }
+    seccionAsignadaMaestro = null;
     if (usuarioSesion.rol === "admin" || usuarioSesion.rol === "pastor") {
         seccionAsignadaMaestro = "admin_total";
     }
@@ -5884,30 +5917,21 @@ function configurarBannerOffline() {
 async function registrarPush() {
     if (registroPushEnCurso) return registroPushEnCurso;
     registroPushEnCurso = (async () => {
-        if (!navigator.onLine || !usuarioSesion?.email || !('Notification' in window) ||
-            !('serviceWorker' in navigator)) return;
+        if (!navigator.onLine || !usuarioSesion?.email) return;
+        if (!('Notification' in window) || !('serviceWorker' in navigator) ||
+            typeof window.PushManager === 'undefined') {
+            mostrarNotificacion('Este navegador o entorno no admite notificaciones push.', 'warning');
+            return;
+        }
         if (Notification.permission === 'default') await Notification.requestPermission();
         if (Notification.permission !== 'granted') return;
 
         const config = window.ZK360_CONFIG?.firebase;
         const vapidKey = window.ZK360_CONFIG?.firebaseVapidKey;
-        if (!config || !vapidKey) throw new Error('La configuración de Firebase Push está incompleta.');
-
-        const [{ initializeApp, getApps }, { getMessaging, getToken }] = await Promise.all([
-            import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
-            import('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js')
-        ]);
-        const app = getApps().find(item => item.name === 'zk360-push') ||
-            initializeApp(config, 'zk360-push');
-        const messaging = getMessaging(app);
-        const worker = typeof window.registrarServiceWorkerFirebase === 'function'
-            ? await window.registrarServiceWorkerFirebase()
-            : await navigator.serviceWorker.register('./firebase-messaging-sw.js');
-        const token = await getToken(messaging, {
-            vapidKey,
-            serviceWorkerRegistration: worker
-        });
-        if (!token) throw new Error('Firebase no devolvió un token de notificaciones.');
+        if (typeof window.obtenerTokenFirebaseMessaging !== 'function') {
+            throw new Error('No se pudo cargar el servicio de notificaciones push.');
+        }
+        const token = await window.obtenerTokenFirebaseMessaging(config, vapidKey);
 
         const email = usuarioSesion.email.trim().toLowerCase();
         const registrados = await llamarSupabase(
@@ -5968,7 +5992,7 @@ async function cargarUsuariosAdministrador() {
     if (!lista || !estado) return;
     estado.textContent = 'Cargando usuarios...';
     let usuarios = await llamarSupabase(
-        'usuarios?select=email,nombre,rol,auth_user_id,autorizado,activo&order=nombre.asc'
+        'usuarios?select=email,nombre,rol,auth_user_id,autorizado,activo,seccion_asignada&order=nombre.asc'
     );
     let faltaColumnaActivo = false;
     if (!Array.isArray(usuarios) && /activo.*(does not exist|not found|column)|42703/i.test(ultimoErrorSupabase)) {
@@ -6020,7 +6044,7 @@ async function cargarUsuariosAdministrador() {
         const activo = usuario.activo !== false;
         estadoCelda.textContent = pendiente ? 'En espera' : activo ? 'Activo' : 'Inactivo';
         const accionCelda = fila.insertCell();
-        if (usuario.rol !== 'maestro') {
+        if (!['maestro', 'maestra'].includes(usuario.rol)) {
             accionCelda.textContent = '—';
             return;
         }
@@ -6055,11 +6079,156 @@ async function cargarUsuariosAdministrador() {
     ].filter(Boolean).join(' ');
 }
 
+function mostrarContrasenaTemporalAprobacion(contrasena) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay activo';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'titulo-clave-aprobacion');
+
+    const contenido = document.createElement('div');
+    contenido.className = 'modal-burbuja';
+    const titulo = document.createElement('h3');
+    titulo.id = 'titulo-clave-aprobacion';
+    titulo.textContent = 'Contraseña temporal';
+    const descripcion = document.createElement('p');
+    descripcion.textContent = 'Copia esta clave y compártela con el usuario.';
+    const campo = document.createElement('input');
+    campo.type = 'text';
+    campo.readOnly = true;
+    campo.value = contrasena;
+    campo.setAttribute('aria-label', 'Contraseña temporal');
+    campo.style.cssText = 'width:100%;text-align:center;font-size:18px;font-weight:bold;margin:12px 0;';
+
+    const copiar = document.createElement('button');
+    copiar.type = 'button';
+    copiar.className = 'btn-enviar-clase';
+    copiar.textContent = 'Copiar contraseña';
+    copiar.addEventListener('click', async () => {
+        try {
+            if (!navigator.clipboard || !window.isSecureContext) {
+                throw new Error('El portapapeles no está disponible en este entorno.');
+            }
+            await navigator.clipboard.writeText(contrasena);
+            mostrarNotificacion('Contraseña temporal copiada.', 'success');
+        } catch (error) {
+            console.error('No se pudo copiar la contraseña temporal:', error);
+            mostrarNotificacion(error.message || 'No se pudo copiar la contraseña temporal.', 'error');
+        }
+    });
+
+    const cerrar = document.createElement('button');
+    cerrar.type = 'button';
+    cerrar.className = 'btn-cerrar-modal btn-cancelar';
+    cerrar.textContent = 'Cerrar';
+    cerrar.addEventListener('click', () => modal.remove());
+
+    contenido.append(titulo, descripcion, campo, copiar, cerrar);
+    modal.appendChild(contenido);
+    modal.addEventListener('click', event => {
+        if (event.target === modal) modal.remove();
+    });
+    document.body.appendChild(modal);
+    campo.focus();
+    campo.select();
+}
+
+function mostrarModalAprobacionUsuario(usuario) {
+    return new Promise(resolve => {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay activo';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'titulo-aprobacion-usuario');
+
+        const contenido = document.createElement('div');
+        contenido.className = 'modal-burbuja';
+        const titulo = document.createElement('h3');
+        titulo.id = 'titulo-aprobacion-usuario';
+        titulo.textContent = `Aprobar a ${usuario.nombre || usuario.email}`;
+        const ayuda = document.createElement('p');
+        ayuda.textContent = 'Selecciona el rol y, si corresponde, el aula asignada.';
+
+        const labelRol = document.createElement('label');
+        labelRol.textContent = 'Rol';
+        const selectorRol = document.createElement('select');
+        selectorRol.className = 'input-txt input-moderno';
+        selectorRol.setAttribute('aria-label', 'Rol del usuario');
+        [
+            { valor: 'maestro', texto: 'Maestro/a' },
+            { valor: 'maestra', texto: 'Maestra' },
+            { valor: 'admin', texto: 'Administrador/a' }
+        ].forEach(opcion => {
+            const option = document.createElement('option');
+            option.value = opcion.valor;
+            option.textContent = opcion.texto;
+            selectorRol.appendChild(option);
+        });
+
+        const labelAula = document.createElement('label');
+        labelAula.textContent = 'Aula asignada (opcional)';
+        const selectorAula = document.createElement('select');
+        selectorAula.className = 'input-txt input-moderno';
+        selectorAula.setAttribute('aria-label', 'Aula asignada');
+        [
+            { valor: '', texto: 'Sin asignación manual' },
+            { valor: 'infancia', texto: 'Infancia' },
+            { valor: 'medianos', texto: 'Medianos' },
+            { valor: 'grandes', texto: 'Grandes' }
+        ].forEach(opcion => {
+            const option = document.createElement('option');
+            option.value = opcion.valor;
+            option.textContent = opcion.texto;
+            selectorAula.appendChild(option);
+        });
+        if (['infancia', 'medianos', 'grandes'].includes(usuario.seccion_asignada)) {
+            selectorAula.value = usuario.seccion_asignada;
+        }
+
+        const acciones = document.createElement('div');
+        acciones.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:20px;';
+        const cancelar = document.createElement('button');
+        cancelar.type = 'button';
+        cancelar.className = 'btn-cerrar-modal btn-cancelar';
+        cancelar.textContent = 'Cancelar';
+        const aprobar = document.createElement('button');
+        aprobar.type = 'button';
+        aprobar.className = 'btn-primary';
+        aprobar.textContent = 'Confirmar aprobación';
+        let resuelto = false;
+        const cerrar = resultado => {
+            if (resuelto) return;
+            resuelto = true;
+            modal.remove();
+            resolve(resultado);
+        };
+        cancelar.addEventListener('click', () => cerrar(null));
+        aprobar.addEventListener('click', () => cerrar({
+            rol: selectorRol.value,
+            seccion_asignada: selectorAula.value || null
+        }));
+        modal.addEventListener('click', event => {
+            if (event.target === modal) cerrar(null);
+        });
+        acciones.append(cancelar, aprobar);
+        contenido.append(titulo, ayuda, labelRol, selectorRol, labelAula, selectorAula, acciones);
+        modal.appendChild(contenido);
+        document.body.appendChild(modal);
+        selectorRol.focus();
+    });
+}
+
 async function actualizarAccesoUsuarioAdministrador(usuario, accion, boton) {
     if (usuarioSesion?.rol !== 'admin') {
         mostrarNotificacion('Solo el administrador puede gestionar usuarios.', 'error');
         return;
     }
+    const datosAprobacion = accion === 'approve'
+        ? await mostrarModalAprobacionUsuario(usuario)
+        : null;
+    if (accion === 'approve' && !datosAprobacion) return;
     const confirmaciones = {
         reject: 'La cuenta seguirá en espera y no tendrá acceso. ¿Continuar?',
         deactivate: 'El maestro ya no podrá iniciar sesión. ¿Desactivar su cuenta?'
@@ -6090,11 +6259,22 @@ async function actualizarAccesoUsuarioAdministrador(usuario, accion, boton) {
                 Authorization: `Bearer ${sesion.access_token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ email: usuario.email, action: accion })
+            body: JSON.stringify(accion === 'approve'
+                ? {
+                    email: usuario.email,
+                    rol: datosAprobacion.rol,
+                    seccion_asignada: datosAprobacion.seccion_asignada,
+                    action: 'approve'
+                }
+                : { email: usuario.email, action: accion })
         });
         const resultado = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(resultado.error || `No se pudo cambiar el acceso (${response.status}).`);
-        mostrarNotificacion(resultado.message || 'Estado del usuario actualizado.', 'success');
+        if (accion === 'approve' && resultado.temporary_password) {
+            mostrarContrasenaTemporalAprobacion(resultado.temporary_password);
+        } else {
+            mostrarNotificacion(resultado.message || 'Estado del usuario actualizado.', 'success');
+        }
         await cargarUsuariosAdministrador();
     } catch (error) {
         console.error('No se pudo actualizar el acceso del usuario:', error);
@@ -6108,6 +6288,10 @@ async function actualizarAccesoUsuarioAdministrador(usuario, accion, boton) {
 function activarVistaPestaña(idVista, btnElemento) {
     if (usuarioPendienteAutorizacion && idVista !== 'dashboard') {
         mostrarNotificacion('Tu cuenta está pendiente de autorización por el administrador.', 'warning');
+        return;
+    }
+    if (esRolMaestro() && ['historial', 'configuracion', 'actividades'].includes(idVista)) {
+        mostrarNotificacion('Esta sección está disponible solo para administración.', 'warning');
         return;
     }
     const esAdmin = usuarioSesion && (usuarioSesion.rol === 'admin' || usuarioSesion.rol === 'pastor');
