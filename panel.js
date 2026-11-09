@@ -727,7 +727,7 @@ async function cargarAlumnos(seccion = null) {
 async function validarUsuarioRegistrado(email) {
     if (!email) return false;
     const usuarios = await llamarSupabase(
-        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,seccion,auth_user_id,autorizado,activo'
+        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,auth_user_id,autorizado,activo'
     );
     if (usuarios === null) return null;
     return usuarios.length > 0 ? usuarios[0] : false;

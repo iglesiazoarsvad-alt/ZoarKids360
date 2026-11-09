@@ -85,7 +85,6 @@ deno.serve(async (request: Request) => {
         return jsonResponse(500, { error: 'Servicio de recuperación no configurado.' }, origin);
     }
 
-    let etapa = 'validar la solicitud';
     try {
         const body = await request.json();
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -113,7 +112,10 @@ deno.serve(async (request: Request) => {
             const { data: authenticated, error: errorSesion } = await admin.auth.getUser(accessToken);
             const authUser = authenticated?.user;
             const emailSesion = authUser?.email?.trim().toLowerCase() || '';
-            if (errorSesion || !authUser || !/^[^@\s]+@iglesiazoarsv\.org$/.test(emailSesion)) {
+            if (errorSesion) {
+                return jsonResponse(401, { error: errorSesion.message }, origin);
+            }
+            if (!authUser || !/^[^@\s]+@iglesiazoarsv\.org$/.test(emailSesion)) {
                 return jsonResponse(401, { error: 'La sesión expiró. Inicia sesión nuevamente con tu contraseña temporal.' }, origin);
             }
 
@@ -124,7 +126,7 @@ deno.serve(async (request: Request) => {
                 .maybeSingle();
             if (errorPerfil) {
                 console.error('Required password-change lookup failed:', errorPerfil.message);
-                return jsonResponse(500, { error: 'No se pudo validar el perfil para cambiar la contraseña.' }, origin);
+                return jsonResponse(500, { error: errorPerfil.message }, origin);
             }
             if (!perfil || perfil.requiere_cambio_clave !== true) {
                 return jsonResponse(409, { error: 'La cuenta no tiene un cambio obligatorio pendiente.' }, origin);
@@ -142,25 +144,23 @@ deno.serve(async (request: Request) => {
                 .eq('email', emailSesion);
             if (errorActualizacionPerfil) {
                 console.error('Required password-change flag update failed:', errorActualizacionPerfil.message);
-                return jsonResponse(500, { error: 'La contraseña cambió, pero no se pudo completar el perfil. Intenta guardar la misma contraseña nuevamente.' }, origin);
+                return jsonResponse(500, { error: errorActualizacionPerfil.message }, origin);
             }
             return jsonResponse(200, { ok: true }, origin);
         }
 
-        etapa = 'comprobar el límite de intentos';
         const { data: permitida, error: errorLimite } = await admin.rpc(
             'allow_security_question_attempt',
             { p_email: email }
         );
         if (errorLimite) {
             console.error('Security question rate-limit error:', errorLimite.message);
-            return jsonResponse(500, { error: 'No se pudo validar la solicitud.' }, origin);
+            return jsonResponse(500, { error: errorLimite.message }, origin);
         }
         if (permitida !== true) {
             return jsonResponse(429, { error: 'Demasiados intentos. Inténtalo más tarde.' }, origin);
         }
 
-        etapa = 'buscar la pregunta de seguridad';
         const { data: pregunta, error: errorPregunta } = await admin
             .from('preguntas_seguridad')
             .select('email,pregunta,respuesta_hash')
@@ -168,7 +168,7 @@ deno.serve(async (request: Request) => {
             .maybeSingle();
         if (errorPregunta) {
             console.error('Security question lookup error:', errorPregunta.message);
-            return jsonResponse(500, { error: 'No se pudo validar la solicitud.' }, origin);
+            return jsonResponse(500, { error: errorPregunta.message }, origin);
         }
         if (!pregunta) return jsonResponse(404, { error: 'No se encontró una pregunta de seguridad.' }, origin);
 
@@ -186,13 +186,11 @@ deno.serve(async (request: Request) => {
             console.error('Invalid or unhashed security answer stored for account.');
             return jsonResponse(500, { error: 'La pregunta de seguridad requiere restablecimiento por un administrador.' }, origin);
         }
-        etapa = 'comprobar la respuesta';
         const actualHash = await hashAnswer(match[1], answer);
         if (!constantTimeEqual(actualHash, match[2])) {
             return jsonResponse(400, { error: 'Respuesta incorrecta.' }, origin);
         }
 
-        etapa = 'buscar el perfil vinculado';
         const { data: perfil, error: errorPerfil } = await admin
             .from('usuarios')
             .select('auth_user_id,requiere_cambio_clave')
@@ -200,25 +198,23 @@ deno.serve(async (request: Request) => {
             .maybeSingle();
         if (errorPerfil) {
             console.error('Recovery profile lookup failed:', errorPerfil.message);
-            return jsonResponse(500, { error: 'No se pudo preparar la recuperación.' }, origin);
+            return jsonResponse(500, { error: errorPerfil.message }, origin);
         }
         if (!perfil) return jsonResponse(404, { error: 'No se encontró el perfil de ZoarKids.' }, origin);
         if (!perfil.auth_user_id) {
             return jsonResponse(409, { error: 'Tu cuenta requiere ser vinculada, contacta al administrador' }, origin);
         }
 
-        etapa = 'marcar el cambio de contraseña pendiente';
         const { error: errorMarcarCambio } = await admin
             .from('usuarios')
             .update({ requiere_cambio_clave: true })
             .eq('email', email);
         if (errorMarcarCambio) {
             console.error('Required password-change flag update failed:', errorMarcarCambio.message);
-            return jsonResponse(500, { error: 'No se pudo marcar el cambio obligatorio de contraseña.' }, origin);
+            return jsonResponse(500, { error: errorMarcarCambio.message }, origin);
         }
 
         const temporaryPassword = generarContrasenaTemporal();
-        etapa = 'actualizar la contraseña en Supabase Auth';
         const { error: errorContrasena } = await admin.auth.admin.updateUserById(perfil.auth_user_id, {
             password: temporaryPassword
         });
@@ -233,13 +229,13 @@ deno.serve(async (request: Request) => {
                     console.error('Required password-change rollback failed:', errorReversion.message);
                 }
             }
-            return jsonResponse(500, { error: 'No se pudo actualizar la contraseña temporal en Supabase Auth.' }, origin);
+            return jsonResponse(500, { error: errorContrasena.message }, origin);
         }
         return jsonResponse(200, { temporary_password: temporaryPassword }, origin);
     } catch (error) {
         console.error('Security question recovery failed:', error);
         return jsonResponse(500, {
-            error: `No se pudo procesar la recuperación al ${etapa}. Consulta los registros de security-question-reset en Supabase.`
+            error: error instanceof Error ? error.message : String(error)
         }, origin);
     }
 });
