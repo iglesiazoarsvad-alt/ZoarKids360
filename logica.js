@@ -12,6 +12,7 @@ let contadorInterval = null;
 let usuarioTemporal = null;
 let ultimoErrorSupabase = '';
 let usuarioPendienteCambioClave = null;
+let recuperacionEnCurso = false;
 
 // ============ CONFIGURACIÓN DEL EASTER EGG ============
 const CLICS_REQUERIDOS_LOGO = 10;    // 10 clics en el logo para modo prueba maestro
@@ -35,6 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
     iniciarEasterEggs();
     configurarBarraSeguridad();
     configurarVisibilidadContrasenas();
+    configurarCorreosMinusculas();
 });
 
 function configurarVisibilidadContrasenas() {
@@ -65,6 +67,14 @@ function configurarVisibilidadContrasenas() {
             input.focus();
         });
         contenedor.appendChild(boton);
+    });
+}
+
+function configurarCorreosMinusculas() {
+    document.querySelectorAll('#correo, #recuperar-correo').forEach((input) => {
+        input.addEventListener('input', () => {
+            input.value = input.value.toLowerCase();
+        });
     });
 }
 
@@ -249,9 +259,16 @@ async function llamarFuncionSupabase(nombreFuncion, body, accessToken = '') {
         },
         body: JSON.stringify(body)
     });
-    const result = await response.json().catch(() => ({}));
+    const responseText = await response.text();
+    let result = {};
+    try {
+        result = responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        if (response.ok) throw new Error('El servicio de autenticación devolvió una respuesta no válida.');
+    }
     if (!response.ok) {
-        throw new Error(result.error || 'No se pudo completar la solicitud de autenticación.');
+        throw new Error(result.error || result.message || responseText.trim() ||
+            `No se pudo completar la solicitud de autenticación (HTTP ${response.status}).`);
     }
     return result;
 }
@@ -633,6 +650,11 @@ function leerUsuarioPersistente() {
 document.addEventListener('DOMContentLoaded', async function() {
     const tema = localStorage.getItem('zoarkids_tema_activo') || 'predeterminado';
     document.documentElement.setAttribute('data-tema', tema);
+    const errorAcceso = sessionStorage.getItem('zk360_error_acceso');
+    if (errorAcceso) {
+        sessionStorage.removeItem('zk360_error_acceso');
+        mostrarErrorLogin(errorAcceso);
+    }
     
     iniciarEasterEggs();
     
@@ -696,7 +718,9 @@ function initLoginEvents() {
             e.preventDefault();
             mostrarErrorLogin();
 
-            const correo = document.getElementById('correo').value.trim().toLowerCase();
+            const inputCorreo = document.getElementById('correo');
+            const correo = inputCorreo.value.trim().toLowerCase();
+            inputCorreo.value = correo;
             const clave = document.getElementById('clave').value;
 
             if (!esCorreoZoarValido(correo)) {
@@ -758,12 +782,24 @@ function initLoginEvents() {
                 ) || null;
                 perfilEncontrado = Boolean(perfil);
                 if (perfil) {
+                    if (perfil.activo === false) {
+                        sessionStorage.removeItem('zk360_supabase_session');
+                        sessionStorage.removeItem('zk360_usuario_activo');
+                        localStorage.removeItem('zk360_usuario_persistente');
+                        localStorage.removeItem('zk360_maestro_offline');
+                        mostrarErrorLogin('Esta cuenta está inactiva. Contacta al administrador para solicitar acceso.');
+                        return;
+                    }
                     intentosFallidos = 0;
                     if (perfil.requiere_cambio_clave === true) {
                         mostrarModalCambioClaveObligatorio(correo, { ...perfil, ...usuarioAuth });
                         return;
                     }
-                    autenticarUsuario(correo, { ...perfil, ...usuarioAuth });
+                    autenticarUsuario(correo, {
+                        ...perfil,
+                        ...usuarioAuth,
+                        pendingAuthorization: ['admin', 'maestro'].includes(perfil.rol) && perfil.autorizado !== true
+                    });
                     return;
                 }
                 if (usuarioAuth.app_metadata?.role === 'maestro') {
@@ -784,8 +820,16 @@ function initLoginEvents() {
             } catch (error) {
                 sessionStorage.removeItem('zk360_supabase_session');
                 const esCredencialIncorrecta = error.code === 'invalid_credentials';
+                const cuentaInactiva = /user.?banned|banned|inactive/i.test(error.message);
+                if (cuentaInactiva) {
+                    sessionStorage.removeItem('zk360_usuario_activo');
+                    localStorage.removeItem('zk360_usuario_persistente');
+                    localStorage.removeItem('zk360_maestro_offline');
+                }
                 const mensaje = /no se pudo conectar|failed to fetch|network|http 5\d\d/i.test(error.message)
                         ? 'No se pudo conectar con Supabase. Verifica tu conexión e inténtalo nuevamente.'
+                    : cuentaInactiva
+                        ? 'Esta cuenta está inactiva. Contacta al administrador para solicitar acceso.'
                     : esCredencialIncorrecta
                         ? error.message
                     : perfilEncontrado
@@ -1229,7 +1273,11 @@ async function migrarUsuarioLegacyConSupabase(email, password) {
         if (response.status === 409) {
             throw new Error(resultado.error || 'La cuenta requiere asistencia del administrador para vincularse con Auth.');
         }
-        if (response.status === 401 || response.status === 404) {
+        if (response.status === 404) {
+            throw new Error(resultado.error ||
+                'El servicio migrate-legacy-auth no está desplegado en Supabase. Despliégalo para habilitar el acceso de cuentas heredadas.');
+        }
+        if (response.status === 401) {
             const error = new Error('Supabase Authentication rechazó el correo y la contraseña. Verifica tus credenciales.');
             error.code = 'invalid_credentials';
             throw error;
@@ -1459,7 +1507,9 @@ function autenticarUsuario(correo, usuario) {
 }
 
 async function usarPreguntaSeguridad() {
-    const email = document.getElementById('recuperar-correo').value.trim().toLowerCase();
+    const inputCorreo = document.getElementById('recuperar-correo');
+    const email = inputCorreo.value.trim().toLowerCase();
+    inputCorreo.value = email;
     if (!esCorreoZoarValido(email)) {
         mostrarNotificacion('Ingresa un correo válido @iglesiazoarsv.org', 'error');
         return;
@@ -1491,12 +1541,22 @@ async function usarPreguntaSeguridad() {
 }
 
 async function validarRespuestaSeguridad() {
+    if (recuperacionEnCurso) return;
     const respuesta = document.getElementById('recuperar-respuesta').value.trim().toLowerCase();
     const email = document.getElementById('recuperar-respuesta').dataset.email;
 
     if (!respuesta || respuesta.length < 2) {
         mostrarNotificacion('Escribe tu respuesta', 'error');
         return;
+    }
+
+    const boton = document.getElementById('btn-validar-respuesta');
+    const textoOriginal = boton?.textContent;
+    recuperacionEnCurso = true;
+    if (boton) {
+        boton.disabled = true;
+        boton.setAttribute('aria-busy', 'true');
+        boton.textContent = 'Generando contraseña temporal…';
     }
 
     try {
@@ -1517,6 +1577,13 @@ async function validarRespuestaSeguridad() {
     } catch (error) {
         console.error("Error:", error);
         mostrarNotificacion(error.message || 'Error al validar respuesta', 'error');
+    } finally {
+        recuperacionEnCurso = false;
+        if (boton) {
+            boton.disabled = false;
+            boton.removeAttribute('aria-busy');
+            boton.textContent = textoOriginal || 'Validar respuesta';
+        }
     }
 }
 
@@ -1527,9 +1594,12 @@ function mostrarClaveTemporal(clave) {
         modal.id = 'modal-clave-temporal';
         modal.className = 'modal-overlay';
         modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'titulo-clave-temporal');
         modal.innerHTML = `
             <div class="modal-burbuja">
-                <h3><i class="fa-solid fa-key"></i> Contraseña temporal</h3>
+                <h3 id="titulo-clave-temporal"><i class="fa-solid fa-key"></i> Contraseña temporal</h3>
                 <p>Esta clave temporal ya está activa. Cópiala, inicia sesión con ella y establece una contraseña nueva antes de entrar al panel.</p>
                 <input id="clave-temporal-valor" type="text" readonly
                     style="width:100%; text-align:center; font-size:20px; font-weight:bold; margin:12px 0;">
@@ -1547,6 +1617,9 @@ function mostrarClaveTemporal(clave) {
     document.getElementById('clave-temporal-valor').value = clave;
     modal.style.display = 'flex';
     modal.classList.add('activo');
+    const campoClave = document.getElementById('clave-temporal-valor');
+    campoClave.focus();
+    campoClave.select();
 }
 
 function cerrarModalClaveTemporal() {

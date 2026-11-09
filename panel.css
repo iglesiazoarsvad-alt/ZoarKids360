@@ -1370,6 +1370,26 @@ main {
     background: #fff;
 }
 
+.filtros-usuarios-admin,
+.acciones-usuarios-admin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.filtros-usuarios-admin {
+    margin: 14px 0;
+}
+
+.filtros-usuarios-admin button[aria-pressed="true"] {
+    outline: 2px solid var(--azul-botones);
+    outline-offset: 2px;
+}
+
+.acciones-usuarios-admin .btn-admin {
+    white-space: nowrap;
+}
+
 #lista-usuarios-admin .tabla-datos {
     width: 100%;
     border-collapse: collapse;

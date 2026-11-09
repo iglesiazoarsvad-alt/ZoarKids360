@@ -1697,11 +1697,13 @@
                     <div class="cabecera-asistencia">
                         <div>
                             <h3><i class="fa-solid fa-users-gear"></i> Administración de usuarios</h3>
-                            <p class="subtitulo-modulo">Invita y autoriza maestros y administradores.</p>
+                            <p class="subtitulo-modulo">Aprueba cuentas pendientes y controla el acceso de cada maestro.</p>
                         </div>
-                        <button class="btn-admin" id="btn-agregar-maestro" type="button">
-                            <i class="fa-solid fa-user-plus"></i> Agregar Maestro
-                        </button>
+                    </div>
+                    <div class="filtros-usuarios-admin" role="group" aria-label="Filtrar usuarios por estado">
+                        <button type="button" class="btn-admin" data-filtro-usuarios="pendiente" aria-pressed="true">En espera</button>
+                        <button type="button" class="btn-admin" data-filtro-usuarios="activo" aria-pressed="false">Activos</button>
+                        <button type="button" class="btn-admin" data-filtro-usuarios="inactivo" aria-pressed="false">Inactivos</button>
                     </div>
                     <p id="estado-usuarios-admin" role="status" aria-live="polite"></p>
                     <div id="lista-usuarios-admin" aria-live="polite"></div>
@@ -1796,37 +1798,6 @@
                 style="margin-top:15px; width:100%;">Cerrar</button>
         </div>
     </div>
-    <div id="modal-agregar-maestro" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true"
-        aria-labelledby="titulo-modal-agregar-maestro">
-        <div class="modal-burbuja">
-            <h3 id="titulo-modal-agregar-maestro"><i class="fa-solid fa-user-plus"></i> Agregar usuario</h3>
-            <form id="form-agregar-maestro">
-                <div class="campo">
-                    <label for="admin-usuario-nombre">Nombre</label>
-                    <input id="admin-usuario-nombre" name="nombre" class="input-txt" autocomplete="name"
-                        minlength="2" maxlength="100" required>
-                </div>
-                <div class="campo">
-                    <label for="admin-usuario-email">Correo</label>
-                    <input id="admin-usuario-email" name="email" type="email" class="input-txt"
-                        autocomplete="email" required>
-                </div>
-                <div class="campo">
-                    <label for="admin-usuario-rol">Rol</label>
-                    <select id="admin-usuario-rol" name="rol" class="input-txt" required>
-                        <option value="maestro">Maestro/a</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <p id="error-agregar-maestro" role="alert"></p>
-                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
-                    <button id="btn-cancelar-agregar-maestro" type="button" class="btn-cerrar-modal">Cancelar</button>
-                    <button id="btn-guardar-maestro" type="submit" class="btn-enviar-clase">Enviar invitación</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <div id="modal-registro-niño" class="modal-overlay">
         <div class="modal-burbuja modal-burbuja-mejorada">
             <div class="modal-header" style="text-align:center; margin-bottom:20px;">
@@ -2351,7 +2322,7 @@
     <script src="offline-store.js"></script>
     <script src="firebase-notificaciones.js"></script>
     <script src="onboarding.js"></script>
-    <script src="panel.js?v=20261027-8"></script>
+    <script src="panel.js?v=20261109-2"></script>
     <script>
         // Exponer globalmente la función usada por los onclick del cronograma.
         window.verLeccionDesdeCronograma = function (seccion) {

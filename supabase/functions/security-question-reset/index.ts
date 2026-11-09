@@ -85,6 +85,7 @@ deno.serve(async (request: Request) => {
         return jsonResponse(500, { error: 'Servicio de recuperación no configurado.' }, origin);
     }
 
+    let etapa = 'validar la solicitud';
     try {
         const body = await request.json();
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -146,6 +147,7 @@ deno.serve(async (request: Request) => {
             return jsonResponse(200, { ok: true }, origin);
         }
 
+        etapa = 'comprobar el límite de intentos';
         const { data: permitida, error: errorLimite } = await admin.rpc(
             'allow_security_question_attempt',
             { p_email: email }
@@ -158,6 +160,7 @@ deno.serve(async (request: Request) => {
             return jsonResponse(429, { error: 'Demasiados intentos. Inténtalo más tarde.' }, origin);
         }
 
+        etapa = 'buscar la pregunta de seguridad';
         const { data: pregunta, error: errorPregunta } = await admin
             .from('preguntas_seguridad')
             .select('email,pregunta,respuesta_hash')
@@ -183,11 +186,13 @@ deno.serve(async (request: Request) => {
             console.error('Invalid or unhashed security answer stored for account.');
             return jsonResponse(500, { error: 'La pregunta de seguridad requiere restablecimiento por un administrador.' }, origin);
         }
+        etapa = 'comprobar la respuesta';
         const actualHash = await hashAnswer(match[1], answer);
         if (!constantTimeEqual(actualHash, match[2])) {
             return jsonResponse(400, { error: 'Respuesta incorrecta.' }, origin);
         }
 
+        etapa = 'buscar el perfil vinculado';
         const { data: perfil, error: errorPerfil } = await admin
             .from('usuarios')
             .select('auth_user_id,requiere_cambio_clave')
@@ -202,6 +207,7 @@ deno.serve(async (request: Request) => {
             return jsonResponse(409, { error: 'Tu cuenta requiere ser vinculada, contacta al administrador' }, origin);
         }
 
+        etapa = 'marcar el cambio de contraseña pendiente';
         const { error: errorMarcarCambio } = await admin
             .from('usuarios')
             .update({ requiere_cambio_clave: true })
@@ -212,6 +218,7 @@ deno.serve(async (request: Request) => {
         }
 
         const temporaryPassword = generarContrasenaTemporal();
+        etapa = 'actualizar la contraseña en Supabase Auth';
         const { error: errorContrasena } = await admin.auth.admin.updateUserById(perfil.auth_user_id, {
             password: temporaryPassword
         });
@@ -231,6 +238,8 @@ deno.serve(async (request: Request) => {
         return jsonResponse(200, { temporary_password: temporaryPassword }, origin);
     } catch (error) {
         console.error('Security question recovery failed:', error);
-        return jsonResponse(500, { error: 'No se pudo procesar la recuperación.' }, origin);
+        return jsonResponse(500, {
+            error: `No se pudo procesar la recuperación al ${etapa}. Consulta los registros de security-question-reset en Supabase.`
+        }, origin);
     }
 });

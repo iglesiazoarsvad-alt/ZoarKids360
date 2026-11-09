@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zoarkids-shell-v16';
+const CACHE_NAME = 'zoarkids-shell-v19';
 const APP_SHELL = [
     './index.html',
     './panel.html',

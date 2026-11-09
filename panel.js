@@ -75,6 +75,10 @@ let chatPersonalCon = null;
 let secuenciaCargaMensajes = 0;
 let intervaloActualizacionChat = null;
 let intervaloBadgeChat = null;
+let intervaloAutorizacionPendiente = null;
+let proximaActualizacionTokenPendiente = 0;
+let verificandoAutorizacionPendiente = false;
+let filtroUsuariosAdministrador = 'pendiente';
 let promesaSDKStorage = null;
 let solicitudesPendientes = [];
 let parejasRechazadas = [];
@@ -363,6 +367,7 @@ window.seleccionarTemaDesdeMenu = function(temaId) {
 // ============ FUNCIONES DE SUPABASE ============
 async function llamarSupabase(endpoint, opciones = {}) {
     ultimoStatusHttpSupabase = null;
+    ultimoErrorSupabase = '';
     if (modoPrueba) {
         try {
             const [tabla, query = ''] = endpoint.split('?');
@@ -511,7 +516,18 @@ async function llamarSupabase(endpoint, opciones = {}) {
 
     if (!response.ok) {
         ultimoStatusHttpSupabase = response.status;
-        const error = new Error('Supabase respondió con HTTP ' + response.status);
+        const detalle = await response.text().catch(() => '');
+        let mensaje = '';
+        try {
+            const json = detalle ? JSON.parse(detalle) : {};
+            mensaje = json.message || json.details || json.hint || '';
+        } catch (error) {
+            mensaje = detalle;
+        }
+        const error = new Error(
+            `Supabase respondió con HTTP ${response.status}${mensaje ? `: ${mensaje}` : ''}`
+        );
+        ultimoErrorSupabase = error.message;
         console.error("Error en Supabase:", error);
         if (response.status === 401) sessionStorage.removeItem('zk360_supabase_session');
         mostrarNotificacion(error.message, "error");
@@ -711,10 +727,123 @@ async function cargarAlumnos(seccion = null) {
 async function validarUsuarioRegistrado(email) {
     if (!email) return false;
     const usuarios = await llamarSupabase(
-        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,auth_user_id'
+        'usuarios?email=eq.' + encodeURIComponent(email) + '&select=email,nombre,rol,pareja,seccion,auth_user_id,autorizado,activo'
     );
     if (usuarios === null) return null;
     return usuarios.length > 0 ? usuarios[0] : false;
+}
+
+async function actualizarTokenAutorizacionPendiente() {
+    const ahora = Date.now();
+    if (ahora < proximaActualizacionTokenPendiente) return;
+    proximaActualizacionTokenPendiente = ahora + 5 * 60 * 1000;
+    const sesion = (() => {
+        try {
+            return JSON.parse(sessionStorage.getItem('zk360_supabase_session') || '{}');
+        } catch {
+            return {};
+        }
+    })();
+    if (!sesion.refresh_token) return;
+
+    try {
+        const respuesta = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refresh_token: sesion.refresh_token })
+        });
+        const refrescada = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok || !refrescada.access_token) {
+            console.error("Could not refresh pending user's session:", refrescada.message || respuesta.status);
+            return;
+        }
+        sessionStorage.setItem('zk360_supabase_session', JSON.stringify({
+            access_token: refrescada.access_token,
+            refresh_token: refrescada.refresh_token,
+            expires_at: refrescada.expires_at,
+            user: refrescada.user
+        }));
+    } catch (error) {
+        console.error('Could not refresh pending user session:', error);
+    }
+}
+
+async function verificarAutorizacionPendiente() {
+    if (verificandoAutorizacionPendiente || !navigator.onLine || modoOffline || modoPrueba) return;
+    verificandoAutorizacionPendiente = true;
+    try {
+        await actualizarTokenAutorizacionPendiente();
+        const perfil = await validarUsuarioRegistrado(usuarioSesion?.email);
+        if (perfil?.activo === false) {
+            cerrarSesionCuentaInactiva();
+            return;
+        }
+        if (!perfil) return;
+        if (perfil.autorizado !== true) {
+            if (!usuarioPendienteAutorizacion) cerrarSesionCuentaInactiva();
+            return;
+        }
+        if (!usuarioPendienteAutorizacion) return;
+
+        usuarioSesion = { ...usuarioSesion, ...perfil, pendingAuthorization: false };
+        usuarioPendienteAutorizacion = false;
+        seccionAsignadaMaestro = perfil.seccion || null;
+        sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
+        localStorage.setItem('zk360_usuario_persistente', JSON.stringify(usuarioSesion));
+        if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
+            localStorage.setItem('zk360_maestro_offline', JSON.stringify({
+                nombre: usuarioSesion.nombre,
+                email: usuarioSesion.email,
+                rol: 'maestro',
+                pareja: usuarioSesion.pareja || null,
+                seccion: usuarioSesion.seccion,
+                guardado_en: new Date().toISOString(),
+                expira_en: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            }));
+        }
+        document.querySelectorAll('.menu-link[data-vista]').forEach(link => {
+            link.hidden = false;
+            link.style.display = '';
+        });
+        const menuConfiguracion = document.getElementById('menu-configuracion');
+        const menuActividades = document.getElementById('menu-actividades');
+        if (menuConfiguracion) menuConfiguracion.style.display = usuarioSesion.rol === 'maestro' ? 'none' : 'flex';
+        if (menuActividades) menuActividades.style.display = usuarioSesion.rol === 'maestro' ? 'flex' : 'none';
+        document.querySelectorAll('[data-admin-only]').forEach(tab => {
+            tab.hidden = usuarioSesion.rol !== 'admin';
+        });
+        gestionarPermisosHistorial();
+        procesarCalendario();
+        const aviso = document.getElementById('mensaje-pendiente-autorizacion');
+        if (aviso) aviso.hidden = true;
+        const detalles = document.getElementById('dashboard-details');
+        if (detalles) detalles.hidden = false;
+        mostrarNotificacion('El administrador autorizó tu cuenta. Ya tienes acceso a ZoarKids 360.', 'success');
+        if (!modoPrueba && !modoOffline) void registrarPush();
+        await cargarConfiguracionHorario(false);
+        await verificarBloqueoSustituto();
+        await cargarAlumnosSegunRol();
+        await cargarDashboard();
+        cargarBiblioteca();
+        cargarGaleria('todas');
+        cargarChats();
+    } finally {
+        verificandoAutorizacionPendiente = false;
+    }
+}
+
+function cerrarSesionCuentaInactiva() {
+    sessionStorage.removeItem('zk360_supabase_session');
+    sessionStorage.removeItem('zk360_usuario_activo');
+    sessionStorage.removeItem('zk360_modo_offline');
+    localStorage.removeItem('zk360_usuario_persistente');
+    localStorage.removeItem('zk360_maestro_offline');
+    sessionStorage.setItem('zk360_error_acceso', 'Esta cuenta está inactiva. Contacta al administrador para solicitar acceso.');
+    window.location.replace('index.html');
 }
 
 async function guardarAlumno(alumno) {
@@ -1089,7 +1218,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         window.location.href = "index.html"; 
         return; 
     }
-    usuarioPendienteAutorizacion = usuarioSesion.pendingAuthorization === true;
+    usuarioPendienteAutorizacion = usuarioSesion.pendingAuthorization === true ||
+        (modoOffline && ['maestro', 'admin'].includes(usuarioSesion.rol) && usuarioSesion.autorizado !== true);
     configurarBannerOffline();
     esClaveTemporal = sessionStorage.getItem('zk360_clave_temporal') === 'true' ||
         localStorage.getItem(`zk360_clave_temporal_${String(usuarioSesion.email || '').toLowerCase()}`) === 'true';
@@ -1114,7 +1244,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!modoPrueba && !modoOffline && navigator.onLine) {
         const usuarioRegistrado = await validarUsuarioRegistrado(usuarioSesion.email);
         if (usuarioRegistrado === false) {
-            if (usuarioSesion.rol === 'maestro') {
+            if (['maestro', 'admin'].includes(usuarioSesion.rol)) {
                 usuarioPendienteAutorizacion = true;
                 usuarioSesion = {
                     ...usuarioSesion,
@@ -1122,19 +1252,34 @@ window.addEventListener('DOMContentLoaded', async () => {
                     pendingAuthorization: true
                 };
                 sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
+                localStorage.removeItem('zk360_usuario_persistente');
+                localStorage.removeItem('zk360_maestro_offline');
             } else {
                 sessionStorage.removeItem('zk360_usuario_activo');
                 localStorage.removeItem('zk360_usuario_persistente');
                 window.location.replace('index.html');
                 return;
             }
+            if (usuarioRegistrado?.activo === false) {
+                cerrarSesionCuentaInactiva();
+                return;
+            }
+        }
+        if (usuarioRegistrado === null && ['maestro', 'admin'].includes(usuarioSesion.rol)) {
+            usuarioPendienteAutorizacion = true;
+            usuarioSesion.pendingAuthorization = true;
+            sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
         }
         if (usuarioRegistrado) {
-            usuarioPendienteAutorizacion = false;
             usuarioSesion = { ...usuarioSesion, ...usuarioRegistrado };
-            delete usuarioSesion.pendingAuthorization;
+            usuarioPendienteAutorizacion = ['maestro', 'admin'].includes(usuarioSesion.rol) &&
+                usuarioSesion.autorizado !== true;
+            usuarioSesion.pendingAuthorization = usuarioPendienteAutorizacion;
             sessionStorage.setItem('zk360_usuario_activo', JSON.stringify(usuarioSesion));
-            if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
+            if (usuarioPendienteAutorizacion) {
+                localStorage.removeItem('zk360_usuario_persistente');
+                localStorage.removeItem('zk360_maestro_offline');
+            } else if (usuarioSesion.rol === 'maestro' && usuarioSesion.seccion) {
                 localStorage.setItem('zk360_maestro_offline', JSON.stringify({
                     nombre: usuarioSesion.nombre,
                     email: usuarioSesion.email,
@@ -1145,7 +1290,7 @@ window.addEventListener('DOMContentLoaded', async () => {
                     expira_en: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
                 }));
             }
-            if (localStorage.getItem('zk360_usuario_persistente')) {
+            if (!usuarioPendienteAutorizacion && localStorage.getItem('zk360_usuario_persistente')) {
                 localStorage.setItem('zk360_usuario_persistente', JSON.stringify(usuarioSesion));
             }
         }
@@ -1298,6 +1443,11 @@ if (usuarioSesion?.rol !== 'admin') {
     window.addEventListener('offline', () => publicarEstadoColaOffline());
     if (!usuarioPendienteAutorizacion) await sincronizarCambiosOffline();
     publicarEstadoColaOffline(modoOffline && !sessionStorage.getItem('zk360_supabase_session'));
+    if (!modoOffline && !modoPrueba && navigator.onLine) {
+        clearInterval(intervaloAutorizacionPendiente);
+        intervaloAutorizacionPendiente = setInterval(verificarAutorizacionPendiente, 15000);
+        window.addEventListener('focus', verificarAutorizacionPendiente);
+    }
 
     if (usuarioPendienteAutorizacion) {
         // Keep pending accounts on the restricted dashboard without loading test data.
@@ -1539,31 +1689,15 @@ function configurarNavegacion() {
             activarPestanaConfiguracion(this.dataset.configTab, this);
         });
     });
-    const btnAgregarMaestro = document.getElementById('btn-agregar-maestro');
-    const modalAgregarMaestro = document.getElementById('modal-agregar-maestro');
-    const errorAgregarMaestro = document.getElementById('error-agregar-maestro');
-    btnAgregarMaestro?.addEventListener('click', () => {
-        if (usuarioSesion?.rol !== 'admin') return;
-        if (!modalAgregarMaestro) {
-            console.error('No se encontró el modal para agregar usuarios.');
-            mostrarNotificacion('No se pudo abrir el formulario de usuarios.', 'error');
-            return;
-        }
-        if (errorAgregarMaestro) errorAgregarMaestro.textContent = '';
-        modalAgregarMaestro.classList.add('activo');
-        modalAgregarMaestro.setAttribute('aria-hidden', 'false');
-        document.getElementById('admin-usuario-nombre')?.focus();
+    document.querySelectorAll('[data-filtro-usuarios]').forEach(button => {
+        button.addEventListener('click', () => {
+            filtroUsuariosAdministrador = button.dataset.filtroUsuarios || 'pendiente';
+            document.querySelectorAll('[data-filtro-usuarios]').forEach(filtro => {
+                filtro.setAttribute('aria-pressed', String(filtro === button));
+            });
+            cargarUsuariosAdministrador();
+        });
     });
-    document.getElementById('btn-cancelar-agregar-maestro')?.addEventListener('click', () => {
-        modalAgregarMaestro?.classList.remove('activo');
-        modalAgregarMaestro?.setAttribute('aria-hidden', 'true');
-    });
-    modalAgregarMaestro?.addEventListener('click', event => {
-        if (event.target !== modalAgregarMaestro) return;
-        modalAgregarMaestro.classList.remove('activo');
-        modalAgregarMaestro.setAttribute('aria-hidden', 'true');
-    });
-    document.getElementById('form-agregar-maestro')?.addEventListener('submit', guardarUsuarioAdministrador);
 
     const triggerMenu = document.getElementById('trigger-menu');
     if (triggerMenu) {
@@ -2763,16 +2897,29 @@ function normalizarSeccionDashboard(seccion) {
     return '';
 }
 
-function calcularPromedioAsistencia(alumnos, seccionFiltro = null) {
+function contarDomingosTranscurridos(fechaReferencia = new Date()) {
+    const inicio = new Date(fechaReferencia.getFullYear(), 0, 1);
+    const limite = new Date(fechaReferencia.getFullYear(), fechaReferencia.getMonth(), fechaReferencia.getDate());
+    let domingos = 0;
+    for (const fecha = new Date(inicio); fecha <= limite; fecha.setDate(fecha.getDate() + 1)) {
+        if (fecha.getDay() === 0) domingos++;
+    }
+    return domingos;
+}
+
+function calcularPromedioAsistencia(alumnos, seccionFiltro = null, fechaReferencia = new Date()) {
     const alumnosFiltrados = (Array.isArray(alumnos) ? alumnos : []).filter(alumno =>
         !seccionFiltro || normalizarSeccionDashboard(alumno.seccion) === seccionFiltro
     );
-    if (!alumnosFiltrados.length) return 0;
+    const domingosTranscurridos = contarDomingosTranscurridos(fechaReferencia);
+    if (!alumnosFiltrados.length || domingosTranscurridos === 0) return 0;
     const totalClases = alumnosFiltrados.reduce(
         (total, alumno) => total + Math.max(0, Number(alumno.clases_totales) || 0),
         0
     );
-    return Math.round((totalClases / alumnosFiltrados.length) * 100);
+    return Math.min(100, Math.round(
+        (totalClases / (alumnosFiltrados.length * domingosTranscurridos)) * 100
+    ));
 }
 
 function renderizarDashboard(data) {
@@ -3331,8 +3478,9 @@ async function cargarFeedbackAdministrador() {
     cargando.textContent = 'Cargando sugerencias y reportes…';
     lista.appendChild(cargando);
     try {
-        const registros = await llamarSupabase('sugerencias?select=*&order=fecha.desc&limit=100');
+        const registros = await llamarSupabase('sugerencias?select=*&limit=100');
         if (!Array.isArray(registros)) throw new Error('No se pudieron cargar los mensajes.');
+        registros.sort((a, b) => new Date(b.fecha || 0).getTime() - new Date(a.fecha || 0).getTime());
         const pendientes = registros.filter(registro =>
             ['sugerencia', 'reporte'].includes(registro.tipo) &&
             !['atendida', 'resuelta', 'cerrada', 'finalizado'].includes(registro.estado)
@@ -4864,6 +5012,13 @@ function actualizarBadgeChatConConteo(conteo) {
     badge.style.cssText = 'margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;';
 }
 
+function ordenarMensajesRecientes(mensajes) {
+    return [...mensajes].sort((a, b) =>
+        new Date(b.creado_en || b.created_at || 0).getTime() -
+        new Date(a.creado_en || a.created_at || 0).getTime()
+    );
+}
+
 async function actualizarBadgeChat() {
     if (!usuarioSesion?.email || !navigator.onLine && !modoPrueba) return;
     try {
@@ -4873,9 +5028,9 @@ async function actualizarBadgeChat() {
             : [];
         const correoUsuario = encodeURIComponent(usuarioSesion.email);
         const [mensajesGrupo, mensajesDirectos] = await Promise.all([
-            llamarSupabase('mensajes?receptor=is.null&order=id.desc&limit=1000'),
+            llamarSupabase('mensajes?receptor=is.null&limit=1000'),
             contactos.length
-                ? llamarSupabase(`mensajes?or=(emisor.eq.${correoUsuario},receptor.eq.${correoUsuario})&receptor=not.is.null&order=id.desc&limit=1000`)
+                ? llamarSupabase(`mensajes?or=(emisor.eq.${correoUsuario},receptor.eq.${correoUsuario})&receptor=not.is.null&limit=1000`)
                 : Promise.resolve([])
         ]);
         if (!Array.isArray(mensajesGrupo) || !Array.isArray(mensajesDirectos)) return;
@@ -4995,7 +5150,7 @@ async function cargarMensajesGrupales() {
         container.scrollHeight - container.scrollTop - container.clientHeight < 60;
     
     try {
-        const mensajes = await llamarSupabase("mensajes?receptor=is.null&order=id.desc&limit=100");
+        const mensajes = await llamarSupabase('mensajes?receptor=is.null&limit=100');
         if (secuencia !== secuenciaCargaMensajes || !chatGrupalAbierto) return;
         if (!Array.isArray(mensajes)) {
             mostrarEstadoChat('No se pudieron cargar los mensajes. Revisa la conexión y los permisos del chat.', true);
@@ -5007,7 +5162,7 @@ async function cargarMensajesGrupales() {
         }
         marcarChatLeido('grupo', mensajes);
         container.replaceChildren();
-        mensajes.slice().reverse().filter(m => !mensajeOcultoParaUsuario(m))
+        ordenarMensajesRecientes(mensajes).reverse().filter(m => !mensajeOcultoParaUsuario(m))
             .forEach(m => container.appendChild(crearElementoMensajeChat(m, true)));
         container.dataset.inicializado = 'true';
         if (mantenerAbajo) container.scrollTop = container.scrollHeight;
@@ -5029,7 +5184,7 @@ async function cargarMensajesPersonales(email) {
         const usuario = encodeURIComponent(usuarioSesion.email);
         const contacto = encodeURIComponent(email);
         const filtro = `or=(and(emisor.eq.${usuario},receptor.eq.${contacto}),and(emisor.eq.${contacto},receptor.eq.${usuario}))`;
-        const mensajes = await llamarSupabase(`mensajes?${filtro}&order=id.desc&limit=100`);
+        const mensajes = await llamarSupabase(`mensajes?${filtro}&limit=100`);
         if (secuencia !== secuenciaCargaMensajes || chatGrupalAbierto || chatPersonalCon !== email) return;
         if (!Array.isArray(mensajes)) {
             mostrarEstadoChat('No se pudieron cargar los mensajes. Revisa la conexión y los permisos del chat.', true);
@@ -5039,7 +5194,7 @@ async function cargarMensajesPersonales(email) {
             mostrarEstadoChat('Todavía no hay mensajes con este contacto.');
             return;
         }
-        const filtrados = mensajes.filter(m =>
+        const filtrados = ordenarMensajesRecientes(mensajes).filter(m =>
             (m.emisor === usuarioSesion.email && m.receptor === email) ||
             (m.emisor === email && m.receptor === usuarioSesion.email)
         ).reverse();
@@ -5812,52 +5967,104 @@ async function cargarUsuariosAdministrador() {
     const estado = document.getElementById('estado-usuarios-admin');
     if (!lista || !estado) return;
     estado.textContent = 'Cargando usuarios...';
-    const usuarios = await llamarSupabase(
-        'usuarios?select=email,nombre,rol&order=nombre.asc'
+    let usuarios = await llamarSupabase(
+        'usuarios?select=email,nombre,rol,auth_user_id,autorizado,activo&order=nombre.asc'
     );
+    let faltaColumnaActivo = false;
+    if (!Array.isArray(usuarios) && /activo.*(does not exist|not found|column)|42703/i.test(ultimoErrorSupabase)) {
+        usuarios = await llamarSupabase(
+            'usuarios?select=email,nombre,rol,auth_user_id,autorizado&order=nombre.asc'
+        );
+        if (Array.isArray(usuarios)) {
+            usuarios = usuarios.map(usuario => ({ ...usuario, activo: true }));
+            faltaColumnaActivo = true;
+        }
+    }
     if (!Array.isArray(usuarios)) {
         estado.textContent = ultimoErrorSupabase || 'No se pudieron cargar los usuarios.';
         return;
     }
+    const pendientes = usuarios.filter(usuario => usuario.autorizado !== true);
+    const activos = usuarios.filter(usuario => usuario.autorizado === true && usuario.activo !== false);
+    const inactivos = usuarios.filter(usuario => usuario.autorizado === true && usuario.activo === false);
+    const visibles = usuarios.filter(usuario => {
+        if (filtroUsuariosAdministrador === 'pendiente') return usuario.autorizado !== true;
+        if (filtroUsuariosAdministrador === 'inactivo') return usuario.autorizado === true && usuario.activo === false;
+        return usuario.autorizado === true && usuario.activo !== false;
+    });
     lista.replaceChildren();
-    if (!usuarios.length) {
-        estado.textContent = 'No hay usuarios registrados.';
+    if (!visibles.length) {
+        estado.textContent = [
+            `Total: ${usuarios.length}; ${pendientes.length} en espera, ${activos.length} activos y ${inactivos.length} inactivos. No hay cuentas en esta sección.`,
+            faltaColumnaActivo ? 'Aplica la migración 202611010003_user_authorization.sql para habilitar activar/desactivar.' : ''
+        ].filter(Boolean).join(' ');
         return;
     }
     const tabla = document.createElement('table');
     tabla.className = 'tabla-datos';
     const encabezado = tabla.createTHead().insertRow();
-    ['Nombre', 'Correo', 'Rol'].forEach(texto => {
+    ['Nombre', 'Correo', 'Rol', 'Estado', 'Acción'].forEach(texto => {
         const celda = document.createElement('th');
         celda.textContent = texto;
         encabezado.appendChild(celda);
     });
     const cuerpo = tabla.createTBody();
-    usuarios.forEach(usuario => {
+    visibles.forEach(usuario => {
         const fila = cuerpo.insertRow();
         [usuario.nombre, usuario.email, usuario.rol].forEach(valor => {
             const celda = fila.insertCell();
             celda.textContent = String(valor || '');
         });
+        const estadoCelda = fila.insertCell();
+        const pendiente = usuario.autorizado !== true;
+        const activo = usuario.activo !== false;
+        estadoCelda.textContent = pendiente ? 'En espera' : activo ? 'Activo' : 'Inactivo';
+        const accionCelda = fila.insertCell();
+        if (usuario.rol !== 'maestro') {
+            accionCelda.textContent = '—';
+            return;
+        }
+        const acciones = document.createElement('div');
+        acciones.className = 'acciones-usuarios-admin';
+        const accionesDisponibles = pendiente
+            ? [
+                { accion: 'approve', texto: 'Aprobar' },
+                { accion: 'reject', texto: 'Reprobar', peligro: true }
+            ]
+            : activo
+                ? [{ accion: 'deactivate', texto: 'Desactivar', peligro: true }]
+                : [{ accion: 'activate', texto: 'Activar' }];
+        accionesDisponibles.forEach(({ accion, texto, peligro }) => {
+            const boton = document.createElement('button');
+            boton.type = 'button';
+            boton.className = peligro ? 'btn-admin btn-danger' : 'btn-admin';
+            boton.textContent = texto;
+            if (faltaColumnaActivo) {
+                boton.disabled = true;
+                boton.title = 'Aplica la migración 202611010003_user_authorization.sql en Supabase.';
+            }
+            boton.addEventListener('click', () => actualizarAccesoUsuarioAdministrador(usuario, accion, boton));
+            acciones.appendChild(boton);
+        });
+        accionCelda.appendChild(acciones);
     });
     lista.appendChild(tabla);
-    estado.textContent = `${usuarios.length} usuario(s).`;
+    estado.textContent = [
+        `Total: ${usuarios.length}; ${pendientes.length} en espera, ${activos.length} activos y ${inactivos.length} inactivos.`,
+        faltaColumnaActivo ? 'Aplica la migración 202611010003_user_authorization.sql para habilitar activar/desactivar.' : ''
+    ].filter(Boolean).join(' ');
 }
 
-async function guardarUsuarioAdministrador(event) {
-    event.preventDefault();
+async function actualizarAccesoUsuarioAdministrador(usuario, accion, boton) {
     if (usuarioSesion?.rol !== 'admin') {
-        mostrarNotificacion('Solo el administrador puede agregar usuarios.', 'error');
+        mostrarNotificacion('Solo el administrador puede gestionar usuarios.', 'error');
         return;
     }
-    const nombre = document.getElementById('admin-usuario-nombre')?.value.trim() || '';
-    const email = document.getElementById('admin-usuario-email')?.value.trim().toLowerCase() || '';
-    const rol = document.getElementById('admin-usuario-rol')?.value || '';
-    const errorEl = document.getElementById('error-agregar-maestro');
-    const boton = document.getElementById('btn-guardar-maestro');
-    if (!nombre || nombre.length < 2 || !/^[^@\s]+@iglesiazoarsv\.org$/.test(email) ||
-        !['admin', 'maestro'].includes(rol)) {
-        if (errorEl) errorEl.textContent = 'Ingresa un nombre, un correo oficial válido y un rol permitido.';
+    const confirmaciones = {
+        reject: 'La cuenta seguirá en espera y no tendrá acceso. ¿Continuar?',
+        deactivate: 'El maestro ya no podrá iniciar sesión. ¿Desactivar su cuenta?'
+    };
+    if (confirmaciones[accion] && !window.confirm(confirmaciones[accion])) {
         return;
     }
     const sesion = (() => {
@@ -5868,13 +6075,14 @@ async function guardarUsuarioAdministrador(event) {
         }
     })();
     if (!sesion.access_token || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        if (errorEl) errorEl.textContent = 'La sesión de administrador expiró. Inicia sesión nuevamente.';
+        mostrarNotificacion('La sesión de administrador expiró. Inicia sesión nuevamente.', 'error');
         return;
     }
-    if (boton) boton.disabled = true;
-    if (errorEl) errorEl.textContent = '';
+    const textoOriginal = boton.textContent;
+    boton.disabled = true;
+    boton.textContent = 'Procesando...';
     try {
-        const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/admin-create-user`, {
+        const response = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/admin-update-user-access`, {
             method: 'POST',
             cache: 'no-store',
             headers: {
@@ -5882,21 +6090,18 @@ async function guardarUsuarioAdministrador(event) {
                 Authorization: `Bearer ${sesion.access_token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ nombre, email, rol })
+            body: JSON.stringify({ email: usuario.email, action: accion })
         });
         const resultado = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(resultado.error || `No se pudo crear el usuario (${response.status}).`);
-        document.getElementById('form-agregar-maestro')?.reset();
-        const modal = document.getElementById('modal-agregar-maestro');
-        modal?.classList.remove('activo');
-        modal?.setAttribute('aria-hidden', 'true');
-        mostrarNotificacion('Usuario creado. Se envió una invitación a su correo.', 'success');
+        if (!response.ok) throw new Error(resultado.error || `No se pudo cambiar el acceso (${response.status}).`);
+        mostrarNotificacion(resultado.message || 'Estado del usuario actualizado.', 'success');
         await cargarUsuariosAdministrador();
     } catch (error) {
-        console.error('No se pudo crear el usuario administrador:', error);
-        if (errorEl) errorEl.textContent = error.message || 'No se pudo crear el usuario.';
+        console.error('No se pudo actualizar el acceso del usuario:', error);
+        mostrarNotificacion(error.message || 'No se pudo actualizar el acceso del usuario.', 'error');
     } finally {
-        if (boton) boton.disabled = false;
+        boton.disabled = false;
+        boton.textContent = textoOriginal;
     }
 }
 

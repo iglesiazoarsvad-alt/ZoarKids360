@@ -88,9 +88,10 @@ Deno.serve(async (request: Request) => {
 
         const { data: adminPerfil, error: errorAdminPerfil } = await admin
             .from('usuarios')
-            .select('auth_user_id,rol')
+            .select('auth_user_id,rol,autorizado')
             .eq('auth_user_id', authData.user.id)
             .eq('rol', 'admin')
+            .eq('autorizado', true)
             .maybeSingle();
         if (errorAdminPerfil) {
             console.error('Could not verify administrator profile:', errorAdminPerfil.message);
@@ -102,60 +103,110 @@ Deno.serve(async (request: Request) => {
 
         const { data: perfilExistente, error: errorExistente } = await admin
             .from('usuarios')
-            .select('email')
+            .select('email,nombre,rol,auth_user_id,autorizado')
             .eq('email', email)
             .maybeSingle();
         if (errorExistente) {
             console.error('Could not check for existing user profile:', errorExistente.message);
             return jsonResponse(500, { error: 'No se pudo verificar el correo.' }, origin);
         }
-        if (perfilExistente) {
-            return jsonResponse(409, { error: 'Ese correo ya tiene un perfil de usuario.' }, origin);
-        }
-
-        const { data: invitation, error: errorInvitacion } = await admin.auth.admin.inviteUserByEmail(email, {
-            data: { nombre }
-        });
-        if (errorInvitacion || !invitation.user) {
-            const mensaje = errorInvitacion?.message || 'Supabase Auth no devolvió el usuario invitado.';
-            console.error('Could not invite new user:', mensaje);
-            if (/already registered|already exists|user exists|duplicate/i.test(mensaje)) {
-                return jsonResponse(409, { error: 'Ese correo ya existe en Supabase Auth. Contacta al administrador para vincularlo.' }, origin);
+        let authUser: { id: string; email?: string } | null = null;
+        if (perfilExistente?.auth_user_id) {
+            const { data: existenteAuth, error: errorAuthExistente } =
+                await admin.auth.admin.getUserById(perfilExistente.auth_user_id);
+            if (!errorAuthExistente && existenteAuth.user?.email?.toLowerCase() === email) {
+                authUser = existenteAuth.user;
+            } else if (errorAuthExistente) {
+                console.warn('Could not load linked Auth user; searching by email:', errorAuthExistente.message);
             }
-            return jsonResponse(502, { error: 'No se pudo enviar la invitación. Verifica la configuración de correo de Auth.' }, origin);
         }
 
-        const { error: errorRol } = await admin.auth.admin.updateUserById(invitation.user.id, {
+        if (!authUser) {
+            const perPage = 100;
+            for (let page = 1; page <= 50; page++) {
+                const { data: usersPage, error: errorListaAuth } = await admin.auth.admin.listUsers({
+                    page,
+                    perPage
+                });
+                if (errorListaAuth) {
+                    console.error('Could not search Auth users:', errorListaAuth.message);
+                    return jsonResponse(500, { error: 'No se pudo buscar la cuenta de autenticación.' }, origin);
+                }
+                authUser = usersPage.users.find(user => user.email?.trim().toLowerCase() === email) || null;
+                if (authUser || usersPage.users.length < perPage) break;
+            }
+        }
+
+        let authUserCreated = false;
+        if (!authUser) {
+            const { data: invitation, error: errorInvitacion } = await admin.auth.admin.inviteUserByEmail(email, {
+                data: { nombre }
+            });
+            if (errorInvitacion || !invitation.user) {
+                const mensaje = errorInvitacion?.message || 'Supabase Auth no devolvió el usuario invitado.';
+                console.error('Could not invite new user:', mensaje);
+                if (/already registered|already exists|user exists|duplicate/i.test(mensaje)) {
+                    return jsonResponse(409, { error: 'Ese correo ya existe en Auth, pero no se pudo localizar para vincularlo.' }, origin);
+                }
+                return jsonResponse(502, { error: 'No se pudo enviar la invitación. Verifica la configuración de correo de Auth.' }, origin);
+            }
+            authUser = invitation.user;
+            authUserCreated = true;
+        }
+        if (!authUser) {
+            return jsonResponse(500, { error: 'No se pudo crear ni localizar la cuenta de autenticación.' }, origin);
+        }
+
+        const { data: authUserData, error: errorActualizacionAuth } = await admin.auth.admin.updateUserById(authUser.id, {
             app_metadata: { role: rol },
             user_metadata: { nombre }
         });
-        if (errorRol) {
-            const { error: errorLimpieza } = await admin.auth.admin.deleteUser(invitation.user.id);
-            if (errorLimpieza) console.error('Could not remove user after role assignment failed:', errorLimpieza.message);
-            console.error('Could not assign invited user role:', errorRol.message);
+        if (errorActualizacionAuth || !authUserData.user) {
+            if (authUserCreated) {
+                const { error: errorLimpieza } = await admin.auth.admin.deleteUser(authUser.id);
+                if (errorLimpieza) console.error('Could not remove user after role assignment failed:', errorLimpieza.message);
+            }
+            console.error('Could not assign user role:', errorActualizacionAuth?.message || 'Auth returned no user.');
             return jsonResponse(500, { error: 'No se pudo preparar la cuenta del usuario.' }, origin);
         }
 
-        const { error: errorPerfil } = await admin.from('usuarios').insert({
-            auth_user_id: invitation.user.id,
+        const perfilDatos = {
+            auth_user_id: authUser.id,
             email,
             nombre,
             rol,
-            politicas_aceptadas: false,
-            politicas_fecha: null,
-            onboarding_completado: false
-        });
-        if (errorPerfil) {
-            const { error: errorLimpieza } = await admin.auth.admin.deleteUser(invitation.user.id);
-            if (errorLimpieza) console.error('Could not remove invited user after profile creation failed:', errorLimpieza.message);
-            console.error('Could not create invited user profile:', errorPerfil.message);
-            if (errorPerfil.code === '23505') {
-                return jsonResponse(409, { error: 'Ese correo ya tiene un perfil de usuario.' }, origin);
+            autorizado: true
+        };
+        const resultadoPerfil = perfilExistente
+            ? await admin.from('usuarios').update(perfilDatos).eq('email', email).select('email').maybeSingle()
+            : await admin.from('usuarios').insert({
+                ...perfilDatos,
+                politicas_aceptadas: false,
+                politicas_fecha: null,
+                onboarding_completado: false
+            }).select('email').maybeSingle();
+        if (resultadoPerfil.error || !resultadoPerfil.data) {
+            if (authUserCreated) {
+                const { error: errorLimpieza } = await admin.auth.admin.deleteUser(authUser.id);
+                if (errorLimpieza) console.error('Could not remove invited user after profile creation failed:', errorLimpieza.message);
             }
-            return jsonResponse(500, { error: 'No se pudo guardar el perfil del usuario.' }, origin);
+            const errorPerfil = resultadoPerfil.error;
+            console.error('Could not save authorized user profile:', errorPerfil?.message || 'No profile was returned.');
+            if (errorPerfil?.code === '23505') {
+                return jsonResponse(409, { error: 'El perfil cambió mientras se procesaba la autorización. Recarga la lista e inténtalo de nuevo.' }, origin);
+            }
+            return jsonResponse(500, { error: 'No se pudo guardar la autorización del usuario.' }, origin);
         }
 
-        return jsonResponse(201, { ok: true, email, nombre, rol }, origin);
+        return jsonResponse(perfilExistente ? 200 : 201, {
+            ok: true,
+            email,
+            nombre,
+            rol,
+            autorizado: true,
+            actualizado: Boolean(perfilExistente),
+            auth_user_id: authUser.id
+        }, origin);
     } catch (error) {
         console.error('Could not create administrator user:', error);
         return jsonResponse(500, { error: 'No se pudo completar la invitación.' }, origin);

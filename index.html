@@ -30,7 +30,7 @@
                 <label>Correo electr&oacute;nico</label>
                 <div class="wrapper-input">
                     <i class="fa-regular fa-envelope"></i>
-                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required autocomplete="email">
+                    <input type="email" id="correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required autocomplete="email" autocapitalize="none" spellcheck="false">
                 </div>
             </div>
             <div class="campo">
@@ -232,7 +232,7 @@
                 <p class="descripcion-modal">Ingresa tu correo para consultar tu pregunta de seguridad</p>
                 <div class="campo">
                     <label>Correo electr&oacute;nico</label>
-                    <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required>
+                    <input type="email" id="recuperar-correo" class="input-txt" placeholder="nombre@iglesiazoarsv.org" pattern="[a-zA-Z0-9._%+-]+@iglesiazoarsv\.org" required autocapitalize="none" spellcheck="false">
                 </div>
                 <button type="button" class="btn-enviar-clase" onclick="usarPreguntaSeguridad()" style="width:100%;">
                     Validar correo electr&oacute;nico
@@ -244,7 +244,7 @@
                     <label>Tu respuesta</label>
                     <input type="text" id="recuperar-respuesta" class="input-txt" placeholder="Escribe tu respuesta..." required>
                 </div>
-                <button type="button" class="btn-enviar-clase" onclick="validarRespuestaSeguridad()" style="width:100%;">
+                <button type="button" id="btn-validar-respuesta" class="btn-enviar-clase" onclick="validarRespuestaSeguridad()" style="width:100%;">
                     Validar respuesta
                 </button>
             </div>
@@ -313,7 +313,7 @@
             document.write('<script src="config.local.js"><\/script>');
         }
     </script>
-    <script src="logica.js?v=20261031-1"></script>
+    <script src="logica.js?v=20261109-2"></script>
     <script src="pwa.js" defer></script>
 </body>
 </html>
